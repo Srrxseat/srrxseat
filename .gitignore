@@ -3,3 +3,4 @@ node_modules/
 __pycache__/
 .venv/
 *.png
+!quickaction/watermark-assets/*.png
