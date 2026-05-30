@@ -10,13 +10,17 @@ WATERMARK="${SRRXSEAT_WATERMARK:-$HOME/.srrxseat/watermark.png}"
 OPACITY="${SRRXSEAT_OPACITY:-0.8}"
 SUFFIX="${SRRXSEAT_SUFFIX:-_wm}"
 # Watermark target width. Accepts:
-#   "40%"    -> 40% of the LONGEST side of the source image (default; keeps
-#               watermarks visually consistent across landscape and portrait)
-#   "40%w"   -> 40% of the source WIDTH
-#   "40%h"   -> 40% of the source HEIGHT
+#   "90%"    -> 90% of the SHORTEST side of the source image (default).
+#               Gives an identical pixel-size watermark across landscape /
+#               portrait / square crops of the same camera, while staying
+#               visually prominent (close to the original "full width" look
+#               on portrait and square images).
+#   "90%l"   -> 90% of the LONGEST side
+#   "90%w"   -> 90% of the source WIDTH
+#   "90%h"   -> 90% of the source HEIGHT
 #   "1200"   -> fixed 1200px wide
 #   "1200px" -> same as above
-WIDTH_SPEC="${SRRXSEAT_WIDTH:-40%}"
+WIDTH_SPEC="${SRRXSEAT_WIDTH:-90%}"
 
 # Locate ImageMagick (Homebrew on Apple Silicon / Intel / MacPorts / system).
 find_magick() {
@@ -85,9 +89,13 @@ process_one() {
   elif [[ "$spec" == *%h ]]; then
     ref=$height
     target=$(( ref * ${spec%\%h} / 100 ))
-  elif [[ "$spec" == *% ]]; then
-    # Percentage of the LONGEST side - identical watermark size on landscape & portrait.
+  elif [[ "$spec" == *%l ]]; then
     if (( width > height )); then ref=$width; else ref=$height; fi
+    target=$(( ref * ${spec%\%l} / 100 ))
+  elif [[ "$spec" == *% ]]; then
+    # Percentage of the SHORTEST side - identical pixel watermark size on
+    # landscape/portrait/square from the same camera, while staying prominent.
+    if (( width < height )); then ref=$width; else ref=$height; fi
     target=$(( ref * ${spec%\%} / 100 ))
   else
     target="${spec%px}"
