@@ -1,5 +1,5 @@
 #!/bin/bash
-# SRRXSEAT Watermark - applies a centered watermark at 80% opacity, scaled to image width.
+# SRRXSEAT Watermark - applies a centered watermark at fixed pixel width, 80% opacity.
 # Usage:  apply_watermark.sh <image1> [image2] ...
 # Output: writes "<name>_wm.<ext>" next to each input image.
 
@@ -9,6 +9,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WATERMARK="${SRRXSEAT_WATERMARK:-$HOME/.srrxseat/watermark.png}"
 OPACITY="${SRRXSEAT_OPACITY:-0.8}"
 SUFFIX="${SRRXSEAT_SUFFIX:-_wm}"
+# Watermark target width. Accepts:
+#   "1200"   -> fixed 1200px wide (default)
+#   "1200px" -> same as above
+#   "60%"    -> 60% of source image width
+WIDTH_SPEC="${SRRXSEAT_WIDTH:-1200}"
 
 # Locate ImageMagick (Homebrew on Apple Silicon / Intel / MacPorts / system).
 find_magick() {
@@ -66,10 +71,27 @@ process_one() {
     return 0
   fi
 
-  # Resize watermark to the image width (height auto, keeps aspect ratio),
-  # set 80% opacity on the alpha channel, then composite centered onto the source.
+  # Resolve target watermark width in pixels.
+  local target
+  if [[ "$WIDTH_SPEC" == *% ]]; then
+    local pct="${WIDTH_SPEC%\%}"
+    target=$(( width * pct / 100 ))
+  else
+    target="${WIDTH_SPEC%px}"
+  fi
+
+  # Safety cap: do not exceed source image width.
+  if (( target > width )); then
+    target=$width
+  fi
+  if (( target < 1 )); then
+    target=1
+  fi
+
+  # Resize watermark to the fixed target width (height auto, keeps aspect ratio),
+  # set opacity on alpha channel, then composite centered onto the source.
   "$MAGICK" "$input" \
-    \( "$WATERMARK" -resize "${width}x" -alpha set -channel A -evaluate multiply "$OPACITY" +channel \) \
+    \( "$WATERMARK" -resize "${target}x" -alpha set -channel A -evaluate multiply "$OPACITY" +channel \) \
     -gravity center -compose over -composite \
     "$output"
 

@@ -3,7 +3,7 @@
 Quick Action สำหรับ macOS ที่ใส่ลายน้ำ SRRXSEAT ลงบนรูปภาพแบบ:
 
 - **ตำแหน่ง:** กึ่งกลางภาพเสมอ (gravity = center)
-- **ขนาด:** ขยายให้กว้างเท่าภาพต้นฉบับ คงสัดส่วน watermark
+- **ขนาด:** กว้างคงที่ `1200px` ทุกภาพ (ปรับได้) คงสัดส่วน watermark — ภาพต่างขนาดจะได้ watermark ขนาดเท่ากัน
 - **Opacity:** 80%
 - **รองรับ:** PNG, JPG, HEIC, TIFF และไฟล์ที่ ImageMagick อ่านได้
 
@@ -60,6 +60,9 @@ cd quickaction
 | `SRRXSEAT_WATERMARK` | `~/.srrxseat/watermark.png` | ตำแหน่งไฟล์ watermark |
 | `SRRXSEAT_OPACITY` | `0.8` | ความโปร่งใส 0.0–1.0 |
 | `SRRXSEAT_SUFFIX` | `_wm` | คำต่อท้ายชื่อไฟล์ผลลัพธ์ |
+| `SRRXSEAT_WIDTH` | `1200` | ขนาด watermark รับค่า `1200` / `1200px` (พิกเซลคงที่) หรือ `60%` (สัดส่วนภาพ) ถ้าค่าเกินกว้างภาพจริงจะถูก cap ที่กว้างภาพ |
+
+ตัวอย่างปรับขนาด watermark ถาวร: แก้ไฟล์ `~/.srrxseat/apply_watermark.sh` บรรทัด `WIDTH_SPEC="${SRRXSEAT_WIDTH:-1200}"` เปลี่ยน `1200` เป็นค่าที่ต้องการ เช่น `1600`, `800`, หรือ `50%`
 
 ## ทดสอบจาก command line
 
@@ -71,14 +74,15 @@ cd quickaction
 
 ```
 magick INPUT \
-  \( WATERMARK -resize {WIDTH}x -alpha set -channel A -evaluate multiply 0.8 +channel \) \
+  \( WATERMARK -resize {TARGET}x -alpha set -channel A -evaluate multiply 0.8 +channel \) \
   -gravity center -compose over -composite \
   OUTPUT
 ```
 
-- `-resize ${WIDTH}x` ขยาย/ย่อ watermark ให้กว้างเท่าภาพต้นฉบับ (สูง auto, คงสัดส่วน)
+- `-resize ${TARGET}x` ย่อ/ขยาย watermark เป็นกว้างคงที่ (ค่าจาก `SRRXSEAT_WIDTH`) คงสัดส่วน
 - `-evaluate multiply 0.8` ปรับ alpha channel เป็น 80%
 - `-gravity center -composite` วางกึ่งกลางภาพ ไม่ว่า ratio หรือ resolution จะเป็นเท่าใด
+- ถ้าภาพต้นฉบับเล็กกว่าค่า target — watermark จะถูก cap ให้พอดีกว้างภาพเพื่อไม่ให้ล้น
 
 ## ทางเลือก: สร้าง Quick Action เองด้วย Automator GUI
 
