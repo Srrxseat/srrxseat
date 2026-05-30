@@ -10,10 +10,13 @@ WATERMARK="${SRRXSEAT_WATERMARK:-$HOME/.srrxseat/watermark.png}"
 OPACITY="${SRRXSEAT_OPACITY:-0.8}"
 SUFFIX="${SRRXSEAT_SUFFIX:-_wm}"
 # Watermark target width. Accepts:
-#   "1200"   -> fixed 1200px wide (default)
+#   "40%"    -> 40% of the LONGEST side of the source image (default; keeps
+#               watermarks visually consistent across landscape and portrait)
+#   "40%w"   -> 40% of the source WIDTH
+#   "40%h"   -> 40% of the source HEIGHT
+#   "1200"   -> fixed 1200px wide
 #   "1200px" -> same as above
-#   "60%"    -> 60% of source image width
-WIDTH_SPEC="${SRRXSEAT_WIDTH:-1200}"
+WIDTH_SPEC="${SRRXSEAT_WIDTH:-40%}"
 
 # Locate ImageMagick (Homebrew on Apple Silicon / Intel / MacPorts / system).
 find_magick() {
@@ -65,19 +68,29 @@ process_one() {
   if [[ "$name" == "$ext" ]]; then ext="png"; fi
   output="${dir}/${name}${SUFFIX}.${ext}"
 
-  width="$("$MAGICK" identify -format "%w" "$input[0]")"
-  if [[ -z "$width" || "$width" -le 0 ]]; then
+  local dims width height
+  dims="$("$MAGICK" identify -format "%w %h" "$input[0]")"
+  width="${dims% *}"
+  height="${dims#* }"
+  if [[ -z "$width" || "$width" -le 0 || -z "$height" || "$height" -le 0 ]]; then
     echo "skip (cannot read dimensions): $input" >&2
     return 0
   fi
 
-  # Resolve target watermark width in pixels.
-  local target
-  if [[ "$WIDTH_SPEC" == *% ]]; then
-    local pct="${WIDTH_SPEC%\%}"
-    target=$(( width * pct / 100 ))
+  # Pick reference dimension based on suffix in WIDTH_SPEC.
+  local target spec="$WIDTH_SPEC" ref
+  if [[ "$spec" == *%w ]]; then
+    ref=$width
+    target=$(( ref * ${spec%\%w} / 100 ))
+  elif [[ "$spec" == *%h ]]; then
+    ref=$height
+    target=$(( ref * ${spec%\%h} / 100 ))
+  elif [[ "$spec" == *% ]]; then
+    # Percentage of the LONGEST side - identical watermark size on landscape & portrait.
+    if (( width > height )); then ref=$width; else ref=$height; fi
+    target=$(( ref * ${spec%\%} / 100 ))
   else
-    target="${WIDTH_SPEC%px}"
+    target="${spec%px}"
   fi
 
   # Safety cap: do not exceed source image width.

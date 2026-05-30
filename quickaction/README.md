@@ -3,7 +3,7 @@
 Quick Action สำหรับ macOS ที่ใส่ลายน้ำ SRRXSEAT ลงบนรูปภาพแบบ:
 
 - **ตำแหน่ง:** กึ่งกลางภาพเสมอ (gravity = center)
-- **ขนาด:** กว้างคงที่ `1200px` ทุกภาพ (ปรับได้) คงสัดส่วน watermark — ภาพต่างขนาดจะได้ watermark ขนาดเท่ากัน
+- **ขนาด:** `40%` ของด้านที่ยาวที่สุดของภาพ (default) — ภาพ landscape / portrait / square ที่มาจากกล้องตัวเดียวกัน จะได้ watermark ที่ดูขนาดเท่ากันเมื่อแสดงผลในขนาดเดียวกัน
 - **Opacity:** 80%
 - **รองรับ:** PNG, JPG, HEIC, TIFF และไฟล์ที่ ImageMagick อ่านได้
 
@@ -60,9 +60,18 @@ cd quickaction
 | `SRRXSEAT_WATERMARK` | `~/.srrxseat/watermark.png` | ตำแหน่งไฟล์ watermark |
 | `SRRXSEAT_OPACITY` | `0.8` | ความโปร่งใส 0.0–1.0 |
 | `SRRXSEAT_SUFFIX` | `_wm` | คำต่อท้ายชื่อไฟล์ผลลัพธ์ |
-| `SRRXSEAT_WIDTH` | `1200` | ขนาด watermark รับค่า `1200` / `1200px` (พิกเซลคงที่) หรือ `60%` (สัดส่วนภาพ) ถ้าค่าเกินกว้างภาพจริงจะถูก cap ที่กว้างภาพ |
+| `SRRXSEAT_WIDTH` | `40%` | ขนาด watermark — ดูตารางด้านล่าง |
 
-ตัวอย่างปรับขนาด watermark ถาวร: แก้ไฟล์ `~/.srrxseat/apply_watermark.sh` บรรทัด `WIDTH_SPEC="${SRRXSEAT_WIDTH:-1200}"` เปลี่ยน `1200` เป็นค่าที่ต้องการ เช่น `1600`, `800`, หรือ `50%`
+**รูปแบบที่รับได้สำหรับ `SRRXSEAT_WIDTH`:**
+
+| ค่า | ความหมาย | ผลที่ landscape vs portrait |
+| --- | --- | --- |
+| `40%` | 40% ของ**ด้านยาวที่สุด** (default) | watermark ขนาดเท่ากันทุกภาพเมื่อ display ขนาดเดียวกัน |
+| `40%w` | 40% ของกว้างภาพ | watermark กว้างตามภาพ (portrait จะดูใหญ่กว่า) |
+| `40%h` | 40% ของสูงภาพ | watermark สูงตามภาพ (landscape จะดูใหญ่กว่า) |
+| `1200` หรือ `1200px` | พิกเซลคงที่ | เท่ากันในเชิงพิกเซล แต่ภาพต่างความละเอียดจะดูต่างกัน |
+
+ปรับขนาด watermark ถาวร: แก้ไฟล์ `~/.srrxseat/apply_watermark.sh` บรรทัด `WIDTH_SPEC="${SRRXSEAT_WIDTH:-40%}"` เปลี่ยน `40%` เป็นค่าที่ต้องการ เช่น `30%`, `50%`, หรือ `1200px`
 
 ## ทดสอบจาก command line
 
