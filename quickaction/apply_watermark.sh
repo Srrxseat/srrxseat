@@ -1,14 +1,18 @@
 #!/bin/bash
-# SRRXSEAT Watermark - applies a centered watermark at fixed pixel width, 80% opacity.
+# SRRXSEAT Watermark v3 - trims watermark padding, centers on image, fixed visual size.
 # Usage:  apply_watermark.sh <image1> [image2] ...
 # Output: writes "<name>_wm.<ext>" next to each input image.
+
+SRRXSEAT_VERSION="3.0"
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WATERMARK="${SRRXSEAT_WATERMARK:-$HOME/.srrxseat/watermark.png}"
-OPACITY="${SRRXSEAT_OPACITY:-0.8}"
+OPACITY="${SRRXSEAT_OPACITY:-1.0}"
 SUFFIX="${SRRXSEAT_SUFFIX:-_wm}"
+TRIM="${SRRXSEAT_TRIM:-1}"        # 1 = trim transparent/white padding around watermark
+TRIM_FUZZ="${SRRXSEAT_TRIM_FUZZ:-5%}"
 # Watermark target width. Accepts:
 #   "90%"    -> 90% of the SHORTEST side of the source image (default).
 #               Gives an identical pixel-size watermark across landscape /
@@ -51,8 +55,18 @@ if [[ ! -f "$WATERMARK" ]]; then
   exit 1
 fi
 
+if [[ "$#" -eq 1 && "$1" == "--version" ]]; then
+  echo "SRRXSEAT Watermark v${SRRXSEAT_VERSION}"
+  echo "  width:    $WIDTH_SPEC"
+  echo "  opacity:  $OPACITY"
+  echo "  trim:     $TRIM (fuzz $TRIM_FUZZ)"
+  echo "  magick:   $MAGICK"
+  exit 0
+fi
+
 if [[ "$#" -eq 0 ]]; then
   echo "Usage: $0 <image> [image ...]" >&2
+  echo "       $0 --version" >&2
   exit 64
 fi
 
@@ -109,14 +123,22 @@ process_one() {
     target=1
   fi
 
-  # Resize watermark to the fixed target width (height auto, keeps aspect ratio),
-  # set opacity on alpha channel, then composite centered onto the source.
+  # Build watermark pipeline:
+  #  1. (optional) -trim cuts off transparent/white padding so the SRRXSEAT
+  #     text itself reaches the target width, not the padded canvas.
+  #  2. -resize ${target}x sets a fixed pixel width based on WIDTH_SPEC.
+  #  3. alpha multiply applies opacity.
+  local trim_args=()
+  if [[ "$TRIM" == "1" ]]; then
+    trim_args=(-bordercolor none -border 1 -fuzz "$TRIM_FUZZ" -trim +repage)
+  fi
+
   "$MAGICK" "$input" \
-    \( "$WATERMARK" -resize "${target}x" -alpha set -channel A -evaluate multiply "$OPACITY" +channel \) \
+    \( "$WATERMARK" "${trim_args[@]}" -resize "${target}x" -alpha set -channel A -evaluate multiply "$OPACITY" +channel \) \
     -gravity center -compose over -composite \
     "$output"
 
-  echo "$output"
+  echo "$output  (watermark ${target}px wide on ${width}x${height})"
 }
 
 for f in "$@"; do
