@@ -1,0 +1,20 @@
+{
+  "name": "line-doc-assistant",
+  "version": "1.0.0",
+  "description": "LINE group AI assistant that scans documents shared in chat and records them to Google Drive and Google Sheets",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.0",
+    "@line/bot-sdk": "^9.4.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "googleapis": "^140.0.0"
+  }
+}
