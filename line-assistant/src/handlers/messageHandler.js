@@ -60,20 +60,28 @@ async function handleImageMessage(event) {
     source.type,
     getChatId(source),
     senderName,
-    extracted ? extracted.document_type : 'unknown',
-    extracted ? extracted.document_date : '',
-    extracted ? extracted.counterparty : '',
-    extracted ? extracted.amount : '',
-    extracted ? extracted.currency : '',
-    extracted ? extracted.summary : '(automatic extraction failed, photo saved as-is)',
+    extracted ? extracted.visitor_name : '',
+    extracted ? extracted.visit_date : '',
+    extracted ? extracted.session_time : '',
+    extracted ? extracted.country : '',
+    extracted ? extracted.gender : '',
+    extracted ? extracted.occupation : '',
+    extracted ? extracted.age : '',
+    extracted ? extracted.social_handle : '',
+    extracted ? extracted.email : '',
+    extracted ? extracted.phone : '',
+    extracted ? extracted.how_heard : '',
+    extracted ? extracted.visit_type : '',
+    extracted ? extracted.experience_text : '',
+    extracted ? extracted.drawing_description : '',
     drive.webViewLink,
     message.id,
-    extracted ? extracted.raw_text : '',
+    extracted ? extracted.raw_text : '(automatic extraction failed, photo saved as-is)',
   ]);
 
   const replyText = extracted
-    ? `Saved ✅\n${extracted.document_type} - ${extracted.summary}${extracted.amount ? `\nAmount: ${extracted.amount} ${extracted.currency}` : ''}`
-    : 'Saved the photo, but could not read the document automatically. Please check it manually in the sheet.';
+    ? `Saved ✅ ${extracted.visitor_name || 'unnamed visitor'} (${extracted.country || '?'}) — ${extracted.session_time || 'session'} · ${extracted.visit_type || ''}`
+    : 'Saved the photo, but could not read the form automatically. Please check it manually in the sheet.';
 
   await client.replyMessage({
     replyToken,
@@ -94,15 +102,10 @@ async function handleFileMessage(event) {
     source.type,
     getChatId(source),
     senderName,
-    'file',
-    '',
-    '',
-    '',
-    '',
-    message.fileName,
+    '', '', '', '', '', '', '', '', '', '', '', '', '', '',
     drive.webViewLink,
     message.id,
-    '',
+    `(file, not a scanned form) ${message.fileName}`,
   ]);
 
   await client.replyMessage({

@@ -6,36 +6,36 @@ const genAI = new GoogleGenerativeAI(config.geminiApiKey);
 const RECORD_SCHEMA = {
   type: SchemaType.OBJECT,
   properties: {
-    document_type: {
+    visitor_name: { type: SchemaType.STRING, description: 'Value of the "Name" field. Empty string if blank.' },
+    visit_date: { type: SchemaType.STRING, description: 'Value of the "Date" field, transcribed exactly as written. Empty string if blank.' },
+    session_time: { type: SchemaType.STRING, description: 'Which checkbox is marked: "Morning" or "Afternoon". Empty string if neither is marked.' },
+    country: { type: SchemaType.STRING, description: 'Value of the "Country" field. Empty string if blank.' },
+    gender: { type: SchemaType.STRING, description: 'Value of the "Gender" field. Empty string if blank.' },
+    occupation: { type: SchemaType.STRING, description: 'Value of the "Occupation" field. Empty string if blank.' },
+    age: { type: SchemaType.STRING, description: 'Value of the "Age" field. Empty string if blank.' },
+    social_handle: { type: SchemaType.STRING, description: 'Value of the "FB/IG" field. Empty string if blank.' },
+    email: { type: SchemaType.STRING, description: 'Value of the "E-Mail" field. Empty string if blank.' },
+    phone: { type: SchemaType.STRING, description: 'Value of the "Phone No./Whatsapp" field. Empty string if blank.' },
+    how_heard: {
       type: SchemaType.STRING,
-      description: 'e.g. invoice, receipt, bill, contract, ID card, bank slip, other',
+      description: 'Which "How did you hear about us?" checkbox is marked (Facebook fanpage, From friends, Road signs, Google search, Poster, or the handwritten value next to "Other"). Empty string if none is marked.',
     },
-    document_date: {
+    visit_type: { type: SchemaType.STRING, description: 'Which "No. of visit" checkbox is marked: "First time" or "Revisited". Empty string if neither is marked.' },
+    experience_text: {
       type: SchemaType.STRING,
-      description: 'Date printed on the document, formatted YYYY-MM-DD. Empty string if not found.',
+      description: 'The handwritten answer to "How Did You Feel?" under Meditation EXP, transcribed as accurately as possible.',
     },
-    counterparty: {
+    drawing_description: {
       type: SchemaType.STRING,
-      description: 'Vendor, company, or person named on the document. Empty string if not found.',
+      description: 'A short description of the sketch inside the "Drawing Your Feeling During Meditation" circle (e.g. "smiling face", "sunrise over a horizon line", "heart with handwritten text inside"). Empty string if the circle is blank.',
     },
-    amount: {
-      type: SchemaType.STRING,
-      description: 'Total amount on the document as plain text (digits only, no currency symbol). Empty string if none.',
-    },
-    currency: {
-      type: SchemaType.STRING,
-      description: 'Currency code or symbol found on the document. Empty string if none.',
-    },
-    summary: {
-      type: SchemaType.STRING,
-      description: 'One sentence summary of what this document is.',
-    },
-    raw_text: {
-      type: SchemaType.STRING,
-      description: 'All readable text transcribed from the document, best effort.',
-    },
+    raw_text: { type: SchemaType.STRING, description: 'All other readable handwritten or printed text on the form not already captured above.' },
   },
-  required: ['document_type', 'document_date', 'counterparty', 'amount', 'currency', 'summary', 'raw_text'],
+  required: [
+    'visitor_name', 'visit_date', 'session_time', 'country', 'gender', 'occupation', 'age',
+    'social_handle', 'email', 'phone', 'how_heard', 'visit_type', 'experience_text',
+    'drawing_description', 'raw_text',
+  ],
 };
 
 async function analyzeDocumentImage(base64Data, mediaType) {
@@ -50,7 +50,7 @@ async function analyzeDocumentImage(base64Data, mediaType) {
   const result = await model.generateContent([
     { inlineData: { mimeType: mediaType, data: base64Data } },
     {
-      text: 'This image was shared in a LINE group chat. Treat it as a scanned document and extract the structured fields as best you can from what is visible.',
+      text: 'This image is a handwritten "Pai International Meditation Center" visitor registration and meditation-experience form, shared in a LINE group chat. Read the handwriting carefully and extract the fields below exactly as filled in.',
     },
   ]);
 

@@ -1,18 +1,22 @@
 # LINE Document Assistant
 
 An AI assistant for a LINE group chat: whenever someone sends a photo of a
-document (receipt, invoice, bill, etc.), it scans the image with Google
-Gemini (free tier), saves the original photo to Google Drive, and records
-the extracted data as a new row in a Google Sheet. Plain files sent in the
-chat are saved to Drive and logged as well (without OCR).
+Pai International Meditation Center visitor registration / meditation
+experience form, it reads the handwriting with Google Gemini (free tier),
+saves the original photo to Google Drive, and records the extracted fields
+as a new row in a Google Sheet. Plain files sent in the chat are saved to
+Drive and logged as well (without OCR).
 
 ## How it works
 
 1. LINE sends a webhook event to `POST /webhook` whenever a message is posted
    in a group the bot has joined.
 2. For an **image** message: the bot downloads the photo, sends it to Gemini
-   (`gemini-2.0-flash` by default) to extract document type, date,
-   counterparty, amount, currency, a summary, and the raw transcribed text.
+   (`gemini-2.0-flash` by default) to read the handwriting and extract the
+   visitor's name, date, session (morning/afternoon), country, gender,
+   occupation, age, FB/IG, email, phone, how they heard about the center,
+   visit type (first time/revisited), their "how did you feel" answer, a
+   description of their feelings drawing, and any remaining text.
 3. The photo is uploaded to a Google Drive folder; the extracted fields plus
    a link to the Drive file are appended as a row in a Google Sheet.
 4. For a **file** message (e.g. a PDF someone sends): the file is uploaded to
@@ -57,7 +61,7 @@ chat are saved to Drive and logged as well (without OCR).
 4. Add a header row to the sheet tab (default tab name `Documents`):
 
    ```
-   Timestamp | Source Type | Chat ID | Sender | Document Type | Document Date | Counterparty | Amount | Currency | Summary | Drive Link | Message ID | Raw Text
+   Timestamp | Source Type | Chat ID | Sender | Visitor Name | Visit Date | Session | Country | Gender | Occupation | Age | FB/IG | Email | Phone | How Heard | Visit Type | Experience Text | Drawing Description | Drive Link | Message ID | Raw Text
    ```
 
 ### 4. Configure environment variables
