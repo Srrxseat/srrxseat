@@ -1,17 +1,17 @@
 # LINE Document Assistant
 
 An AI assistant for a LINE group chat: whenever someone sends a photo of a
-document (receipt, invoice, bill, etc.), it scans the image with Claude,
-saves the original photo to Google Drive, and records the extracted data
-as a new row in a Google Sheet. Plain files sent in the chat are saved to
-Drive and logged as well (without OCR).
+document (receipt, invoice, bill, etc.), it scans the image with Google
+Gemini (free tier), saves the original photo to Google Drive, and records
+the extracted data as a new row in a Google Sheet. Plain files sent in the
+chat are saved to Drive and logged as well (without OCR).
 
 ## How it works
 
 1. LINE sends a webhook event to `POST /webhook` whenever a message is posted
    in a group the bot has joined.
-2. For an **image** message: the bot downloads the photo, sends it to Claude
-   (`claude-sonnet-5` by default) to extract document type, date,
+2. For an **image** message: the bot downloads the photo, sends it to Gemini
+   (`gemini-2.0-flash` by default) to extract document type, date,
    counterparty, amount, currency, a summary, and the raw transcribed text.
 3. The photo is uploaded to a Google Drive folder; the extracted fields plus
    a link to the Drive file are appended as a row in a Google Sheet.
@@ -36,7 +36,17 @@ Drive and logged as well (without OCR).
 4. (Optional) To restrict the bot to specific groups, get each group's ID
    from the webhook event logs and set `ALLOWED_GROUP_IDS`.
 
-### 2. Google Cloud (Drive + Sheets)
+### 2. Google AI Studio (Gemini API key, free tier)
+
+1. Go to [Google AI Studio](https://aistudio.google.com/apikey) and sign in
+   with a Google account.
+2. Click **Create API key** and copy it.
+3. The free tier has rate limits (requests per minute/day) that vary by
+   model; that's enough for a single group chat. If the group gets very
+   busy, Google AI Studio shows how close you are to the limit and where to
+   enable paid usage if you ever need it.
+
+### 3. Google Cloud (Drive + Sheets)
 
 1. Create a Google Cloud project, enable the **Google Drive API** and
    **Google Sheets API**.
@@ -50,12 +60,12 @@ Drive and logged as well (without OCR).
    Timestamp | Source Type | Chat ID | Sender | Document Type | Document Date | Counterparty | Amount | Currency | Summary | Drive Link | Message ID | Raw Text
    ```
 
-### 3. Configure environment variables
+### 4. Configure environment variables
 
 Copy `.env.example` to `.env` and fill in:
 
 - `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_SECRET`
-- `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_MODEL`)
+- `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`)
 - `GOOGLE_SERVICE_ACCOUNT_KEY_JSON` — paste the full service-account JSON on
   one line, **or** set `GOOGLE_APPLICATION_CREDENTIALS` to a mounted key
   file path instead.
@@ -64,7 +74,7 @@ Copy `.env.example` to `.env` and fill in:
 - `GOOGLE_SHEET_TAB_NAME` — defaults to `Documents`.
 - `ALLOWED_GROUP_IDS` — optional comma-separated allowlist.
 
-### 4. Run
+### 5. Run
 
 ```bash
 cd line-assistant
@@ -82,5 +92,5 @@ public HTTPS URL as the webhook.
 - PDF/file messages are saved but not OCR'd yet; extend
   `src/handlers/messageHandler.js` + `src/documentAnalyzer.js` if text
   extraction from PDFs is needed later.
-- The Drive upload and Claude analysis run in parallel per message to keep
+- The Drive upload and Gemini analysis run in parallel per message to keep
   the reply latency low.

@@ -10,8 +10,8 @@ const config = {
     .split(',')
     .map((id) => id.trim())
     .filter(Boolean),
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-  anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5',
+  geminiApiKey: process.env.GEMINI_API_KEY,
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
   googleServiceAccountKeyJson: process.env.GOOGLE_SERVICE_ACCOUNT_KEY_JSON,
   googleDriveFolderId: process.env.GOOGLE_DRIVE_FOLDER_ID,
   googleSheetId: process.env.GOOGLE_SHEET_ID,
@@ -21,7 +21,7 @@ const config = {
 const required = [
   ['LINE_CHANNEL_ACCESS_TOKEN', config.line.channelAccessToken],
   ['LINE_CHANNEL_SECRET', config.line.channelSecret],
-  ['ANTHROPIC_API_KEY', config.anthropicApiKey],
+  ['GEMINI_API_KEY', config.geminiApiKey],
   ['GOOGLE_SHEET_ID', config.googleSheetId],
 ];
 
