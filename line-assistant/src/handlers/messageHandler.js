@@ -41,41 +41,56 @@ function isAllowed(source) {
   return config.allowedGroupIds.includes(chatId);
 }
 
+function sanitizeForFilename(value) {
+  return (value || '')
+    .toString()
+    .trim()
+    .replace(/[/.]/g, '-')
+    .replace(/[^a-zA-Z0-9ก-๙\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 40);
+}
+
+function buildFilename(extracted, messageId) {
+  const shortId = messageId.slice(-8);
+  if (!extracted) return `unrecognized_${shortId}.jpg`;
+
+  const parts = [extracted.visit_date, extracted.country, extracted.visitor_name]
+    .map(sanitizeForFilename)
+    .filter(Boolean);
+
+  return `${[...parts, shortId].join('_')}.jpg`;
+}
+
 async function handleImageMessage(event) {
   const { source, replyToken, message } = event;
   const buffer = await streamToBuffer(await blobClient.getMessageContent(message.id));
-  const timestamp = new Date(event.timestamp).toISOString();
   const senderName = await getSenderName(source);
 
-  const [drive, extracted] = await Promise.all([
-    uploadDocument(buffer, `${timestamp}_${message.id}.jpg`, 'image/jpeg'),
-    analyzeDocumentImage(buffer.toString('base64'), 'image/jpeg').catch((err) => {
-      console.error('[documentAnalyzer] failed:', err.message);
-      return null;
-    }),
-  ]);
+  const extracted = await analyzeDocumentImage(buffer.toString('base64'), 'image/jpeg').catch((err) => {
+    console.error('[documentAnalyzer] failed:', err.message);
+    return null;
+  });
+
+  const drive = await uploadDocument(buffer, buildFilename(extracted, message.id), 'image/jpeg');
 
   await appendRow([
-    timestamp,
-    source.type,
-    getChatId(source),
-    senderName,
-    extracted ? extracted.visitor_name : '',
     extracted ? extracted.visit_date : '',
     extracted ? extracted.session_time : '',
+    extracted ? extracted.how_heard : '',
+    extracted ? extracted.visitor_name : '',
     extracted ? extracted.country : '',
+    extracted ? extracted.visit_type : '',
     extracted ? extracted.gender : '',
     extracted ? extracted.occupation : '',
-    extracted ? extracted.age : '',
     extracted ? extracted.social_handle : '',
     extracted ? extracted.email : '',
     extracted ? extracted.phone : '',
-    extracted ? extracted.how_heard : '',
-    extracted ? extracted.visit_type : '',
     extracted ? extracted.experience_text : '',
-    extracted ? extracted.drawing_description : '',
+    extracted ? extracted.age : '',
     drive.webViewLink,
-    message.id,
+    senderName,
     extracted ? extracted.raw_text : '(automatic extraction failed, photo saved as-is)',
   ]);
 
@@ -92,19 +107,14 @@ async function handleImageMessage(event) {
 async function handleFileMessage(event) {
   const { source, replyToken, message } = event;
   const buffer = await streamToBuffer(await blobClient.getMessageContent(message.id));
-  const timestamp = new Date(event.timestamp).toISOString();
   const senderName = await getSenderName(source);
 
   const drive = await uploadDocument(buffer, message.fileName, 'application/octet-stream');
 
   await appendRow([
-    timestamp,
-    source.type,
-    getChatId(source),
-    senderName,
-    '', '', '', '', '', '', '', '', '', '', '', '', '', '',
+    '', '', '', '', '', '', '', '', '', '', '', '', '',
     drive.webViewLink,
-    message.id,
+    senderName,
     `(file, not a scanned form) ${message.fileName}`,
   ]);
 

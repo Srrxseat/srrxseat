@@ -25,16 +25,11 @@ const RECORD_SCHEMA = {
       type: SchemaType.STRING,
       description: 'The handwritten answer to "How Did You Feel?" under Meditation EXP, transcribed as accurately as possible.',
     },
-    drawing_description: {
-      type: SchemaType.STRING,
-      description: 'A short description of the sketch inside the "Drawing Your Feeling During Meditation" circle (e.g. "smiling face", "sunrise over a horizon line", "heart with handwritten text inside"). Empty string if the circle is blank.',
-    },
     raw_text: { type: SchemaType.STRING, description: 'All other readable handwritten or printed text on the form not already captured above.' },
   },
   required: [
     'visitor_name', 'visit_date', 'session_time', 'country', 'gender', 'occupation', 'age',
-    'social_handle', 'email', 'phone', 'how_heard', 'visit_type', 'experience_text',
-    'drawing_description', 'raw_text',
+    'social_handle', 'email', 'phone', 'how_heard', 'visit_type', 'experience_text', 'raw_text',
   ],
 };
 

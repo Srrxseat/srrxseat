@@ -13,12 +13,15 @@ Drive and logged as well (without OCR).
    in a group the bot has joined.
 2. For an **image** message: the bot downloads the photo, sends it to Gemini
    (`gemini-2.0-flash` by default) to read the handwriting and extract the
-   visitor's name, date, session (morning/afternoon), country, gender,
-   occupation, age, FB/IG, email, phone, how they heard about the center,
-   visit type (first time/revisited), their "how did you feel" answer, a
-   description of their feelings drawing, and any remaining text.
-3. The photo is uploaded to a Google Drive folder; the extracted fields plus
-   a link to the Drive file are appended as a row in a Google Sheet.
+   visitor's date, session (morning/afternoon), how they heard about the
+   center, name, country, visit type (first time/revisited), gender,
+   occupation, FB/IG, email, phone, their "how did you feel" answer, age,
+   and any remaining text.
+3. The photo is uploaded to a Google Drive folder using a readable filename
+   built from the visit date, country, and name (falling back to the LINE
+   message ID if extraction fails); the extracted fields plus a link to the
+   Drive file are appended as a row in a Google Sheet. The feelings drawing
+   itself isn't transcribed — it's preserved as part of the saved photo.
 4. For a **file** message (e.g. a PDF someone sends): the file is uploaded to
    the same Drive folder and logged in the sheet without OCR.
 5. The bot replies in the chat confirming what was saved.
@@ -61,8 +64,16 @@ Drive and logged as well (without OCR).
 4. Add a header row to the sheet tab (default tab name `Documents`):
 
    ```
-   Timestamp | Source Type | Chat ID | Sender | Visitor Name | Visit Date | Session | Country | Gender | Occupation | Age | FB/IG | Email | Phone | How Heard | Visit Type | Experience Text | Drawing Description | Drive Link | Message ID | Raw Text
+   Date | Time | how did you find us | Name | Country | No. of visited | Gender | occupation | FB/IG | E-mail | whatsapp | Meditation experience | Age | Drive Link | Sender | Raw Text
    ```
+
+   This matches the column layout the center already uses for its manual
+   visitor log, with `Age`, `Drive Link` (photo of the original form),
+   `Sender` (the LINE user who sent the photo), and `Raw Text` (catch-all
+   for anything else legible on the form) appended at the end. `Monk 1` /
+   `Monk 2` / `Facilitator` from the manual log are intentionally **not**
+   included — the bot has no way to read who taught a session from the
+   visitor's own form, so those stay a manual note if you still want them.
 
 ### 4. Configure environment variables
 
@@ -96,5 +107,5 @@ public HTTPS URL as the webhook.
 - PDF/file messages are saved but not OCR'd yet; extend
   `src/handlers/messageHandler.js` + `src/documentAnalyzer.js` if text
   extraction from PDFs is needed later.
-- The Drive upload and Gemini analysis run in parallel per message to keep
-  the reply latency low.
+- The Drive upload happens after the Gemini analysis (not in parallel)
+  because the uploaded filename is built from the extracted date/country/name.
