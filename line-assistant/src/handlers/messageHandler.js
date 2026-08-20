@@ -84,7 +84,7 @@ async function handleImageMessage(event) {
   const buffer = await streamToBuffer(await blobClient.getMessageContent(message.id));
   const senderName = await getSenderName(source);
 
-  const extracted = cleanExtracted(await analyzeDocumentImage(buffer.toString('base64'), 'image/jpeg').catch((err) => {
+  const extracted = cleanExtracted(await analyzeDocumentImage(buffer.toString('base64'), 'image/jpeg', event.timestamp).catch((err) => {
     console.error('[documentAnalyzer] failed:', err.message);
     return null;
   }));

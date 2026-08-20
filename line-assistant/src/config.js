@@ -11,7 +11,10 @@ const config = {
     .map((id) => id.trim())
     .filter(Boolean),
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-  anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5',
+  // Reading small handwritten checkboxes and scrawled dates is the hard part of
+  // this job, and misreads cost manual correction, so default to the strongest
+  // model. Set ANTHROPIC_MODEL=claude-sonnet-5 to trade accuracy back for cost.
+  anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-opus-5',
   googleOAuthClientId: process.env.GOOGLE_OAUTH_CLIENT_ID,
   googleOAuthClientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
   googleOAuthRefreshToken: process.env.GOOGLE_OAUTH_REFRESH_TOKEN,

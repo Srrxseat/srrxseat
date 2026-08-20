@@ -12,8 +12,9 @@ well (without OCR).
 1. LINE sends a webhook event to `POST /webhook` whenever a message is posted
    in a group the bot has joined.
 2. For an **image** message: the bot downloads the photo and sends it to
-   Claude (`claude-sonnet-5` by default, chosen for handwriting accuracy over
-   the cheaper Haiku tier), which first decides
+   Claude (`claude-opus-5` by default — reading small handwritten checkboxes
+   and scrawled dates is the hard part of this job, and every misread costs
+   manual correction), which first decides
    whether the image is actually a Pai International Meditation Center
    registration form at all. This matters in a busy group chat that also
    carries unrelated photos and messages: if it's confidently **not** a form
@@ -21,7 +22,8 @@ well (without OCR).
    upload, no sheet row, no reply, so it doesn't clutter either. If it is,
    Claude reads the handwriting and extracts the visitor's date (as three
    separate day/month/year digits, reassembled deterministically in code
-   rather than trusting the model to do date arithmetic), session
+   rather than trusting the model to do date arithmetic — see
+   "How the visit date is decided" below), session
    (morning/afternoon), how they heard about the center, name, country,
    visit type (first time/revisited), gender, occupation, FB/IG, email,
    phone, their "how did you feel" answer (plus an auto-generated Thai
@@ -64,10 +66,10 @@ well (without OCR).
    or create an account.
 2. Go to **API Keys → Create Key**, name it, and copy it — it's shown once.
 3. Under **Settings → Billing**, add a payment method. There's no free tier;
-   at this app's volume (photos scanned per day) the cost is still a few
-   dollars a month at most on `claude-sonnet-5` (swap `ANTHROPIC_MODEL` to
-   `claude-haiku-4-5-20251001` for lower cost if handwriting accuracy stops
-   mattering as much).
+   at this app's volume (a few dozen photos a day) the cost is still on the
+   order of tens of dollars a month on the default `claude-opus-5`. Set
+   `ANTHROPIC_MODEL=claude-sonnet-5` to roughly halve that if you'd rather
+   trade some handwriting accuracy for cost.
 
 ### 3. Google Cloud (Drive + Sheets)
 
@@ -155,6 +157,32 @@ For local testing, expose port 3000 with a tunnel (e.g. `ngrok http 3000`)
 and point the LINE webhook URL at the tunnel's HTTPS URL. For production,
 deploy to any Node.js host (Render, Railway, Fly.io, a VM, etc.) and use its
 public HTTPS URL as the webhook.
+
+## How the visit date is decided
+
+The handwritten `Date` box is the least reliable thing on the form — the year is
+two scrawled digits that Claude has misread as far off as `2019`, and sometimes
+only two of the three numbers come back legible, which used to produce
+half-dates like `8/19` that the sheet can't sort on. So the date in the sheet is
+assembled in code (`resolveVisitDate` in `src/documentAnalyzer.js`) rather than
+taken from the model verbatim:
+
+- **Day and month** come from the model, validated. If the "month" is above 12
+  and the "day" isn't, they're swapped back (the model occasionally transposes
+  them).
+- **The year** comes from the model only if it's within a year of the date LINE
+  received the photo. Otherwise the message timestamp's year is used. Visitors
+  fill the form on the day they visit and staff photograph it the same day, so
+  the timestamp is the more trustworthy source.
+- **If day or month is unreadable**, the whole date falls back to the date LINE
+  received the photo, and a line is logged saying so.
+
+That last case is an inference, not a reading — if forms are ever photographed
+in a batch weeks after the fact, those rows will carry the upload date instead
+of the visit date. Check the console log (or the Drive photo) for any row whose
+date looks off. Note also that if the model misreads the *day or month* rather
+than the year, no amount of code can recover it — that's what the model choice
+in step 2 is for.
 
 ## Notes / next steps
 

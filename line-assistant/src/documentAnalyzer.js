@@ -56,22 +56,73 @@ const RECORD_TOOL = {
   },
 };
 
-const PROMPT_TEXT = 'This image was shared in a LINE group chat that also carries unrelated messages and photos - candid photos of people, monks, meals, events, screenshots, memes, etc. Only set is_registration_form to true if the image is a photo of the actual printed "Pai International Meditation Center" registration/meditation-experience paper form itself, not merely something related to meditation or the center. For any other photo, set is_registration_form to false and leave every other field as an empty string - do not guess. If it is the form, read the handwriting carefully and extract the fields below exactly as filled in - each field holds only the value of its own labeled box on the form, nothing from elsewhere on the page.';
+const PROMPT_TEXT = [
+  'This image was shared in a LINE group chat that also carries unrelated messages and photos - candid photos of people, monks, meals, events, screenshots, memes, etc. Only set is_registration_form to true if the image is a photo of the actual printed "Pai International Meditation Center" registration/meditation-experience paper form itself, not merely something related to meditation or the center. For any other photo, set is_registration_form to false and leave every other field as an empty string - do not guess.',
+  'If it is the form, read the handwriting carefully and extract the fields below exactly as filled in. Each field holds only the value of its own labeled box on the form, nothing from elsewhere on the page.',
+  'Checkboxes need particular care - they are small and the mark may be a tick, a cross, a filled box, or a circle around the label. "How did you hear about us?" and "No. of visit" are each a row of checkboxes near the bottom of the personal-information block, and the visitor almost always marks one in each row, so look closely before concluding a row is unmarked. Report the label of the marked box. Only leave the field empty if you genuinely cannot see a mark.',
+  'For the date: transcribe the digits in each position of the "Date" box separately and literally. Do not convert, reorder, or reason about the calendar. If the year digits are unclear, leave date_year empty rather than guessing - a correct blank is far more useful here than a wrong year.',
+].join('\n\n');
 
-// The form is handwritten as Day/Month/Year, one number per box. Reading
-// each number into its own field (rather than one combined string) and
-// reassembling it here in code avoids the model reordering or miscomputing
-// the date itself (it previously read "19/8/26" as the year 2019).
-function normalizeVisitDate(day, month, year) {
-  if (!day || !month || !year) {
-    return [day, month, year].filter(Boolean).join('/');
+const pad = (n) => String(n).padStart(2, '0');
+
+// The center is in Pai; LINE timestamps are UTC. Shifting by the offset and
+// then reading UTC getters gives the local calendar date without pulling in a
+// timezone library.
+const THAI_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+function thaiDateParts(timestampMs) {
+  const local = new Date(timestampMs + THAI_OFFSET_MS);
+  return { year: local.getUTCFullYear(), month: local.getUTCMonth() + 1, day: local.getUTCDate() };
+}
+
+// The handwritten date is the least reliable thing on the form: the year is a
+// scrawled 2 digits the model has misread as far off as 2019, and sometimes it
+// hands back only two of the three numbers, which used to produce half-dates
+// like "8/19" that the sheet can't sort on.
+//
+// Visitors fill the form on the day they visit and the photo reaches the LINE
+// group the same day, so the message timestamp is a better source for the year
+// than the handwriting is. Trust the model for day and month (validated), and
+// let the timestamp supply or overrule an implausible year.
+function resolveVisitDate(day, month, year, timestampMs) {
+  const ref = thaiDateParts(timestampMs);
+
+  let d = parseInt(day, 10);
+  let m = parseInt(month, 10);
+
+  // The form reads Day/Month, but the model occasionally returns them swapped.
+  // A month above 12 is unambiguous evidence of that.
+  if (Number.isInteger(d) && Number.isInteger(m) && m > 12 && d <= 12) {
+    [d, m] = [m, d];
   }
-  const fullYear = year.length === 2 ? `20${year}` : year;
-  if (fullYear.length !== 4 || day.length > 2 || month.length > 2) {
-    return [day, month, year].join('/');
+
+  const dayOk = Number.isInteger(d) && d >= 1 && d <= 31;
+  const monthOk = Number.isInteger(m) && m >= 1 && m <= 12;
+
+  if (!dayOk || !monthOk) {
+    console.log(`[documentAnalyzer] unreadable date (day=${day} month=${month} year=${year}), using the date LINE received the photo`);
+    return `${ref.year}/${pad(ref.month)}/${pad(ref.day)}`;
   }
-  const pad = (n) => n.padStart(2, '0');
-  return `${fullYear}/${pad(month)}/${pad(day)}`;
+
+  let y = parseInt(year, 10);
+  if (Number.isInteger(y) && y < 100) y += 2000;
+  const yearOk = Number.isInteger(y) && Math.abs(y - ref.year) <= 1;
+  if (!yearOk) {
+    console.log(`[documentAnalyzer] implausible year "${year}", using ${ref.year} from the message timestamp`);
+  }
+
+  return `${yearOk ? y : ref.year}/${pad(m)}/${pad(d)}`;
+}
+
+// The form has no fixed vocabulary for Gender, so visitors write "F", "Female",
+// "male", etc. Fold the obvious abbreviations together so the column is
+// filterable, but leave anything else exactly as written rather than forcing it
+// into a bucket it may not belong in.
+function normalizeGender(value) {
+  const raw = (value || '').trim();
+  if (/^(f|female|woman|w)$/i.test(raw)) return 'Female';
+  if (/^(m|male|man)$/i.test(raw)) return 'Male';
+  return raw;
 }
 
 // A `strict: true` schema would enforce these enums for us, but the full form
@@ -85,10 +136,14 @@ function coerceEnum(value, allowed) {
   return match || '';
 }
 
-async function analyzeDocumentImage(base64Data, mediaType) {
+async function analyzeDocumentImage(base64Data, mediaType, timestampMs) {
   const message = await client.messages.create({
     model: config.anthropicModel,
-    max_tokens: 1024,
+    // Generous headroom: a long English answer plus its Thai translation is a
+    // lot of tokens (Thai runs several tokens per character), and at the old
+    // 1024 cap the tool input was being truncated mid-record, silently
+    // dropping whichever fields came last.
+    max_tokens: 8000,
     tools: [RECORD_TOOL],
     tool_choice: { type: 'tool', name: 'record_document' },
     messages: [
@@ -102,15 +157,20 @@ async function analyzeDocumentImage(base64Data, mediaType) {
     ],
   });
 
+  if (message.stop_reason === 'max_tokens') {
+    console.warn('[documentAnalyzer] response hit max_tokens - record may be incomplete');
+  }
+
   const toolUse = message.content.find((block) => block.type === 'tool_use');
   if (!toolUse) return null;
 
   const { date_day, date_month, date_year, ...rest } = toolUse.input;
   return {
     ...rest,
-    visit_date: normalizeVisitDate(date_day, date_month, date_year),
+    visit_date: resolveVisitDate(date_day, date_month, date_year, timestampMs),
     session_time: coerceEnum(rest.session_time, ['Morning', 'Afternoon']),
     visit_type: coerceEnum(rest.visit_type, ['First time', 'Revisited']),
+    gender: normalizeGender(rest.gender),
   };
 }
 
