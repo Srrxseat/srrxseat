@@ -158,9 +158,44 @@ npm start
 ```
 
 For local testing, expose port 3000 with a tunnel (e.g. `ngrok http 3000`)
-and point the LINE webhook URL at the tunnel's HTTPS URL. For production,
-deploy to any Node.js host (Render, Railway, Fly.io, a VM, etc.) and use its
-public HTTPS URL as the webhook.
+and point the LINE webhook URL at the tunnel's HTTPS URL.
+
+## Deploying to a host
+
+Running with `npm start` on a laptop means the bot stops receiving photos the
+moment the machine sleeps or the terminal closes. For real use it needs a host
+that stays up.
+
+`render.yaml` in the repo root is a [Render](https://render.com) Blueprint that
+describes the whole service. To use it: **Render dashboard → New → Blueprint →
+pick this repo**. Render reads the file, creates the service, and then prompts
+for each secret (they're marked `sync: false` so they are never committed).
+Fill in the same values as your local `.env`, including
+`GOOGLE_OAUTH_REFRESH_TOKEN` — the refresh token works fine from a server, so
+there's no need to re-run `get-refresh-token.js`.
+
+When the first deploy finishes, Render gives the service a public HTTPS URL.
+Set the LINE webhook to `https://<that-url>/webhook` and press **Verify** in
+the LINE console. `GET /health` is wired up as Render's health check.
+
+### Why the paid plan
+
+The Blueprint asks for the **Starter** plan, not **Free**, and that's the one
+real decision here. Free web services spin down after 15 minutes idle and take
+30–60 seconds to wake up, and **a LINE webhook that arrives during that window
+is lost** — LINE doesn't queue it for later. In practice that means the first
+photo of every batch disappears, which is the one failure this whole system
+exists to prevent.
+
+If you want to try Free anyway, keep the service awake by pinging
+`/health` every 10 minutes from an external scheduler (e.g. a free
+cron-job.org job). Free instances get 750 hours a month and a month is 744
+hours, so one always-awake service just fits — but it's fragile: if the pinger
+stops, photos start vanishing silently. Starter is the boring, reliable choice.
+
+Any other Node host works the same way — Railway, Fly.io, a small VM. The only
+requirements are a public HTTPS URL, the environment variables, and
+`npm start`.
 
 ## How the visit date is decided
 

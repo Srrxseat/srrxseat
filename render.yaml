@@ -1,0 +1,55 @@
+# Render Blueprint for the LINE document assistant.
+#
+# Deploy: Render dashboard -> New -> Blueprint -> pick this repo. Render reads
+# this file, creates the service, then prompts for every secret marked
+# `sync: false` (they are deliberately not stored in git).
+#
+# The plan is `starter` rather than `free` on purpose. Free web services spin
+# down after 15 minutes idle and take ~30-60s to wake, and a LINE webhook that
+# arrives during that window is simply lost - which in practice means the first
+# photo of every batch goes missing. See README "Deploying to a host".
+services:
+  - type: web
+    name: line-doc-assistant
+    runtime: node
+    plan: starter
+    rootDir: line-assistant
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+
+      # LINE Messaging API channel (Developers Console)
+      - key: LINE_CHANNEL_ACCESS_TOKEN
+        sync: false
+      - key: LINE_CHANNEL_SECRET
+        sync: false
+
+      # Anthropic Console
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+      # Google OAuth - the account that owns the Drive folder and Sheet
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_OAUTH_REFRESH_TOKEN
+        sync: false
+
+      # Destinations
+      - key: GOOGLE_DRIVE_FOLDER_ID
+        sync: false
+      - key: GOOGLE_SHEET_ID
+        sync: false
+
+      # Optional - defaults live in src/config.js
+      # - key: GOOGLE_SHEET_TAB_NAME
+      #   value: Documents
+      # - key: ANTHROPIC_MODEL
+      #   value: claude-opus-5
+      # - key: ALLOWED_GROUP_IDS
+      #   sync: false
