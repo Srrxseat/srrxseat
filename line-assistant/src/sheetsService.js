@@ -7,7 +7,7 @@ async function appendRow(values) {
   await sheets.spreadsheets.values.append({
     spreadsheetId: config.googleSheetId,
     range: `${config.googleSheetTabName}!A1`,
-    valueInputOption: 'USER_ENTERED',
+    valueInputOption: 'RAW',
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values: [values] },
   });

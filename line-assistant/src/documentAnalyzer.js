@@ -25,7 +25,10 @@ const RECORD_SCHEMA = {
       type: SchemaType.STRING,
       description: 'The handwritten answer to "How Did You Feel?" under Meditation EXP, transcribed as accurately as possible.',
     },
-    raw_text: { type: SchemaType.STRING, description: 'All other readable handwritten or printed text on the form not already captured above.' },
+    raw_text: {
+      type: SchemaType.STRING,
+      description: 'Any handwritten or filled-in content on the form not already captured in the fields above. Do NOT include the form\'s static printed template text (the center\'s letterhead/logo caption, section headings like "Meditation EXP.", the "Drawing Your Feeling During Meditation" instruction, the thank-you footer message, or the website URL). Empty string if there is nothing else to capture.',
+    },
   },
   required: [
     'visitor_name', 'visit_date', 'session_time', 'country', 'gender', 'occupation', 'age',
