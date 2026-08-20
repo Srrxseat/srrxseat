@@ -6,6 +6,10 @@ const genAI = new GoogleGenerativeAI(config.geminiApiKey);
 const RECORD_SCHEMA = {
   type: SchemaType.OBJECT,
   properties: {
+    is_registration_form: {
+      type: SchemaType.BOOLEAN,
+      description: 'True only if this image is a "Pai International Meditation Center" visitor registration / meditation-experience form (has the center\'s letterhead and the Name/Date/Country/... fields shown below, filled in or blank). False for any other kind of image - selfies, screenshots, memes, unrelated documents, etc.',
+    },
     visitor_name: { type: SchemaType.STRING, description: 'Value of the "Name" field. Empty string if blank.' },
     visit_date: { type: SchemaType.STRING, description: 'Value of the "Date" field, transcribed exactly as written. Empty string if blank.' },
     session_time: { type: SchemaType.STRING, description: 'Which checkbox is marked: "Morning" or "Afternoon". Empty string if neither is marked.' },
@@ -31,8 +35,9 @@ const RECORD_SCHEMA = {
     },
   },
   required: [
-    'visitor_name', 'visit_date', 'session_time', 'country', 'gender', 'occupation', 'age',
-    'social_handle', 'email', 'phone', 'how_heard', 'visit_type', 'experience_text', 'raw_text',
+    'is_registration_form', 'visitor_name', 'visit_date', 'session_time', 'country', 'gender',
+    'occupation', 'age', 'social_handle', 'email', 'phone', 'how_heard', 'visit_type',
+    'experience_text', 'raw_text',
   ],
 };
 
@@ -88,7 +93,7 @@ async function analyzeDocumentImage(base64Data, mediaType) {
       const result = await model.generateContent([
         { inlineData: { mimeType: mediaType, data: base64Data } },
         {
-          text: 'This image is a handwritten "Pai International Meditation Center" visitor registration and meditation-experience form, shared in a LINE group chat. Read the handwriting carefully and extract the fields below exactly as filled in.',
+          text: 'This image was shared in a LINE group chat that also carries unrelated messages and photos. First decide whether it is a "Pai International Meditation Center" visitor registration / meditation-experience form. If it is not, set is_registration_form to false and leave every other field as an empty string - do not guess. If it is, read the handwriting carefully and extract the fields below exactly as filled in.',
         },
       ]);
       return JSON.parse(result.response.text());

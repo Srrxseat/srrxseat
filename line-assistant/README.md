@@ -11,20 +11,31 @@ Drive and logged as well (without OCR).
 
 1. LINE sends a webhook event to `POST /webhook` whenever a message is posted
    in a group the bot has joined.
-2. For an **image** message: the bot downloads the photo, sends it to Gemini
-   (`gemini-flash-latest` by default) to read the handwriting and extract the
-   visitor's date, session (morning/afternoon), how they heard about the
-   center, name, country, visit type (first time/revisited), gender,
-   occupation, FB/IG, email, phone, their "how did you feel" answer, age,
-   and any remaining text.
+2. For an **image** message: the bot downloads the photo and sends it to
+   Gemini (`gemini-flash-latest` by default), which first decides whether the
+   image is actually a Pai International Meditation Center registration form
+   at all. This matters in a busy group chat that also carries unrelated
+   photos and messages: if it's confidently **not** a form (a selfie,
+   screenshot, meme, etc.), the bot does nothing at all — no upload, no sheet
+   row, no reply, so it doesn't clutter either. If it is, Gemini reads the
+   handwriting and extracts the visitor's date, session (morning/afternoon),
+   how they heard about the center, name, country, visit type (first
+   time/revisited), gender, occupation, FB/IG, email, phone, their "how did
+   you feel" answer, and age.
 3. The photo is uploaded to a Google Drive folder using a readable filename
    built from the visit date, country, and name (falling back to the LINE
    message ID if extraction fails); the extracted fields plus a link to the
    Drive file are appended as a row in a Google Sheet. The feelings drawing
-   itself isn't transcribed — it's preserved as part of the saved photo.
+   itself isn't transcribed — it's preserved as part of the saved photo. If
+   Gemini errors out entirely (rate limit, outage) rather than confidently
+   saying "not a form", the bot still saves the photo and a mostly-blank row
+   for manual review, since it can't rule out a real form having failed to
+   read — better to over-save than silently lose a real submission.
 4. For a **file** message (e.g. a PDF someone sends): the file is uploaded to
-   the same Drive folder and logged in the sheet without OCR.
-5. The bot replies in the chat confirming what was saved.
+   the same Drive folder and logged in the sheet without OCR (there's no
+   not-a-form check for files yet — see Notes below).
+5. The bot replies in the chat confirming what was saved (image messages
+   that turned out not to be a form get no reply at all).
 
 ## Setup
 
@@ -127,9 +138,17 @@ public HTTPS URL as the webhook.
 
 ## Notes / next steps
 
-- PDF/file messages are saved but not OCR'd yet; extend
-  `src/handlers/messageHandler.js` + `src/documentAnalyzer.js` if text
-  extraction from PDFs is needed later.
+- PDF/file messages are saved but not OCR'd yet, and every file message is
+  saved unconditionally (no not-a-form check like images get, since nothing
+  reads the file's content). Extend `src/handlers/messageHandler.js` +
+  `src/documentAnalyzer.js` if a busy group also shares unrelated files and
+  those need filtering too, or if PDF text extraction is needed later.
+- The free tier also caps requests *per day* (Google returned a limit of 20
+  requests/day for the flash model), separate from the per-minute cap below.
+  A busy group where most images aren't the registration form still spends
+  one Gemini call per image just to classify it, so that daily cap can be
+  reached fast purely from irrelevant traffic. Enabling billing removes both
+  caps.
 - The Drive upload happens after the Gemini analysis (not in parallel)
   because the uploaded filename is built from the extracted date/country/name.
 - If document scanning starts failing with a 404 on the model name, Google

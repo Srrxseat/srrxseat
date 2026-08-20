@@ -73,6 +73,11 @@ async function handleImageMessage(event) {
     return null;
   });
 
+  if (extracted && !extracted.is_registration_form) {
+    console.log(`[messageHandler] skipping image ${message.id} - not a registration form`);
+    return;
+  }
+
   const drive = await uploadDocument(buffer, buildFilename(extracted, message.id), 'image/jpeg');
 
   await appendRow([
