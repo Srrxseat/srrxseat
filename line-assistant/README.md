@@ -135,3 +135,12 @@ public HTTPS URL as the webhook.
 - If document scanning starts failing with a 404 on the model name, Google
   has retired that model version — run `node scripts/list-gemini-models.js`
   to see what your API key can currently use and update `GEMINI_MODEL`.
+- The Gemini free tier caps requests per minute (Google returned a limit of
+  5/minute for the flash model at time of writing). `documentAnalyzer.js`
+  paces calls to stay under that limit and retries using Google's own
+  suggested delay on 429/500/503, so a burst of photos queues up and gets
+  processed a bit slower rather than failing outright. Replies use
+  `pushMessage` rather than `replyMessage` for this reason — a reply token
+  can expire while a message is queued behind the rate limit. If bursts of
+  many forms at once are common, enable billing on the Gemini API key for a
+  much higher limit at low cost.

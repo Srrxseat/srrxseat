@@ -36,8 +36,38 @@ const RECORD_SCHEMA = {
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 503]);
 const MAX_ATTEMPTS = 3;
 
+// Gemini's free tier allows a limited number of requests per rolling minute
+// (Google returned "limit: 5" for this model at time of writing). Pace calls
+// client-side so a burst of images doesn't just fire 429s at the API.
+const FREE_TIER_REQUESTS_PER_MINUTE = 5;
+const RATE_WINDOW_MS = 60_000;
+const recentCallTimestamps = [];
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForRateLimitSlot() {
+  const now = Date.now();
+  while (recentCallTimestamps.length > 0 && recentCallTimestamps[0] <= now - RATE_WINDOW_MS) {
+    recentCallTimestamps.shift();
+  }
+  if (recentCallTimestamps.length >= FREE_TIER_REQUESTS_PER_MINUTE) {
+    const waitMs = recentCallTimestamps[0] + RATE_WINDOW_MS - Date.now();
+    if (waitMs > 0) {
+      console.warn(`[documentAnalyzer] pacing for the free-tier rate limit, waiting ${Math.ceil(waitMs / 1000)}s...`);
+      await sleep(waitMs);
+    }
+    return waitForRateLimitSlot();
+  }
+  recentCallTimestamps.push(Date.now());
+}
+
+function retryDelayMs(err, attempt) {
+  const retryInfo = err.errorDetails?.find((d) => d['@type']?.includes('RetryInfo'));
+  const seconds = retryInfo?.retryDelay ? parseFloat(retryInfo.retryDelay) : null;
+  if (seconds) return seconds * 1000;
+  return 1000 * 2 ** (attempt - 1);
 }
 
 async function analyzeDocumentImage(base64Data, mediaType) {
@@ -50,6 +80,7 @@ async function analyzeDocumentImage(base64Data, mediaType) {
   });
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    await waitForRateLimitSlot();
     try {
       const result = await model.generateContent([
         { inlineData: { mimeType: mediaType, data: base64Data } },
@@ -61,8 +92,9 @@ async function analyzeDocumentImage(base64Data, mediaType) {
     } catch (err) {
       const isRetryable = RETRYABLE_STATUS_CODES.has(err.status);
       if (!isRetryable || attempt === MAX_ATTEMPTS) throw err;
-      console.warn(`[documentAnalyzer] ${err.status} from Gemini, retrying (attempt ${attempt}/${MAX_ATTEMPTS})...`);
-      await sleep(1000 * 2 ** (attempt - 1));
+      const delay = retryDelayMs(err, attempt);
+      console.warn(`[documentAnalyzer] ${err.status} from Gemini, retrying in ${Math.ceil(delay / 1000)}s (attempt ${attempt}/${MAX_ATTEMPTS})...`);
+      await sleep(delay);
     }
   }
 }

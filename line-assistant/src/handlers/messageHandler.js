@@ -64,7 +64,7 @@ function buildFilename(extracted, messageId) {
 }
 
 async function handleImageMessage(event) {
-  const { source, replyToken, message } = event;
+  const { source, message } = event;
   const buffer = await streamToBuffer(await blobClient.getMessageContent(message.id));
   const senderName = await getSenderName(source);
 
@@ -98,14 +98,14 @@ async function handleImageMessage(event) {
     ? `Saved ✅ ${extracted.visitor_name || 'unnamed visitor'} (${extracted.country || '?'}) — ${extracted.session_time || 'session'} · ${extracted.visit_type || ''}`
     : 'Saved the photo, but could not read the form automatically. Please check it manually in the sheet.';
 
-  await client.replyMessage({
-    replyToken,
+  await client.pushMessage({
+    to: getChatId(source),
     messages: [{ type: 'text', text: replyText }],
   });
 }
 
 async function handleFileMessage(event) {
-  const { source, replyToken, message } = event;
+  const { source, message } = event;
   const buffer = await streamToBuffer(await blobClient.getMessageContent(message.id));
   const senderName = await getSenderName(source);
 
@@ -118,8 +118,8 @@ async function handleFileMessage(event) {
     `(file, not a scanned form) ${message.fileName}`,
   ]);
 
-  await client.replyMessage({
-    replyToken,
+  await client.pushMessage({
+    to: getChatId(source),
     messages: [{ type: 'text', text: `Saved file ✅ ${message.fileName}` }],
   });
 }
