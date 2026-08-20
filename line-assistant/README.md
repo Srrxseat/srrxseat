@@ -166,6 +166,55 @@ Running with `npm start` on a laptop means the bot stops receiving photos the
 moment the machine sleeps or the terminal closes. For real use it needs a host
 that stays up.
 
+**The one requirement that rules hosts out:** the webhook answers LINE with
+`200` immediately and *then* does the slow work (download the photo, call
+Claude, upload to Drive, append to the sheet) — 10–30 seconds after the
+response has already been sent. See `src/server.js`. That's necessary because
+LINE won't wait that long for a response, but it means the host has to keep the
+process running and CPU allocated after the response. Hosts that stop the
+process when the response ends (PHP-style shared hosting, Cloud Run with its
+default CPU throttling) will cut the work off half-done — the photo gets a
+reply but never reaches the sheet.
+
+### Option A — Google Cloud Run
+
+Good if you already have the Google Cloud project from the Drive/Sheets setup:
+the perpetual free tier is denominated in millions of requests, and this bot
+handles a few dozen a day. `Dockerfile` and `.dockerignore` are in
+`line-assistant/`.
+
+```bash
+cd line-assistant
+cp env.cloudrun.example.yaml env.cloudrun.yaml   # fill in, it's gitignored
+
+gcloud run deploy line-doc-assistant \
+  --source . \
+  --region asia-southeast1 \
+  --allow-unauthenticated \
+  --no-cpu-throttling \
+  --memory 512Mi \
+  --env-vars-file env.cloudrun.yaml
+```
+
+`--no-cpu-throttling` is **not optional** — it's what keeps the CPU allocated
+after the response so the background work finishes. Without it the bot appears
+to work (LINE gets its reply) while silently dropping rows.
+`--allow-unauthenticated` is required because LINE calls the endpoint without
+GCP credentials; the webhook is still protected by LINE's signature
+verification (`middleware(lineConfig)` in `src/server.js`).
+`asia-southeast1` is Singapore, the closest region to Thailand.
+
+Set the LINE webhook to `https://<the URL gcloud prints>/webhook`.
+
+Cost with CPU always allocated is billed per instance-second while an instance
+is alive, not per request, so it depends on how the photo batches cluster
+through the day — expect somewhere between free and a few dollars a month.
+Check the actual numbers on the [Cloud Run pricing
+page](https://cloud.google.com/run/pricing) rather than trusting an estimate
+here.
+
+### Option B — Render
+
 `render.yaml` in the repo root is a [Render](https://render.com) Blueprint that
 describes the whole service. To use it: **Render dashboard → New → Blueprint →
 pick this repo**. Render reads the file, creates the service, and then prompts
@@ -178,7 +227,7 @@ When the first deploy finishes, Render gives the service a public HTTPS URL.
 Set the LINE webhook to `https://<that-url>/webhook` and press **Verify** in
 the LINE console. `GET /health` is wired up as Render's health check.
 
-### Why the paid plan
+#### Why the paid plan
 
 The Blueprint asks for the **Starter** plan, not **Free**, and that's the one
 real decision here. Free web services spin down after 15 minutes idle and take

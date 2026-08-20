@@ -1,4 +1,6 @@
 .env
+# Cloud Run deploy variables - real secrets. The .example.yaml is the template.
+env.cloudrun.yaml
 node_modules/
 __pycache__/
 .venv/
