@@ -45,7 +45,7 @@ const RECORD_TOOL = {
       },
       raw_text: {
         type: 'string',
-        description: 'Any handwritten or filled-in content on the form not already captured in the fields above. Do NOT include the form\'s static printed template text (the center\'s letterhead/logo caption, section headings like "Meditation EXP.", the "Drawing Your Feeling During Meditation" instruction, the thank-you footer message, or the website URL). Empty string if there is nothing else to capture, or if this isn\'t the form.',
+        description: 'Any handwritten or filled-in *words* on the form not already captured in the fields above. Do NOT include the form\'s static printed template text (the center\'s letterhead/logo caption, section headings like "Meditation EXP.", the "Drawing Your Feeling During Meditation" instruction, the thank-you footer message, or the website URL). Do NOT describe the drawing at the bottom of the form or anything else pictorial - the saved photo is the record of the drawing, so a written description of it is not wanted anywhere in this record. Empty string if there is nothing else to capture, or if this isn\'t the form.',
       },
     },
     required: [
@@ -60,7 +60,7 @@ const RECORD_TOOL = {
 const PROMPT_TEXT = [
   'This image was shared in a LINE group chat that also carries unrelated messages and photos - candid photos of people, monks, meals, events, screenshots, memes, etc. Only set is_registration_form to true if the image is a photo of the actual printed "Pai International Meditation Center" registration/meditation-experience paper form itself, not merely something related to meditation or the center. For any other photo, set is_registration_form to false and leave every other field as an empty string - do not guess.',
   'If it is the form, read the handwriting carefully and extract the fields below exactly as filled in. Each field holds only the value of its own labeled box on the form, nothing from elsewhere on the page.',
-  'Checkboxes need particular care - they are small and the mark may be a tick, a cross, a filled box, or a circle around the label. "How did you hear about us?" and "No. of visit" are each a row of checkboxes near the bottom of the personal-information block, and the visitor almost always marks one in each row, so look closely before concluding a row is unmarked. Report the label of the marked box. Only leave the field empty if you genuinely cannot see a mark.',
+  'Checkboxes need care because they are small: "How did you hear about us?" and "No. of visit" are each a row of them near the bottom of the personal-information block, and the mark may be a tick, a cross, a filled box, or a circle around the label. Report the label of the box that is marked. Plenty of visitors skip these rows entirely, and an empty field is the correct, useful answer for a row with no mark on it - never infer what the visitor "probably" meant from their name, country, or anything they wrote elsewhere on the form.',
   'For the date: copy the "Date" box exactly as written into date_raw and nothing more. Visitors write dates in their own country\'s convention, so do not try to work out which number is the day, do not reorder anything, and do not convert or complete the date - that is handled elsewhere and your guess would break it. Just transcribe what is on the paper.',
 ].join('\n\n');
 
