@@ -68,15 +68,38 @@ function sanitizeForFilename(value) {
     .slice(0, 40);
 }
 
+// Name first: Drive's grid view truncates long filenames to roughly the first
+// dozen characters, so leading with the date made every tile read
+// "2026-08-..." and the visitor - the thing you actually search for - was the
+// part cut off.
 function buildFilename(extracted, messageId) {
   const shortId = messageId.slice(-8);
   if (!extracted) return `unrecognized_${shortId}.jpg`;
 
-  const parts = [extracted.visit_date, extracted.country, extracted.visitor_name]
+  const parts = [extracted.visitor_name, extracted.visit_date, extracted.country]
     .map(sanitizeForFilename)
     .filter(Boolean);
 
   return `${[...parts, shortId].join('_')}.jpg`;
+}
+
+// Joining on a separator only between the parts that actually have a value -
+// the old template always emitted its separators, so a form with no visit type
+// ticked ended with a dangling "— Afternoon ·".
+function buildReply(extracted) {
+  const heading = [
+    `✅ ${extracted.visitor_name || 'unnamed visitor'}`,
+    extracted.country,
+    extracted.visit_date,
+    extracted.session_time,
+    extracted.visit_type,
+  ].filter(Boolean).join(' · ');
+
+  return [
+    heading,
+    extracted.experience_text && `\n📝 ${extracted.experience_text}`,
+    extracted.experience_text_th && `\n🇹🇭 ${extracted.experience_text_th}`,
+  ].filter(Boolean).join('\n');
 }
 
 async function handleImageMessage(event) {
@@ -124,7 +147,7 @@ async function handleImageMessage(event) {
   ]);
 
   const replyText = extracted
-    ? `Saved ✅ ${extracted.visitor_name || 'unnamed visitor'} (${extracted.country || '?'}) — ${extracted.session_time || 'session'} · ${extracted.visit_type || ''}`
+    ? buildReply(extracted)
     : 'Saved the photo, but could not read the form automatically. Please check it manually in the sheet.';
 
   await client.pushMessage({

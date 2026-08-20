@@ -29,8 +29,10 @@ well (without OCR).
    phone, their "how did you feel" answer (plus an auto-generated Thai
    translation of it), and age.
 3. The photo is uploaded to a Google Drive folder using a readable filename
-   built from the visit date, country, and name (falling back to the LINE
-   message ID if extraction fails); the extracted fields plus a link to the
+   built from the visitor's name, visit date, and country — name first, because
+   Drive's grid view truncates filenames after roughly a dozen characters
+   (falling back to the LINE message ID if extraction fails); the extracted
+   fields plus a link to the
    Drive file are appended as a row in a Google Sheet. The feelings drawing
    itself isn't transcribed — it's preserved as part of the saved photo. If
    Claude errors out entirely (rate limit, outage) rather than confidently
@@ -40,8 +42,11 @@ well (without OCR).
 4. For a **file** message (e.g. a PDF someone sends): the file is uploaded to
    the same Drive folder and logged in the sheet without OCR (there's no
    not-a-form check for files yet — see Notes below).
-5. The bot replies in the chat confirming what was saved (image messages
-   that turned out not to be a form get no reply at all).
+5. The bot replies in the chat confirming what was saved — the visitor's name,
+   country, date and session, followed by their "how did you feel" answer and
+   its Thai translation, so the group can read the experience without opening
+   the sheet (image messages that turned out not to be a form get no reply at
+   all).
 
 ## Setup
 
@@ -160,29 +165,34 @@ public HTTPS URL as the webhook.
 
 ## How the visit date is decided
 
-The handwritten `Date` box is the least reliable thing on the form — the year is
-two scrawled digits that Claude has misread as far off as `2019`, and sometimes
-only two of the three numbers come back legible, which used to produce
-half-dates like `8/19` that the sheet can't sort on. So the date in the sheet is
-assembled in code (`resolveVisitDate` in `src/documentAnalyzer.js`) rather than
-taken from the model verbatim:
+The handwritten `Date` box is the least reliable thing on the form. The form is
+printed **Day/Month/Year**, but visitors write dates in their own country's
+convention — an American writes `8/19/26` for 19 August — so *which number is
+the day cannot be decided from position alone*. Asking Claude to make that call
+gave a different answer per form (three USA visitors' forms all came out as
+8 January).
 
-- **Day and month** come from the model, validated. If the "month" is above 12
-  and the "day" isn't, they're swapped back (the model occasionally transposes
-  them).
-- **The year** comes from the model only if it's within a year of the date LINE
-  received the photo. Otherwise the message timestamp's year is used. Visitors
-  fill the form on the day they visit and staff photograph it the same day, so
-  the timestamp is the more trustworthy source.
-- **If day or month is unreadable**, the whole date falls back to the date LINE
-  received the photo, and a line is logged saying so.
+So Claude only transcribes the box verbatim into `date_raw`, and the decision is
+made in code (`resolveVisitDate` in `src/documentAnalyzer.js`) where it can be
+reasoned about once and unit-tested:
 
-That last case is an inference, not a reading — if forms are ever photographed
-in a batch weeks after the fact, those rows will carry the upload date instead
-of the visit date. Check the console log (or the Drive photo) for any row whose
-date looks off. Note also that if the model misreads the *day or month* rather
-than the year, no amount of code can recover it — that's what the model choice
-in step 2 is for.
+- **The year is the last number.** `D/M/Y` and `M/D/Y` agree on that, so it's
+  unambiguous. It's used only if it's within a year of the date LINE received
+  the photo; otherwise the message timestamp's year is used. Visitors fill the
+  form on the day they visit and staff photograph it the same day, so the
+  timestamp is the more trustworthy source.
+- **Of the first two numbers, anything above 12 must be the day.** That resolves
+  `19/8` and `8/19` to the same date without knowing the visitor's nationality.
+- **If both are 12 or under** the date is genuinely ambiguous (`8/1` is either
+  8 January or 1 August), so the reading whose month matches the month the photo
+  arrived in wins, and the choice is logged.
+- **If the box is illegible or nonsensical**, the date falls back to the date
+  LINE received the photo, and a line is logged saying so.
+
+Those last two are inferences, not readings — if forms are ever photographed in
+a batch weeks after the fact, the affected rows will lean on the upload date.
+The console log names every row where that happened, and the Drive photo is
+always there to check against.
 
 ## Notes / next steps
 

@@ -14,9 +14,10 @@ const RECORD_TOOL = {
         description: 'True only if this image is a photo of the actual printed "Pai International Meditation Center" registration/meditation-experience paper form itself (with its letterhead and Name/Date/Country/... fields visible), not merely something related to meditation or the center. False for any other kind of image - selfies, screenshots, memes, meals, candid photos, unrelated documents, etc.',
       },
       visitor_name: { type: 'string', description: 'Value of the "Name" field. Empty string if blank.' },
-      date_day: { type: 'string', description: 'The day portion of the "Date" field (leftmost number, form is written Day/Month/Year), digits only, e.g. "17". Empty string if illegible or blank.' },
-      date_month: { type: 'string', description: 'The month portion of the "Date" field (middle number), digits only, e.g. "8". Empty string if illegible or blank.' },
-      date_year: { type: 'string', description: 'The year portion of the "Date" field (rightmost number), digits only exactly as written - 2 or 4 digits, e.g. "26". Empty string if illegible or blank.' },
+      date_raw: {
+        type: 'string',
+        description: 'The "Date" field copied character for character exactly as the visitor wrote it, e.g. "19/8/26" or "8/19/26" or "19-08-2026". Transcribe only - do NOT reorder the numbers, do NOT decide which one is the day or the month, and do NOT convert or complete it in any way. Empty string if illegible or blank.',
+      },
       session_time: { type: 'string', enum: ['Morning', 'Afternoon', ''], description: 'Which checkbox is marked. Empty string if neither is marked.' },
       country: { type: 'string', description: 'Value of the "Country" field. Empty string if blank.' },
       gender: { type: 'string', description: 'Value of the "Gender" field. Empty string if blank.' },
@@ -48,7 +49,7 @@ const RECORD_TOOL = {
       },
     },
     required: [
-      'is_registration_form', 'visitor_name', 'date_day', 'date_month', 'date_year', 'session_time',
+      'is_registration_form', 'visitor_name', 'date_raw', 'session_time',
       'country', 'gender', 'occupation', 'age', 'social_handle', 'email', 'phone', 'how_heard',
       'visit_type', 'experience_text', 'experience_text_th', 'raw_text',
     ],
@@ -60,7 +61,7 @@ const PROMPT_TEXT = [
   'This image was shared in a LINE group chat that also carries unrelated messages and photos - candid photos of people, monks, meals, events, screenshots, memes, etc. Only set is_registration_form to true if the image is a photo of the actual printed "Pai International Meditation Center" registration/meditation-experience paper form itself, not merely something related to meditation or the center. For any other photo, set is_registration_form to false and leave every other field as an empty string - do not guess.',
   'If it is the form, read the handwriting carefully and extract the fields below exactly as filled in. Each field holds only the value of its own labeled box on the form, nothing from elsewhere on the page.',
   'Checkboxes need particular care - they are small and the mark may be a tick, a cross, a filled box, or a circle around the label. "How did you hear about us?" and "No. of visit" are each a row of checkboxes near the bottom of the personal-information block, and the visitor almost always marks one in each row, so look closely before concluding a row is unmarked. Report the label of the marked box. Only leave the field empty if you genuinely cannot see a mark.',
-  'For the date: transcribe the digits in each position of the "Date" box separately and literally. Do not convert, reorder, or reason about the calendar. If the year digits are unclear, leave date_year empty rather than guessing - a correct blank is far more useful here than a wrong year.',
+  'For the date: copy the "Date" box exactly as written into date_raw and nothing more. Visitors write dates in their own country\'s convention, so do not try to work out which number is the day, do not reorder anything, and do not convert or complete the date - that is handled elsewhere and your guess would break it. Just transcribe what is on the paper.',
 ].join('\n\n');
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -75,43 +76,70 @@ function thaiDateParts(timestampMs) {
   return { year: local.getUTCFullYear(), month: local.getUTCMonth() + 1, day: local.getUTCDate() };
 }
 
-// The handwritten date is the least reliable thing on the form: the year is a
-// scrawled 2 digits the model has misread as far off as 2019, and sometimes it
-// hands back only two of the three numbers, which used to produce half-dates
-// like "8/19" that the sheet can't sort on.
+// The handwritten date is the least reliable thing on the form. The form is
+// printed Day/Month/Year, but visitors write it in their own country's
+// convention - an American writes "8/19/26" for 19 August - so which number is
+// the day genuinely cannot be decided from the digits' positions alone. Asking
+// the model to make that call produced a different answer per form (three USA
+// visitors' forms all came out as 8 January).
 //
-// Visitors fill the form on the day they visit and the photo reaches the LINE
-// group the same day, so the message timestamp is a better source for the year
-// than the handwriting is. Trust the model for day and month (validated), and
-// let the timestamp supply or overrule an implausible year.
-function resolveVisitDate(day, month, year, timestampMs) {
+// So the model only transcribes the field verbatim, and the decision happens
+// here, where it can be reasoned about once and tested:
+//   - the year is the last number (D/M/Y and M/D/Y agree on that)
+//   - of the remaining two, anything above 12 must be the day
+//   - if both are <= 12 the date is genuinely ambiguous, so prefer the reading
+//     whose month matches the month the photo was sent
+// The message timestamp also supplies the year whenever the written one is
+// missing or implausible: visitors fill the form on the day they visit and
+// staff photograph it the same day.
+function resolveVisitDate(raw, timestampMs) {
   const ref = thaiDateParts(timestampMs);
+  const refDate = `${ref.year}/${pad(ref.month)}/${pad(ref.day)}`;
+  const numbers = (raw || '').match(/\d+/g);
 
-  let d = parseInt(day, 10);
-  let m = parseInt(month, 10);
-
-  // The form reads Day/Month, but the model occasionally returns them swapped.
-  // A month above 12 is unambiguous evidence of that.
-  if (Number.isInteger(d) && Number.isInteger(m) && m > 12 && d <= 12) {
-    [d, m] = [m, d];
+  if (!numbers || numbers.length < 2) {
+    console.log(`[documentAnalyzer] unreadable date ${JSON.stringify(raw)}, using the date LINE received the photo (${refDate})`);
+    return refDate;
   }
 
-  const dayOk = Number.isInteger(d) && d >= 1 && d <= 31;
-  const monthOk = Number.isInteger(m) && m >= 1 && m <= 12;
-
-  if (!dayOk || !monthOk) {
-    console.log(`[documentAnalyzer] unreadable date (day=${day} month=${month} year=${year}), using the date LINE received the photo`);
-    return `${ref.year}/${pad(ref.month)}/${pad(ref.day)}`;
+  // Year: the last number when three were written, otherwise not written at all.
+  let year = null;
+  let dayMonth = numbers;
+  if (numbers.length >= 3) {
+    dayMonth = numbers.slice(0, 2);
+    year = parseInt(numbers[2], 10);
+    if (year < 100) year += 2000;
+  }
+  if (year === null || Math.abs(year - ref.year) > 1) {
+    if (year !== null) {
+      console.log(`[documentAnalyzer] implausible year in ${JSON.stringify(raw)}, using ${ref.year} from the message timestamp`);
+    }
+    year = ref.year;
   }
 
-  let y = parseInt(year, 10);
-  if (Number.isInteger(y) && y < 100) y += 2000;
-  const yearOk = Number.isInteger(y) && Math.abs(y - ref.year) <= 1;
-  if (!yearOk) {
-    console.log(`[documentAnalyzer] implausible year "${year}", using ${ref.year} from the message timestamp`);
+  const [first, second] = dayMonth.map((n) => parseInt(n, 10));
+  let day;
+  let month;
+  if (first > 12 && second <= 12) {
+    [day, month] = [first, second];        // 19/8 - written Day/Month
+  } else if (second > 12 && first <= 12) {
+    [day, month] = [second, first];        // 8/19 - written Month/Day
+  } else if (first <= 12 && second <= 12) {
+    // Ambiguous: "8/1" is either 8 January or 1 August. Prefer whichever
+    // reading falls in the month the photo arrived in.
+    [day, month] = second === ref.month ? [first, second] : [second, first];
+    console.log(`[documentAnalyzer] ambiguous date ${JSON.stringify(raw)}, read as ${year}/${pad(month)}/${pad(day)}`);
+  } else {
+    console.log(`[documentAnalyzer] nonsensical date ${JSON.stringify(raw)}, using the date LINE received the photo (${refDate})`);
+    return refDate;
   }
 
-  return `${yearOk ? y : ref.year}/${pad(m)}/${pad(d)}`;
+  if (day < 1 || day > 31 || month < 1 || month > 12) {
+    console.log(`[documentAnalyzer] out-of-range date ${JSON.stringify(raw)}, using the date LINE received the photo (${refDate})`);
+    return refDate;
+  }
+
+  return `${year}/${pad(month)}/${pad(day)}`;
 }
 
 // The form has no fixed vocabulary for Gender, so visitors write "F", "Female",
@@ -164,10 +192,10 @@ async function analyzeDocumentImage(base64Data, mediaType, timestampMs) {
   const toolUse = message.content.find((block) => block.type === 'tool_use');
   if (!toolUse) return null;
 
-  const { date_day, date_month, date_year, ...rest } = toolUse.input;
+  const { date_raw, ...rest } = toolUse.input;
   return {
     ...rest,
-    visit_date: resolveVisitDate(date_day, date_month, date_year, timestampMs),
+    visit_date: resolveVisitDate(date_raw, timestampMs),
     session_time: coerceEnum(rest.session_time, ['Morning', 'Afternoon']),
     visit_type: coerceEnum(rest.visit_type, ['First time', 'Revisited']),
     gender: normalizeGender(rest.gender),
