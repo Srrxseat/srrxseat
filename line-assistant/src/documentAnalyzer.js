@@ -17,7 +17,7 @@ const RECORD_TOOL = {
       visitor_name: { type: 'string', description: 'Value of the "Name" field. Empty string if blank.' },
       visit_date: {
         type: 'string',
-        description: 'Value of the "Date" field, converted to Year/Month/Day order as YYYY/MM/DD (4-digit year, zero-padded month and day) - the form itself is handwritten as Day/Month/Year (e.g. "17/8/26" on the form means 17 Aug 2026, so record it as "2026/08/17"). Empty string if blank.',
+        description: 'Value of the "Date" field, transcribed exactly as written (digits and separators only, e.g. "17/8/26"). Do not reorder or convert it - that happens in code afterward. Empty string if blank.',
       },
       session_time: { type: 'string', description: 'Which checkbox is marked: "Morning" or "Afternoon". Empty string if neither is marked.' },
       country: { type: 'string', description: 'Value of the "Country" field. Empty string if blank.' },
@@ -52,6 +52,22 @@ const RECORD_TOOL = {
 
 const PROMPT_TEXT = 'This image was shared in a LINE group chat that also carries unrelated messages and photos - candid photos of people, monks, meals, events, screenshots, memes, etc. Only set is_registration_form to true if the image is a photo of the actual printed "Pai International Meditation Center" registration/meditation-experience paper form itself, not merely something related to meditation or the center. For any other photo, set is_registration_form to false and leave every other field as an empty string - do not guess. If it is the form, read the handwriting carefully and extract the fields below exactly as filled in.';
 
+// The form is handwritten as Day/Month/Year. Rather than have the model do
+// this arithmetic (it was inconsistent - e.g. reading "19/8/26" as the year
+// 2019), parse the raw digits deterministically and reorder them here.
+function normalizeVisitDate(raw) {
+  if (!raw) return raw || '';
+  const parts = raw.trim().split(/[^0-9]+/).filter(Boolean);
+  if (parts.length !== 3) return raw;
+
+  const [day, month, yearPart] = parts;
+  const year = yearPart.length === 2 ? `20${yearPart}` : yearPart;
+  if (year.length !== 4 || day.length > 2 || month.length > 2) return raw;
+
+  const pad = (n) => n.padStart(2, '0');
+  return `${year}/${pad(month)}/${pad(day)}`;
+}
+
 async function analyzeDocumentImage(base64Data, mediaType) {
   const message = await client.messages.create({
     model: config.anthropicModel,
@@ -70,7 +86,9 @@ async function analyzeDocumentImage(base64Data, mediaType) {
   });
 
   const toolUse = message.content.find((block) => block.type === 'tool_use');
-  return toolUse ? toolUse.input : null;
+  if (!toolUse) return null;
+
+  return { ...toolUse.input, visit_date: normalizeVisitDate(toolUse.input.visit_date) };
 }
 
 module.exports = { analyzeDocumentImage };

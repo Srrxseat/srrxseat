@@ -12,7 +12,8 @@ well (without OCR).
 1. LINE sends a webhook event to `POST /webhook` whenever a message is posted
    in a group the bot has joined.
 2. For an **image** message: the bot downloads the photo and sends it to
-   Claude (`claude-haiku-4-5-20251001` by default), which first decides
+   Claude (`claude-sonnet-5` by default, chosen for handwriting accuracy over
+   the cheaper Haiku tier), which first decides
    whether the image is actually a Pai International Meditation Center
    registration form at all. This matters in a busy group chat that also
    carries unrelated photos and messages: if it's confidently **not** a form
@@ -60,8 +61,10 @@ well (without OCR).
    or create an account.
 2. Go to **API Keys → Create Key**, name it, and copy it — it's shown once.
 3. Under **Settings → Billing**, add a payment method. There's no free tier;
-   at this app's volume (photos scanned per day) the cost is a few dollars a
-   month at most on `claude-haiku-4-5-20251001`.
+   at this app's volume (photos scanned per day) the cost is still a few
+   dollars a month at most on `claude-sonnet-5` (swap `ANTHROPIC_MODEL` to
+   `claude-haiku-4-5-20251001` for lower cost if handwriting accuracy stops
+   mattering as much).
 
 ### 3. Google Cloud (Drive + Sheets)
 

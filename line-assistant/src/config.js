@@ -11,7 +11,7 @@ const config = {
     .map((id) => id.trim())
     .filter(Boolean),
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-  anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
+  anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5',
   googleOAuthClientId: process.env.GOOGLE_OAUTH_CLIENT_ID,
   googleOAuthClientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
   googleOAuthRefreshToken: process.env.GOOGLE_OAUTH_REFRESH_TOKEN,
