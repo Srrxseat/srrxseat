@@ -29,10 +29,9 @@ well (without OCR).
    phone, their "how did you feel" answer (plus an auto-generated Thai
    translation of it), and age.
 3. The photo is uploaded to a Google Drive folder using a readable filename
-   built from the visitor's name, visit date, and country — name first, because
-   Drive's grid view truncates filenames after roughly a dozen characters
-   (falling back to the LINE message ID if extraction fails); the extracted
-   fields plus a link to the
+   built from the visit date, country, and name — date first, so sorting by
+   filename groups the forms by visit day (falling back to the LINE message ID
+   if extraction fails); the extracted fields plus a link to the
    Drive file are appended as a row in a Google Sheet. The feelings drawing
    itself isn't transcribed — it's preserved as part of the saved photo. If
    Claude errors out entirely (rate limit, outage) rather than confidently

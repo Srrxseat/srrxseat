@@ -68,15 +68,14 @@ function sanitizeForFilename(value) {
     .slice(0, 40);
 }
 
-// Name first: Drive's grid view truncates long filenames to roughly the first
-// dozen characters, so leading with the date made every tile read
-// "2026-08-..." and the visitor - the thing you actually search for - was the
-// part cut off.
+// Date first, so sorting by filename groups the forms by visit day. Drive's
+// grid view truncates the tile captions, so use the list view (or the search
+// box) when you need to pick out a particular visitor by name.
 function buildFilename(extracted, messageId) {
   const shortId = messageId.slice(-8);
   if (!extracted) return `unrecognized_${shortId}.jpg`;
 
-  const parts = [extracted.visitor_name, extracted.visit_date, extracted.country]
+  const parts = [extracted.visit_date, extracted.country, extracted.visitor_name]
     .map(sanitizeForFilename)
     .filter(Boolean);
 
