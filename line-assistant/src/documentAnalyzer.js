@@ -6,7 +6,6 @@ const client = new Anthropic({ apiKey: config.anthropicApiKey });
 const RECORD_TOOL = {
   name: 'record_document',
   description: 'Record structured data extracted from a Pai International Meditation Center visitor registration / meditation-experience form, or flag that the image is not that form.',
-  strict: true,
   input_schema: {
     type: 'object',
     properties: {
@@ -75,6 +74,17 @@ function normalizeVisitDate(day, month, year) {
   return `${fullYear}/${pad(month)}/${pad(day)}`;
 }
 
+// A `strict: true` schema would enforce these enums for us, but the full form
+// schema is too large for the API's strict-mode compiler ("Schema is too
+// complex for compilation"), so the enum is only a hint to the model and the
+// guarantee has to happen here. Anything outside the allowed set - e.g. the
+// drawing description Claude once wrote into visit_type - becomes blank
+// rather than landing in the wrong sheet column.
+function coerceEnum(value, allowed) {
+  const match = allowed.find((option) => option.toLowerCase() === (value || '').trim().toLowerCase());
+  return match || '';
+}
+
 async function analyzeDocumentImage(base64Data, mediaType) {
   const message = await client.messages.create({
     model: config.anthropicModel,
@@ -96,7 +106,12 @@ async function analyzeDocumentImage(base64Data, mediaType) {
   if (!toolUse) return null;
 
   const { date_day, date_month, date_year, ...rest } = toolUse.input;
-  return { ...rest, visit_date: normalizeVisitDate(date_day, date_month, date_year) };
+  return {
+    ...rest,
+    visit_date: normalizeVisitDate(date_day, date_month, date_year),
+    session_time: coerceEnum(rest.session_time, ['Morning', 'Afternoon']),
+    visit_type: coerceEnum(rest.visit_type, ['First time', 'Revisited']),
+  };
 }
 
 module.exports = { analyzeDocumentImage };
