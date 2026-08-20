@@ -15,7 +15,10 @@ const RECORD_TOOL = {
         description: 'True only if this image is a photo of the actual printed "Pai International Meditation Center" registration/meditation-experience paper form itself (with its letterhead and Name/Date/Country/... fields visible), not merely something related to meditation or the center. False for any other kind of image - selfies, screenshots, memes, meals, candid photos, unrelated documents, etc.',
       },
       visitor_name: { type: 'string', description: 'Value of the "Name" field. Empty string if blank.' },
-      visit_date: { type: 'string', description: 'Value of the "Date" field, transcribed exactly as written. Empty string if blank.' },
+      visit_date: {
+        type: 'string',
+        description: 'Value of the "Date" field, converted to Year/Month/Day order as YYYY/MM/DD (4-digit year, zero-padded month and day) - the form itself is handwritten as Day/Month/Year (e.g. "17/8/26" on the form means 17 Aug 2026, so record it as "2026/08/17"). Empty string if blank.',
+      },
       session_time: { type: 'string', description: 'Which checkbox is marked: "Morning" or "Afternoon". Empty string if neither is marked.' },
       country: { type: 'string', description: 'Value of the "Country" field. Empty string if blank.' },
       gender: { type: 'string', description: 'Value of the "Gender" field. Empty string if blank.' },

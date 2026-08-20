@@ -86,16 +86,24 @@ normal.
 4. Add a header row to the sheet tab (default tab name `Documents`):
 
    ```
-   Date | Time | how did you find us | Name | Country | No. of visited | Gender | occupation | FB/IG | E-mail | whatsapp | Meditation experience | Age | Drive Link | Sender | Raw Text
+   Date | Time | how did you find us | Name | Country | No. of visited | Gender | occupation | FB/IG | E-mail | whatsapp | Meditation experience | Age | Drive Link | Sender | Raw Text | Received At
    ```
 
    This matches the column layout the center already uses for its manual
    visitor log, with `Age`, `Drive Link` (photo of the original form),
-   `Sender` (the LINE user who sent the photo), and `Raw Text` (catch-all
-   for anything else legible on the form) appended at the end. `Monk 1` /
-   `Monk 2` / `Facilitator` from the manual log are intentionally **not**
+   `Sender` (the LINE user who sent the photo), `Raw Text` (catch-all for
+   anything else legible on the form), and `Received At` (the exact time
+   LINE received the message, ISO 8601 — a fallback way to sort rows into
+   true send order if two photos sent close together ever get processed out
+   of order) appended at the end. `Monk 1` / `Monk 2` / `Facilitator` from
+   the manual log are intentionally **not**
    included — the bot has no way to read who taught a session from the
    visitor's own form, so those stay a manual note if you still want them.
+
+   The Drive folder itself has no send-order guarantee either — it's
+   whatever sort the Drive UI is set to (often alphabetical by filename,
+   which does *not* match send order). Switch the sort dropdown to "Last
+   modified" to see photos in upload order.
 
 ### 4. Configure environment variables
 

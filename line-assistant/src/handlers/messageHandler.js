@@ -41,6 +41,22 @@ function isAllowed(source) {
   return config.allowedGroupIds.includes(chatId);
 }
 
+// Claude has occasionally leaked its own tool-call tag syntax (e.g.
+// "</antml...><parameter name=\"...\">") into a field's text value. Strip any
+// angle-bracket tag fragments before this ever reaches the sheet or the chat.
+function stripLeakedTags(value) {
+  return (value || '').toString().replace(/<[^>]*>/g, '').trim();
+}
+
+function cleanExtracted(extracted) {
+  if (!extracted) return extracted;
+  const cleaned = { ...extracted };
+  for (const [key, value] of Object.entries(cleaned)) {
+    if (typeof value === 'string') cleaned[key] = stripLeakedTags(value);
+  }
+  return cleaned;
+}
+
 function sanitizeForFilename(value) {
   return (value || '')
     .toString()
@@ -68,10 +84,10 @@ async function handleImageMessage(event) {
   const buffer = await streamToBuffer(await blobClient.getMessageContent(message.id));
   const senderName = await getSenderName(source);
 
-  const extracted = await analyzeDocumentImage(buffer.toString('base64'), 'image/jpeg').catch((err) => {
+  const extracted = cleanExtracted(await analyzeDocumentImage(buffer.toString('base64'), 'image/jpeg').catch((err) => {
     console.error('[documentAnalyzer] failed:', err.message);
     return null;
-  });
+  }));
 
   // Don't just trust the model's is_registration_form flag on its own - a real
   // form always has at least a name or a written experience, so treat a
@@ -103,6 +119,7 @@ async function handleImageMessage(event) {
     drive.webViewLink,
     senderName,
     extracted ? extracted.raw_text : '(automatic extraction failed, photo saved as-is)',
+    new Date(event.timestamp).toISOString(),
   ]);
 
   const replyText = extracted
@@ -127,6 +144,7 @@ async function handleFileMessage(event) {
     drive.webViewLink,
     senderName,
     `(file, not a scanned form) ${message.fileName}`,
+    new Date(event.timestamp).toISOString(),
   ]);
 
   await client.pushMessage({
