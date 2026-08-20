@@ -12,7 +12,7 @@ Drive and logged as well (without OCR).
 1. LINE sends a webhook event to `POST /webhook` whenever a message is posted
    in a group the bot has joined.
 2. For an **image** message: the bot downloads the photo, sends it to Gemini
-   (`gemini-2.0-flash` by default) to read the handwriting and extract the
+   (`gemini-3.0-flash` by default) to read the handwriting and extract the
    visitor's date, session (morning/afternoon), how they heard about the
    center, name, country, visit type (first time/revisited), gender,
    occupation, FB/IG, email, phone, their "how did you feel" answer, age,
@@ -95,7 +95,9 @@ Copy `.env.example` to `.env` and fill in:
 - `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`)
 - `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` — from step 3 above.
 - `GOOGLE_DRIVE_FOLDER_ID` — the ID from the folder's URL.
-- `GOOGLE_SHEET_ID` — the ID from the spreadsheet's URL.
+- `GOOGLE_SHEET_ID` — only the ID segment of the spreadsheet's URL, e.g. for
+  `https://docs.google.com/spreadsheets/d/1AbCdEf.../edit?gid=0` the value is
+  just `1AbCdEf...` — drop everything from `/edit` onward.
 - `GOOGLE_SHEET_TAB_NAME` — defaults to `Documents`.
 - `ALLOWED_GROUP_IDS` — optional comma-separated allowlist.
 
