@@ -93,7 +93,7 @@ async function analyzeDocumentImage(base64Data, mediaType) {
       const result = await model.generateContent([
         { inlineData: { mimeType: mediaType, data: base64Data } },
         {
-          text: 'This image was shared in a LINE group chat that also carries unrelated messages and photos. First decide whether it is a "Pai International Meditation Center" visitor registration / meditation-experience form. If it is not, set is_registration_form to false and leave every other field as an empty string - do not guess. If it is, read the handwriting carefully and extract the fields below exactly as filled in.',
+          text: 'This image was shared in a LINE group chat that also carries unrelated messages and photos - candid photos of people, monks, meals, events, screenshots, memes, etc. Only set is_registration_form to true if the image is a photo of the actual printed "Pai International Meditation Center" registration/meditation-experience paper form itself (with its letterhead and Name/Date/Country/... fields visible), not merely something related to meditation or the center. For any other photo, including photos taken at or around the center, set is_registration_form to false and leave every other field as an empty string - do not guess. If it is the form, read the handwriting carefully and extract the fields below exactly as filled in.',
         },
       ]);
       return JSON.parse(result.response.text());

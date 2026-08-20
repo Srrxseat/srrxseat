@@ -73,7 +73,13 @@ async function handleImageMessage(event) {
     return null;
   });
 
-  if (extracted && !extracted.is_registration_form) {
+  // Don't just trust the model's is_registration_form flag on its own - a real
+  // form always has at least a name or a written experience, so treat a
+  // "yes" with both of those blank as a misclassification too.
+  const looksLikeForm = extracted && extracted.is_registration_form
+    && (extracted.visitor_name || extracted.experience_text);
+
+  if (extracted && !looksLikeForm) {
     console.log(`[messageHandler] skipping image ${message.id} - not a registration form`);
     return;
   }
