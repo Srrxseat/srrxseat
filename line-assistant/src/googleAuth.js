@@ -1,17 +1,10 @@
 const { google } = require('googleapis');
 const config = require('./config');
 
-const SCOPES = [
-  'https://www.googleapis.com/auth/drive.file',
-  'https://www.googleapis.com/auth/spreadsheets',
-];
-
 function getAuth() {
-  if (config.googleServiceAccountKeyJson) {
-    const credentials = JSON.parse(config.googleServiceAccountKeyJson);
-    return new google.auth.GoogleAuth({ credentials, scopes: SCOPES });
-  }
-  return new google.auth.GoogleAuth({ scopes: SCOPES });
+  const oauth2Client = new google.auth.OAuth2(config.googleOAuthClientId, config.googleOAuthClientSecret);
+  oauth2Client.setCredentials({ refresh_token: config.googleOAuthRefreshToken });
+  return oauth2Client;
 }
 
 module.exports = { getAuth };

@@ -55,12 +55,24 @@ Drive and logged as well (without OCR).
 
 ### 3. Google Cloud (Drive + Sheets)
 
+Personal Google accounts (including paid Google One storage plans) don't give
+service accounts any storage quota, so a service account can't upload files
+into your Drive — only Google Workspace accounts can work around that with
+Shared Drives. Instead, this app authenticates as **your own Google account**
+via OAuth, so uploaded files count against your own Google One storage like
+normal.
+
 1. Create a Google Cloud project, enable the **Google Drive API** and
    **Google Sheets API**.
-2. Create a **service account**, then create and download a JSON key for it.
+2. Go to **APIs & Services → Credentials → + CREATE CREDENTIALS → OAuth
+   client ID**. If prompted, configure the OAuth consent screen first (choose
+   **External**, fill in an app name and your email, and add yourself as a
+   test user — no verification needed for personal use). For the client type
+   choose **Desktop app**, give it a name, and create it. Copy the **Client
+   ID** and **Client secret**.
 3. Create (or pick) a Drive folder for uploaded documents and a Google Sheet
-   for the log. Share both with the service account's email address
-   (found in the JSON key as `client_email`) as **Editor**.
+   for the log, under the Google account you want to authenticate as. No
+   sharing step needed — it's your own account.
 4. Add a header row to the sheet tab (default tab name `Documents`):
 
    ```
@@ -81,13 +93,22 @@ Copy `.env.example` to `.env` and fill in:
 
 - `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_SECRET`
 - `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`)
-- `GOOGLE_SERVICE_ACCOUNT_KEY_JSON` — paste the full service-account JSON on
-  one line, **or** set `GOOGLE_APPLICATION_CREDENTIALS` to a mounted key
-  file path instead.
+- `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` — from step 3 above.
 - `GOOGLE_DRIVE_FOLDER_ID` — the ID from the folder's URL.
 - `GOOGLE_SHEET_ID` — the ID from the spreadsheet's URL.
 - `GOOGLE_SHEET_TAB_NAME` — defaults to `Documents`.
 - `ALLOWED_GROUP_IDS` — optional comma-separated allowlist.
+
+With the OAuth client ID/secret in `.env`, get the last value by running:
+
+```bash
+node scripts/get-refresh-token.js
+```
+
+Open the URL it prints, log in with the Google account that owns the Drive
+folder and Sheet, and approve access. The script prints a refresh token —
+paste it into `.env` as `GOOGLE_OAUTH_REFRESH_TOKEN`. This is a one-time step
+(the token doesn't expire from normal use).
 
 ### 5. Run
 
