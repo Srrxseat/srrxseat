@@ -193,8 +193,17 @@ gcloud run deploy line-doc-assistant \
   --allow-unauthenticated \
   --no-cpu-throttling \
   --memory 512Mi \
+  --max-instances 3 \
   --env-vars-file env.cloudrun.yaml
 ```
+
+Cloud Run requires billing to be enabled on the project — unlike the Drive and
+Sheets APIs, which are free and need no card. The free tier still applies, but
+overage bills the card rather than stopping the service, so **set a budget
+alert before deploying**: Cloud Console → Billing → Budgets & alerts → Create
+budget, scoped to this project, with a threshold you'd want to hear about.
+`--max-instances 3` is the second guard: it caps how many containers can run at
+once, so a runaway loop or a flood of traffic can't quietly scale up a bill.
 
 `--no-cpu-throttling` is **not optional** — it's what keeps the CPU allocated
 after the response so the background work finishes. Without it the bot appears
