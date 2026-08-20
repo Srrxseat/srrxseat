@@ -33,6 +33,13 @@ const RECORD_SCHEMA = {
   ],
 };
 
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 503]);
+const MAX_ATTEMPTS = 3;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function analyzeDocumentImage(base64Data, mediaType) {
   const model = genAI.getGenerativeModel({
     model: config.geminiModel,
@@ -42,14 +49,22 @@ async function analyzeDocumentImage(base64Data, mediaType) {
     },
   });
 
-  const result = await model.generateContent([
-    { inlineData: { mimeType: mediaType, data: base64Data } },
-    {
-      text: 'This image is a handwritten "Pai International Meditation Center" visitor registration and meditation-experience form, shared in a LINE group chat. Read the handwriting carefully and extract the fields below exactly as filled in.',
-    },
-  ]);
-
-  return JSON.parse(result.response.text());
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const result = await model.generateContent([
+        { inlineData: { mimeType: mediaType, data: base64Data } },
+        {
+          text: 'This image is a handwritten "Pai International Meditation Center" visitor registration and meditation-experience form, shared in a LINE group chat. Read the handwriting carefully and extract the fields below exactly as filled in.',
+        },
+      ]);
+      return JSON.parse(result.response.text());
+    } catch (err) {
+      const isRetryable = RETRYABLE_STATUS_CODES.has(err.status);
+      if (!isRetryable || attempt === MAX_ATTEMPTS) throw err;
+      console.warn(`[documentAnalyzer] ${err.status} from Gemini, retrying (attempt ${attempt}/${MAX_ATTEMPTS})...`);
+      await sleep(1000 * 2 ** (attempt - 1));
+    }
+  }
 }
 
 module.exports = { analyzeDocumentImage };
