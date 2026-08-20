@@ -1,110 +1,73 @@
-const { GoogleGenerativeAI, SchemaType } = require('@google/generative-ai');
+const Anthropic = require('@anthropic-ai/sdk');
 const config = require('./config');
 
-const genAI = new GoogleGenerativeAI(config.geminiApiKey);
+const client = new Anthropic({ apiKey: config.anthropicApiKey });
 
-const RECORD_SCHEMA = {
-  type: SchemaType.OBJECT,
-  properties: {
-    is_registration_form: {
-      type: SchemaType.BOOLEAN,
-      description: 'True only if this image is a "Pai International Meditation Center" visitor registration / meditation-experience form (has the center\'s letterhead and the Name/Date/Country/... fields shown below, filled in or blank). False for any other kind of image - selfies, screenshots, memes, unrelated documents, etc.',
+const RECORD_TOOL = {
+  name: 'record_document',
+  description: 'Record structured data extracted from a Pai International Meditation Center visitor registration / meditation-experience form, or flag that the image is not that form.',
+  strict: true,
+  input_schema: {
+    type: 'object',
+    properties: {
+      is_registration_form: {
+        type: 'boolean',
+        description: 'True only if this image is a photo of the actual printed "Pai International Meditation Center" registration/meditation-experience paper form itself (with its letterhead and Name/Date/Country/... fields visible), not merely something related to meditation or the center. False for any other kind of image - selfies, screenshots, memes, meals, candid photos, unrelated documents, etc.',
+      },
+      visitor_name: { type: 'string', description: 'Value of the "Name" field. Empty string if blank.' },
+      visit_date: { type: 'string', description: 'Value of the "Date" field, transcribed exactly as written. Empty string if blank.' },
+      session_time: { type: 'string', description: 'Which checkbox is marked: "Morning" or "Afternoon". Empty string if neither is marked.' },
+      country: { type: 'string', description: 'Value of the "Country" field. Empty string if blank.' },
+      gender: { type: 'string', description: 'Value of the "Gender" field. Empty string if blank.' },
+      occupation: { type: 'string', description: 'Value of the "Occupation" field. Empty string if blank.' },
+      age: { type: 'string', description: 'Value of the "Age" field. Empty string if blank.' },
+      social_handle: { type: 'string', description: 'Value of the "FB/IG" field. Empty string if blank.' },
+      email: { type: 'string', description: 'Value of the "E-Mail" field. Empty string if blank.' },
+      phone: { type: 'string', description: 'Value of the "Phone No./Whatsapp" field. Empty string if blank.' },
+      how_heard: {
+        type: 'string',
+        description: 'Which "How did you hear about us?" checkbox is marked (Facebook fanpage, From friends, Road signs, Google search, Poster, or the handwritten value next to "Other"). Empty string if none is marked.',
+      },
+      visit_type: { type: 'string', description: 'Which "No. of visit" checkbox is marked: "First time" or "Revisited". Empty string if neither is marked.' },
+      experience_text: {
+        type: 'string',
+        description: 'The handwritten answer to "How Did You Feel?" under Meditation EXP, transcribed as accurately as possible.',
+      },
+      raw_text: {
+        type: 'string',
+        description: 'Any handwritten or filled-in content on the form not already captured in the fields above. Do NOT include the form\'s static printed template text (the center\'s letterhead/logo caption, section headings like "Meditation EXP.", the "Drawing Your Feeling During Meditation" instruction, the thank-you footer message, or the website URL). Empty string if there is nothing else to capture, or if this isn\'t the form.',
+      },
     },
-    visitor_name: { type: SchemaType.STRING, description: 'Value of the "Name" field. Empty string if blank.' },
-    visit_date: { type: SchemaType.STRING, description: 'Value of the "Date" field, transcribed exactly as written. Empty string if blank.' },
-    session_time: { type: SchemaType.STRING, description: 'Which checkbox is marked: "Morning" or "Afternoon". Empty string if neither is marked.' },
-    country: { type: SchemaType.STRING, description: 'Value of the "Country" field. Empty string if blank.' },
-    gender: { type: SchemaType.STRING, description: 'Value of the "Gender" field. Empty string if blank.' },
-    occupation: { type: SchemaType.STRING, description: 'Value of the "Occupation" field. Empty string if blank.' },
-    age: { type: SchemaType.STRING, description: 'Value of the "Age" field. Empty string if blank.' },
-    social_handle: { type: SchemaType.STRING, description: 'Value of the "FB/IG" field. Empty string if blank.' },
-    email: { type: SchemaType.STRING, description: 'Value of the "E-Mail" field. Empty string if blank.' },
-    phone: { type: SchemaType.STRING, description: 'Value of the "Phone No./Whatsapp" field. Empty string if blank.' },
-    how_heard: {
-      type: SchemaType.STRING,
-      description: 'Which "How did you hear about us?" checkbox is marked (Facebook fanpage, From friends, Road signs, Google search, Poster, or the handwritten value next to "Other"). Empty string if none is marked.',
-    },
-    visit_type: { type: SchemaType.STRING, description: 'Which "No. of visit" checkbox is marked: "First time" or "Revisited". Empty string if neither is marked.' },
-    experience_text: {
-      type: SchemaType.STRING,
-      description: 'The handwritten answer to "How Did You Feel?" under Meditation EXP, transcribed as accurately as possible.',
-    },
-    raw_text: {
-      type: SchemaType.STRING,
-      description: 'Any handwritten or filled-in content on the form not already captured in the fields above. Do NOT include the form\'s static printed template text (the center\'s letterhead/logo caption, section headings like "Meditation EXP.", the "Drawing Your Feeling During Meditation" instruction, the thank-you footer message, or the website URL). Empty string if there is nothing else to capture.',
-    },
+    required: [
+      'is_registration_form', 'visitor_name', 'visit_date', 'session_time', 'country', 'gender',
+      'occupation', 'age', 'social_handle', 'email', 'phone', 'how_heard', 'visit_type',
+      'experience_text', 'raw_text',
+    ],
+    additionalProperties: false,
   },
-  required: [
-    'is_registration_form', 'visitor_name', 'visit_date', 'session_time', 'country', 'gender',
-    'occupation', 'age', 'social_handle', 'email', 'phone', 'how_heard', 'visit_type',
-    'experience_text', 'raw_text',
-  ],
 };
 
-const RETRYABLE_STATUS_CODES = new Set([429, 500, 503]);
-const MAX_ATTEMPTS = 3;
-
-// Gemini's free tier allows a limited number of requests per rolling minute
-// (Google returned "limit: 5" for this model at time of writing). Pace calls
-// client-side so a burst of images doesn't just fire 429s at the API.
-const FREE_TIER_REQUESTS_PER_MINUTE = 5;
-const RATE_WINDOW_MS = 60_000;
-const recentCallTimestamps = [];
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitForRateLimitSlot() {
-  const now = Date.now();
-  while (recentCallTimestamps.length > 0 && recentCallTimestamps[0] <= now - RATE_WINDOW_MS) {
-    recentCallTimestamps.shift();
-  }
-  if (recentCallTimestamps.length >= FREE_TIER_REQUESTS_PER_MINUTE) {
-    const waitMs = recentCallTimestamps[0] + RATE_WINDOW_MS - Date.now();
-    if (waitMs > 0) {
-      console.warn(`[documentAnalyzer] pacing for the free-tier rate limit, waiting ${Math.ceil(waitMs / 1000)}s...`);
-      await sleep(waitMs);
-    }
-    return waitForRateLimitSlot();
-  }
-  recentCallTimestamps.push(Date.now());
-}
-
-function retryDelayMs(err, attempt) {
-  const retryInfo = err.errorDetails?.find((d) => d['@type']?.includes('RetryInfo'));
-  const seconds = retryInfo?.retryDelay ? parseFloat(retryInfo.retryDelay) : null;
-  if (seconds) return seconds * 1000;
-  return 1000 * 2 ** (attempt - 1);
-}
+const PROMPT_TEXT = 'This image was shared in a LINE group chat that also carries unrelated messages and photos - candid photos of people, monks, meals, events, screenshots, memes, etc. Only set is_registration_form to true if the image is a photo of the actual printed "Pai International Meditation Center" registration/meditation-experience paper form itself, not merely something related to meditation or the center. For any other photo, set is_registration_form to false and leave every other field as an empty string - do not guess. If it is the form, read the handwriting carefully and extract the fields below exactly as filled in.';
 
 async function analyzeDocumentImage(base64Data, mediaType) {
-  const model = genAI.getGenerativeModel({
-    model: config.geminiModel,
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: RECORD_SCHEMA,
-    },
+  const message = await client.messages.create({
+    model: config.anthropicModel,
+    max_tokens: 1024,
+    tools: [RECORD_TOOL],
+    tool_choice: { type: 'tool', name: 'record_document' },
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64Data } },
+          { type: 'text', text: PROMPT_TEXT },
+        ],
+      },
+    ],
   });
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    await waitForRateLimitSlot();
-    try {
-      const result = await model.generateContent([
-        { inlineData: { mimeType: mediaType, data: base64Data } },
-        {
-          text: 'This image was shared in a LINE group chat that also carries unrelated messages and photos - candid photos of people, monks, meals, events, screenshots, memes, etc. Only set is_registration_form to true if the image is a photo of the actual printed "Pai International Meditation Center" registration/meditation-experience paper form itself (with its letterhead and Name/Date/Country/... fields visible), not merely something related to meditation or the center. For any other photo, including photos taken at or around the center, set is_registration_form to false and leave every other field as an empty string - do not guess. If it is the form, read the handwriting carefully and extract the fields below exactly as filled in.',
-        },
-      ]);
-      return JSON.parse(result.response.text());
-    } catch (err) {
-      const isRetryable = RETRYABLE_STATUS_CODES.has(err.status);
-      if (!isRetryable || attempt === MAX_ATTEMPTS) throw err;
-      const delay = retryDelayMs(err, attempt);
-      console.warn(`[documentAnalyzer] ${err.status} from Gemini, retrying in ${Math.ceil(delay / 1000)}s (attempt ${attempt}/${MAX_ATTEMPTS})...`);
-      await sleep(delay);
-    }
-  }
+  const toolUse = message.content.find((block) => block.type === 'tool_use');
+  return toolUse ? toolUse.input : null;
 }
 
 module.exports = { analyzeDocumentImage };

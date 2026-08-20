@@ -2,32 +2,32 @@
 
 An AI assistant for a LINE group chat: whenever someone sends a photo of a
 Pai International Meditation Center visitor registration / meditation
-experience form, it reads the handwriting with Google Gemini (free tier),
-saves the original photo to Google Drive, and records the extracted fields
-as a new row in a Google Sheet. Plain files sent in the chat are saved to
-Drive and logged as well (without OCR).
+experience form, it reads the handwriting with Claude, saves the original
+photo to Google Drive, and records the extracted fields as a new row in a
+Google Sheet. Plain files sent in the chat are saved to Drive and logged as
+well (without OCR).
 
 ## How it works
 
 1. LINE sends a webhook event to `POST /webhook` whenever a message is posted
    in a group the bot has joined.
 2. For an **image** message: the bot downloads the photo and sends it to
-   Gemini (`gemini-flash-latest` by default), which first decides whether the
-   image is actually a Pai International Meditation Center registration form
-   at all. This matters in a busy group chat that also carries unrelated
-   photos and messages: if it's confidently **not** a form (a selfie,
-   screenshot, meme, etc.), the bot does nothing at all — no upload, no sheet
-   row, no reply, so it doesn't clutter either. If it is, Gemini reads the
-   handwriting and extracts the visitor's date, session (morning/afternoon),
-   how they heard about the center, name, country, visit type (first
-   time/revisited), gender, occupation, FB/IG, email, phone, their "how did
-   you feel" answer, and age.
+   Claude (`claude-haiku-4-5-20251001` by default), which first decides
+   whether the image is actually a Pai International Meditation Center
+   registration form at all. This matters in a busy group chat that also
+   carries unrelated photos and messages: if it's confidently **not** a form
+   (a selfie, screenshot, meme, etc.), the bot does nothing at all — no
+   upload, no sheet row, no reply, so it doesn't clutter either. If it is,
+   Claude reads the handwriting and extracts the visitor's date, session
+   (morning/afternoon), how they heard about the center, name, country,
+   visit type (first time/revisited), gender, occupation, FB/IG, email,
+   phone, their "how did you feel" answer, and age.
 3. The photo is uploaded to a Google Drive folder using a readable filename
    built from the visit date, country, and name (falling back to the LINE
    message ID if extraction fails); the extracted fields plus a link to the
    Drive file are appended as a row in a Google Sheet. The feelings drawing
    itself isn't transcribed — it's preserved as part of the saved photo. If
-   Gemini errors out entirely (rate limit, outage) rather than confidently
+   Claude errors out entirely (rate limit, outage) rather than confidently
    saying "not a form", the bot still saves the photo and a mostly-blank row
    for manual review, since it can't rule out a real form having failed to
    read — better to over-save than silently lose a real submission.
@@ -54,15 +54,14 @@ Drive and logged as well (without OCR).
 4. (Optional) To restrict the bot to specific groups, get each group's ID
    from the webhook event logs and set `ALLOWED_GROUP_IDS`.
 
-### 2. Google AI Studio (Gemini API key, free tier)
+### 2. Anthropic Console (Claude API key)
 
-1. Go to [Google AI Studio](https://aistudio.google.com/apikey) and sign in
-   with a Google account.
-2. Click **Create API key** and copy it.
-3. The free tier has rate limits (requests per minute/day) that vary by
-   model; that's enough for a single group chat. If the group gets very
-   busy, Google AI Studio shows how close you are to the limit and where to
-   enable paid usage if you ever need it.
+1. Go to [console.anthropic.com](https://console.anthropic.com/) and sign in
+   or create an account.
+2. Go to **API Keys → Create Key**, name it, and copy it — it's shown once.
+3. Under **Settings → Billing**, add a payment method. There's no free tier;
+   at this app's volume (photos scanned per day) the cost is a few dollars a
+   month at most on `claude-haiku-4-5-20251001`.
 
 ### 3. Google Cloud (Drive + Sheets)
 
@@ -103,7 +102,7 @@ normal.
 Copy `.env.example` to `.env` and fill in:
 
 - `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_SECRET`
-- `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`)
+- `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_MODEL`)
 - `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` — from step 3 above.
 - `GOOGLE_DRIVE_FOLDER_ID` — the ID from the folder's URL.
 - `GOOGLE_SHEET_ID` — only the ID segment of the spreadsheet's URL, e.g. for
@@ -143,23 +142,17 @@ public HTTPS URL as the webhook.
   reads the file's content). Extend `src/handlers/messageHandler.js` +
   `src/documentAnalyzer.js` if a busy group also shares unrelated files and
   those need filtering too, or if PDF text extraction is needed later.
-- The free tier also caps requests *per day* (Google returned a limit of 20
-  requests/day for the flash model), separate from the per-minute cap below.
-  A busy group where most images aren't the registration form still spends
-  one Gemini call per image just to classify it, so that daily cap can be
-  reached fast purely from irrelevant traffic. Enabling billing removes both
-  caps.
-- The Drive upload happens after the Gemini analysis (not in parallel)
+- A busy group where most images aren't the registration form still spends
+  one Claude call per image just to classify it. There's no free-tier daily
+  cap to worry about here (billing is required from the start), but it's
+  worth keeping in mind for cost if the group is very chatty with photos.
+- The Drive upload happens after the Claude analysis (not in parallel)
   because the uploaded filename is built from the extracted date/country/name.
-- If document scanning starts failing with a 404 on the model name, Google
-  has retired that model version — run `node scripts/list-gemini-models.js`
-  to see what your API key can currently use and update `GEMINI_MODEL`.
-- The Gemini free tier caps requests per minute (Google returned a limit of
-  5/minute for the flash model at time of writing). `documentAnalyzer.js`
-  paces calls to stay under that limit and retries using Google's own
-  suggested delay on 429/500/503, so a burst of photos queues up and gets
-  processed a bit slower rather than failing outright. Replies use
-  `pushMessage` rather than `replyMessage` for this reason — a reply token
-  can expire while a message is queued behind the rate limit. If bursts of
-  many forms at once are common, enable billing on the Gemini API key for a
-  much higher limit at low cost.
+- The Anthropic SDK retries transient errors (429/5xx/connection issues)
+  automatically with backoff (`max_retries`, default 2), so
+  `documentAnalyzer.js` doesn't need its own retry loop. Replies use
+  `pushMessage` rather than `replyMessage` regardless, since a reply token
+  can still expire if a request is retried or just runs long.
+- If Claude retires a model version, `messages.create` returns a 404 naming
+  the model — swap `ANTHROPIC_MODEL` for a current one (see the model table
+  in Anthropic's docs).

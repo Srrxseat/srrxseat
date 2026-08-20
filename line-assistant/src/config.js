@@ -10,8 +10,8 @@ const config = {
     .split(',')
     .map((id) => id.trim())
     .filter(Boolean),
-  geminiApiKey: process.env.GEMINI_API_KEY,
-  geminiModel: process.env.GEMINI_MODEL || 'gemini-flash-latest',
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+  anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
   googleOAuthClientId: process.env.GOOGLE_OAUTH_CLIENT_ID,
   googleOAuthClientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
   googleOAuthRefreshToken: process.env.GOOGLE_OAUTH_REFRESH_TOKEN,
@@ -23,7 +23,7 @@ const config = {
 const required = [
   ['LINE_CHANNEL_ACCESS_TOKEN', config.line.channelAccessToken],
   ['LINE_CHANNEL_SECRET', config.line.channelSecret],
-  ['GEMINI_API_KEY', config.geminiApiKey],
+  ['ANTHROPIC_API_KEY', config.anthropicApiKey],
   ['GOOGLE_SHEET_ID', config.googleSheetId],
   ['GOOGLE_OAUTH_CLIENT_ID', config.googleOAuthClientId],
   ['GOOGLE_OAUTH_CLIENT_SECRET', config.googleOAuthClientSecret],
