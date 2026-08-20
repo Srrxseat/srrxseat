@@ -115,6 +115,7 @@ async function handleImageMessage(event) {
     extracted ? extracted.email : '',
     extracted ? extracted.phone : '',
     extracted ? extracted.experience_text : '',
+    extracted ? extracted.experience_text_th : '',
     extracted ? extracted.age : '',
     drive.webViewLink,
     senderName,
@@ -140,7 +141,7 @@ async function handleFileMessage(event) {
   const drive = await uploadDocument(buffer, message.fileName, 'application/octet-stream');
 
   await appendRow([
-    '', '', '', '', '', '', '', '', '', '', '', '', '',
+    '', '', '', '', '', '', '', '', '', '', '', '', '', '',
     drive.webViewLink,
     senderName,
     `(file, not a scanned form) ${message.fileName}`,

@@ -19,10 +19,13 @@ well (without OCR).
    carries unrelated photos and messages: if it's confidently **not** a form
    (a selfie, screenshot, meme, etc.), the bot does nothing at all — no
    upload, no sheet row, no reply, so it doesn't clutter either. If it is,
-   Claude reads the handwriting and extracts the visitor's date, session
+   Claude reads the handwriting and extracts the visitor's date (as three
+   separate day/month/year digits, reassembled deterministically in code
+   rather than trusting the model to do date arithmetic), session
    (morning/afternoon), how they heard about the center, name, country,
    visit type (first time/revisited), gender, occupation, FB/IG, email,
-   phone, their "how did you feel" answer, and age.
+   phone, their "how did you feel" answer (plus an auto-generated Thai
+   translation of it), and age.
 3. The photo is uploaded to a Google Drive folder using a readable filename
    built from the visit date, country, and name (falling back to the LINE
    message ID if extraction fails); the extracted fields plus a link to the
@@ -89,19 +92,26 @@ normal.
 4. Add a header row to the sheet tab (default tab name `Documents`):
 
    ```
-   Date | Time | how did you find us | Name | Country | No. of visited | Gender | occupation | FB/IG | E-mail | whatsapp | Meditation experience | Age | Drive Link | Sender | Raw Text | Received At
+   Date | Time | how did you find us | Name | Country | No. of visited | Gender | occupation | FB/IG | E-mail | whatsapp | Meditation experience | Translation | Age | Drive Link | Sender | Raw Text | Received At
    ```
 
    This matches the column layout the center already uses for its manual
-   visitor log, with `Age`, `Drive Link` (photo of the original form),
-   `Sender` (the LINE user who sent the photo), `Raw Text` (catch-all for
-   anything else legible on the form), and `Received At` (the exact time
-   LINE received the message, ISO 8601 — a fallback way to sort rows into
-   true send order if two photos sent close together ever get processed out
-   of order) appended at the end. `Monk 1` / `Monk 2` / `Facilitator` from
-   the manual log are intentionally **not**
+   visitor log, with `Translation` (a Thai translation of the "Meditation
+   experience" text, auto-generated), `Age`, `Drive Link` (photo of the
+   original form), `Sender` (the LINE user who sent the photo), `Raw Text`
+   (catch-all for anything else legible on the form), and `Received At` (the
+   exact time LINE received the message, ISO 8601 — useful for spotting
+   when a photo was actually processed, though rows are no longer forced
+   into strict send order — see below) appended at the end. `Monk 1` /
+   `Monk 2` / `Facilitator` from the manual log are intentionally **not**
    included — the bot has no way to read who taught a session from the
    visitor's own form, so those stay a manual note if you still want them.
+
+   Images are processed concurrently rather than queued one-at-a-time, so
+   rows land in whatever order each photo's analysis finishes, not
+   necessarily the order the photos were sent — this was a deliberate
+   trade-off for speed. If you need to see them in the order photos actually
+   arrived, sort the sheet by `Received At`.
 
    The Drive folder itself has no send-order guarantee either — it's
    whatever sort the Drive UI is set to (often alphabetical by filename,
