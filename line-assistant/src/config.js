@@ -11,7 +11,7 @@ const config = {
     .map((id) => id.trim())
     .filter(Boolean),
   geminiApiKey: process.env.GEMINI_API_KEY,
-  geminiModel: process.env.GEMINI_MODEL || 'gemini-3.0-flash',
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-flash-latest',
   googleOAuthClientId: process.env.GOOGLE_OAUTH_CLIENT_ID,
   googleOAuthClientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
   googleOAuthRefreshToken: process.env.GOOGLE_OAUTH_REFRESH_TOKEN,

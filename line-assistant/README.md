@@ -12,7 +12,7 @@ Drive and logged as well (without OCR).
 1. LINE sends a webhook event to `POST /webhook` whenever a message is posted
    in a group the bot has joined.
 2. For an **image** message: the bot downloads the photo, sends it to Gemini
-   (`gemini-3.0-flash` by default) to read the handwriting and extract the
+   (`gemini-flash-latest` by default) to read the handwriting and extract the
    visitor's date, session (morning/afternoon), how they heard about the
    center, name, country, visit type (first time/revisited), gender,
    occupation, FB/IG, email, phone, their "how did you feel" answer, age,
@@ -132,3 +132,6 @@ public HTTPS URL as the webhook.
   extraction from PDFs is needed later.
 - The Drive upload happens after the Gemini analysis (not in parallel)
   because the uploaded filename is built from the extracted date/country/name.
+- If document scanning starts failing with a 404 on the model name, Google
+  has retired that model version — run `node scripts/list-gemini-models.js`
+  to see what your API key can currently use and update `GEMINI_MODEL`.
