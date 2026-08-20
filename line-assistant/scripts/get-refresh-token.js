@@ -43,4 +43,13 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\nPort ${PORT} is already in use — a previous run of this script is likely still open.`);
+    console.error(`Find and stop it first: lsof -i :${PORT}   then   kill -9 <PID>\n`);
+    process.exit(1);
+  }
+  throw err;
+});
+
 server.listen(PORT);
