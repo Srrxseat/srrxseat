@@ -18,7 +18,13 @@ const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, REDIRECT_URI
 const authUrl = oauth2Client.generateAuthUrl({
   access_type: 'offline',
   prompt: 'consent',
-  scope: ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/spreadsheets'],
+  // drive.file only grants access to files/folders the app itself created or
+  // that the user picked via a Drive file picker - it can't see a folder that
+  // was created ahead of time straight in the Drive UI (uploadDocument's
+  // `parents: [folderId]` 404s as "File not found" even with the right
+  // account). The full drive scope is required to write into a pre-existing
+  // folder by ID.
+  scope: ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/spreadsheets'],
 });
 
 console.log('\n1. Open this URL in your browser and log in with the Google account that owns the Drive folder and Sheet:\n');
