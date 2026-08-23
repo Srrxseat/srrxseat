@@ -149,10 +149,17 @@ async function handleImageMessage(event) {
     ? buildReply(extracted)
     : 'Saved the photo, but could not read the form automatically. Please check it manually in the sheet.';
 
-  await client.pushMessage({
-    to: getChatId(source),
-    messages: [{ type: 'text', text: replyText }],
-  });
+  const chatId = getChatId(source);
+  try {
+    await client.pushMessage({
+      to: chatId,
+      messages: [{ type: 'text', text: replyText }],
+    });
+    console.log(`[messageHandler] reply sent to ${source.type} ${chatId} for ${extracted?.visitor_name || 'unknown'}`);
+  } catch (err) {
+    console.error(`[messageHandler] failed to send reply to ${source.type} ${chatId}:`, err.message);
+    throw err;
+  }
 }
 
 async function handleFileMessage(event) {
@@ -170,10 +177,17 @@ async function handleFileMessage(event) {
     new Date(event.timestamp).toISOString(),
   ]);
 
-  await client.pushMessage({
-    to: getChatId(source),
-    messages: [{ type: 'text', text: `Saved file ✅ ${message.fileName}` }],
-  });
+  const chatId = getChatId(source);
+  try {
+    await client.pushMessage({
+      to: chatId,
+      messages: [{ type: 'text', text: `Saved file ✅ ${message.fileName}` }],
+    });
+    console.log(`[messageHandler] file reply sent to ${source.type} ${chatId}`);
+  } catch (err) {
+    console.error(`[messageHandler] failed to send file reply to ${source.type} ${chatId}:`, err.message);
+    throw err;
+  }
 }
 
 async function handleEvent(event) {
