@@ -1,0 +1,6 @@
+# ศัพท์เฉพาะ / คำแปลที่บังคับใช้
+# รูปแบบ: english = ไทย   (บรรทัดขึ้นต้นด้วย # คือคอมเมนต์)
+cash flow = กระแสเงินสด
+withholding tax = ภาษีหัก ณ ที่จ่าย
+invoice = ใบแจ้งหนี้
+FlowAccount = FlowAccount
