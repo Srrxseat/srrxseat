@@ -7,6 +7,11 @@ photo to Google Drive, and records the extracted fields as a new row in a
 Google Sheet. Plain files sent in the chat are saved to Drive and logged as
 well (without OCR).
 
+Setting this up for a *different* account or organisation rather than
+maintaining an existing deployment? See
+[DEPLOY-YOUR-OWN.md](DEPLOY-YOUR-OWN.md) — the same steps as below, ordered as
+a per-instance checklist.
+
 ## How it works
 
 1. LINE sends a webhook event to `POST /webhook` whenever a message is posted
