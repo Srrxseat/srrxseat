@@ -1,6 +1,16 @@
 # ศัพท์เฉพาะ / คำแปลที่บังคับใช้
 # รูปแบบ: english = ไทย   (บรรทัดขึ้นต้นด้วย # คือคอมเมนต์)
+
+# ธรรมะ / คอร์สปฏิบัติธรรม
+Luang Por = หลวงพ่อ
+Longpaw = หลวงพ่อ
+Pai = ปาย
+Pai International Meditation Center = ศูนย์ปฏิบัติธรรมนานาชาติปาย
+middle way = สายกลาง
+retreat = คอร์สปฏิบัติธรรม
+sharing session = วงแบ่งปันประสบการณ์
+
+# ธุรกิจ / บัญชี
 cash flow = กระแสเงินสด
 withholding tax = ภาษีหัก ณ ที่จ่าย
 invoice = ใบแจ้งหนี้
-FlowAccount = FlowAccount

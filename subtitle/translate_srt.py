@@ -22,6 +22,10 @@
   # ใช้ศัพท์เฉพาะ/คำแปลที่บังคับไว้ (ไฟล์ข้อความ บรรทัดละ 1 คู่: english = ไทย)
   python translate_srt.py movie.en.srt --glossary glossary.txt
 
+  # เพศของผู้พูด -> สรรพนามและคำลงท้าย
+  python translate_srt.py movie.en.srt --gender female   # ฉัน / ค่ะ
+  python translate_srt.py movie.en.srt --gender male     # ผม / ครับ
+
   # ระดับความสุภาพ/โทน
   python translate_srt.py movie.en.srt --tone formal      # ทางการ (ครับ/ค่ะ)
   python translate_srt.py movie.en.srt --tone casual      # กันเอง (ค่าเริ่มต้น)
@@ -58,6 +62,20 @@ import anthropic
 
 MODEL = "claude-opus-5"
 
+GENDER_HINT = {
+    "female": (
+        "ผู้พูดเป็นผู้หญิง ใช้สรรพนามบุรุษที่ 1 ว่า \"ฉัน\" และลงท้ายประโยคด้วย \"ค่ะ\" "
+        "(หรือ \"นะคะ\") เฉพาะตรงที่จบประโยคจริง ๆ ไม่ต้องใส่ทุก cue"
+    ),
+    "male": (
+        "ผู้พูดเป็นผู้ชาย ใช้สรรพนามบุรุษที่ 1 ว่า \"ผม\" และลงท้ายประโยคด้วย \"ครับ\" "
+        "(หรือ \"นะครับ\") เฉพาะตรงที่จบประโยคจริง ๆ ไม่ต้องใส่ทุก cue"
+    ),
+    "neutral": (
+        "ไม่ระบุเพศผู้พูด ใช้สรรพนามบุรุษที่ 1 ว่า \"ฉัน\" และไม่ต้องใส่คำลงท้าย ค่ะ/ครับ เลย"
+    ),
+}
+
 TONE_HINT = {
     "casual": "โทนเป็นกันเอง เหมือนพูดคุยธรรมดา ใช้คำลงท้ายสุภาพเท่าที่จำเป็น",
     "formal": "โทนสุภาพทางการ ใช้คำลงท้าย ครับ/ค่ะ ตามความเหมาะสม",
@@ -67,12 +85,16 @@ TONE_HINT = {
 SYSTEM_PROMPT = """คุณเป็นนักแปลซับไทเทิลมืออาชีพ แปลจากภาษาอังกฤษเป็นภาษาไทย
 
 กฎการแปล:
-1. แปลให้เป็นภาษาไทยที่คนไทยพูดจริง ไม่ใช่แปลตรงตัวคำต่อคำ ห้ามใช้ภาษาแปล
+1. แปลอย่างนักแปลมืออาชีพ ไม่ใช่แปลตรงตัวคำต่อคำ ใช้ภาษาไทยที่คนไทยพูดจริง
+   และรักษาโทน อารมณ์ จังหวะ และบุคลิกของผู้พูดต้นฉบับไว้ให้ครบ
+   ผู้พูดลังเล พูดซ้ำ หรือหยุดคิด ก็ให้คำแปลรู้สึกเป็นธรรมชาติแบบเดียวกัน
 2. แปล cue ละบรรทัดตามที่ได้รับ ต้องส่งคืน "ทุก" id ที่ได้รับ ครบถ้วน ห้ามรวบ ห้ามข้าม ห้ามเพิ่ม id ใหม่
 3. หนึ่ง cue อยู่บนจอไม่กี่วินาที -> เก็บใจความให้สั้น กระชับ อ่านทันทีเข้าใจทันที
 4. ประโยคที่ถูกตัดค้างไว้กลาง cue ให้แปลค้างไว้แบบเดียวกัน อย่าเติมประโยคให้จบเอง
 5. รักษาแท็กจัดรูปแบบเดิมไว้ทุกตัว เช่น <i> </i> <b> {\\an8} และเครื่องหมาย - ที่ใช้แทนบทสนทนาสองคน
 6. ชื่อคน ชื่อสถานที่ ชื่อแบรนด์ ให้ทับศัพท์ตามที่คนไทยเรียกกัน ถ้าไม่มีคำเรียกที่ใช้กันให้คงภาษาอังกฤษไว้
+   คำเรียกพระในพุทธศาสนาให้ใช้คำไทยที่ถูกต้อง เช่น Luang Por / Longpaw = หลวงพ่อ,
+   monk = พระ, retreat = คอร์สปฏิบัติธรรม และใช้คำราชาศัพท์/คำสุภาพเมื่อพูดถึงพระ
 7. ตัวเลข หน่วยวัด และสกุลเงิน คงค่าเดิม (ไม่ต้องแปลงหน่วย) เขียนแบบที่คนไทยอ่านออก
 8. คำหยาบ/คำสแลง แปลให้ได้ระดับความแรงใกล้เคียงต้นฉบับ ไม่ต้องเซ็นเซอร์เอง
 9. เสียงประกอบหรือคำบรรยายในวงเล็บเหลี่ยม เช่น [MUSIC] [LAUGHTER] ให้แปลเป็นไทยในวงเล็บเหลี่ยมเหมือนกัน
@@ -109,6 +131,7 @@ def build_user_message(
     context: str | None,
     glossary: list[tuple[str, str]],
     tone: str,
+    gender: str,
     max_chars: int,
 ) -> str:
     parts: list[str] = []
@@ -120,6 +143,7 @@ def build_user_message(
         terms = "\n".join(f"- {en} = {th}" for en, th in glossary)
         parts.append(f"คำแปลที่บังคับใช้ (ต้องใช้ตามนี้เท่านั้น):\n{terms}")
 
+    parts.append(f"ผู้พูดและคำลงท้าย: {GENDER_HINT.get(gender, GENDER_HINT['neutral'])}")
     parts.append(f"โทนการแปล: {TONE_HINT.get(tone, TONE_HINT['casual'])}")
     parts.append(f"ความยาวต่อบรรทัด: พยายามไม่เกินประมาณ {max_chars} ตัวอักษร")
 
@@ -198,7 +222,7 @@ def translate_batch(
 ) -> dict[int, str]:
     """แปลหนึ่ง batch ถ้าคำแปลขาด id ไปจะแบ่งครึ่งแล้วลองใหม่"""
     message = build_user_message(
-        batch, before, after, args.context, glossary, args.tone, args.max_chars
+        batch, before, after, args.context, glossary, args.tone, args.gender, args.max_chars
     )
     try:
         result = call_claude(client, message)
@@ -278,6 +302,12 @@ def main() -> int:
         choices=["thai", "bilingual", "bilingual-en-first"],
         default="thai",
         help="thai = ไทยเท่านั้น (ค่าเริ่มต้น), bilingual = ไทยบน/อังกฤษล่าง, bilingual-en-first = อังกฤษบน/ไทยล่าง",
+    )
+    p.add_argument(
+        "--gender",
+        choices=list(GENDER_HINT),
+        default="neutral",
+        help="เพศของผู้พูด: female = ฉัน/ค่ะ, male = ผม/ครับ, neutral = ฉัน ไม่มีคำลงท้าย (ค่าเริ่มต้น)",
     )
     p.add_argument("--tone", choices=list(TONE_HINT), default="casual", help="โทนการแปล")
     p.add_argument("--context", help="อธิบายว่าวิดีโอเกี่ยวกับอะไร ใครพูด เพื่อให้แปลตรงบริบท")

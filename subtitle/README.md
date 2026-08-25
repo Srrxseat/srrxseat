@@ -32,6 +32,16 @@ python translate_srt.py movie.en.srt --mode bilingual            # ไทยบ�
 python translate_srt.py movie.en.srt --mode bilingual-en-first    # อังกฤษบน / ไทยล่าง
 ```
 
+### เพศของผู้พูด (สรรพนาม + คำลงท้าย)
+
+```bash
+python translate_srt.py movie.en.srt --gender female   # ฉัน ... ค่ะ
+python translate_srt.py movie.en.srt --gender male     # ผม ... ครับ
+python translate_srt.py movie.en.srt --gender neutral  # ฉัน ไม่มีคำลงท้าย (ค่าเริ่มต้น)
+```
+
+คำลงท้ายจะใส่เฉพาะตรงที่จบประโยคจริง ๆ ไม่ใส่ทุก cue เพื่อไม่ให้ซับรก
+
 ### คุณภาพคำแปล
 
 ```bash
@@ -52,6 +62,7 @@ python translate_srt.py movie.en.srt --tone formal
 |---|---|---|
 | `-o, --output` | `<ชื่อไฟล์>.th.srt` | ไฟล์ผลลัพธ์ |
 | `--mode` | `thai` | `thai` / `bilingual` / `bilingual-en-first` |
+| `--gender` | `neutral` | เพศผู้พูด: `female` (ฉัน/ค่ะ) / `male` (ผม/ครับ) / `neutral` |
 | `--tone` | `casual` | `casual` / `formal` / `neutral` |
 | `--context` | – | คำอธิบายวิดีโอ |
 | `--glossary` | – | ไฟล์ศัพท์เฉพาะ (`english = ไทย` บรรทัดละคู่) |

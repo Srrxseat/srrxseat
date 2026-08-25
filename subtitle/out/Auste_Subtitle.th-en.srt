@@ -1,26 +1,26 @@
 1
 00:00:30,080 --> 00:00:34,880
-ฉันชื่อออสเต้ อายุ 35 ปี ฉัน
+ฉันชื่อออสเต้ อายุ 35 ปีค่ะ
 My name is Austa. I'm 35 years old. I'm
 
 2
 00:00:33,120 --> 00:00:36,399
-เป็นคนลิทัวเนีย ฉันเป็น
+ฉันเป็นคนลิทัวเนีย เป็น
 originally from Lithuania. I'm a
 
 3
 00:00:34,880 --> 00:00:38,320
-นักวิจัย จบปริญญาเอกด้าน
+นักวิจัยค่ะ จบปริญญาเอกด้าน
 researcher. So, I have a PhD in
 
 4
 00:00:36,399 --> 00:00:40,640
-จิตวิทยาและปัญญาประดิษฐ์
+จิตวิทยาและปัญญาประดิษฐ์ค่ะ
 psychology and artificial intelligence.
 
 5
 00:00:38,320 --> 00:00:42,800
-ฉันศึกษาว่าคนเราเข้าใจเทคโนโลยีอย่างไร
+ฉันศึกษาว่าคนเราเข้าใจเทคโนโลยียังไง
 I study how people understand technology
 
 6
@@ -30,17 +30,17 @@ and what they need to know to understand
 
 7
 00:00:42,800 --> 00:00:46,960
-มัน การมาแต่ละครั้ง ฉันว่า
+มันค่ะ การมาแต่ละครั้ง
 it. Each time um I had different
 
 8
 00:00:45,200 --> 00:00:49,920
-ฉันมาด้วยความตั้งใจต่างกัน ครั้งแรก
+ฉันมาด้วยความตั้งใจที่ต่างกัน ครั้งแรก
 intentions, I would say. So the first
 
 9
 00:00:46,960 --> 00:00:51,840
-ตอนนั้นฉันทำงานหนักมาก ฉัน
+ตอนนั้นฉันทำงานหนักมาก
 time was um I was working very hard. I
 
 10
@@ -50,32 +50,32 @@ was just finishing my PhD. I had two
 
 11
 00:00:51,840 --> 00:00:58,719
-และฉันก็หวังไว้มากว่า
+แล้วก็หวังไว้เต็มที่เลยว่า
 jobs and I was um really hoping that
 
 12
 00:00:55,760 --> 00:01:01,760
-จะได้งานดีๆ ในบริษัทที่ใหญ่ที่สุด
+ฉันจะได้งานดีๆ ในบริษัทที่ใหญ่ที่สุด
 I'll get the an amazing job at biggest
 
 13
 00:00:58,719 --> 00:01:03,680
-ในโลก ฉันเลย
+ในโลกค่ะ ฉันเลย
 company in the world. So I was really
 
 14
 00:01:01,760 --> 00:01:06,000
-ทุ่มเทมาก ทุ่มจนถึงขั้น
+ทุ่มสุดตัว ทุ่มถึงขนาดที่ว่า
 putting a lot effort to the extent that
 
 15
 00:01:03,680 --> 00:01:07,439
-ทำงานวันละ 17 ชั่วโมง ฉัน
+ทำงานวันละ 17 ชั่วโมง
 I I was working 17 hours a day. I was
 
 16
 00:01:06,000 --> 00:01:10,479
-ไม่สนใจใครเลย
+ฉันไม่สนใจใครเลย
 just I didn't care about people,
 
 17
@@ -85,17 +85,17 @@ friends, family, nothing mattered. So
 
 18
 00:01:10,479 --> 00:01:14,479
-แน่นอนว่าฉันไม่ได้งานนั้น เพราะ
+สุดท้ายฉันก็ไม่ได้งานนั้น เพราะ
 obviously I didn't get a job because I
 
 19
 00:01:12,080 --> 00:01:16,560
-ฉันหมดไฟและเครียด แล้วฉันก็
+ฉันหมดไฟและเครียดมาก แล้วฉันก็
 was burned out and stressed. And then I
 
 20
 00:01:14,479 --> 00:01:18,799
-นั่งอยู่เฉยๆ ฉันไม่รู้ว่า
+ได้แต่นั่งอยู่เฉยๆ ไม่รู้ว่า
 was just sitting and I had I didn't know
 
 21
@@ -105,27 +105,27 @@ what to do. So I remembered when one of
 
 22
 00:01:18,799 --> 00:01:22,880
-เมื่อไม่กี่ปีก่อน เพื่อนฉันคนหนึ่งเคยมา
+เมื่อไม่กี่ปีก่อน เพื่อนฉันคนหนึ่งเคยไปปาย
 my friends a few years ago he was in PI
 
 23
 00:01:21,040 --> 00:01:25,200
-คอร์สปฏิบัติธรรมที่นี่ แล้วฉันก็
+ไปเข้าคอร์สที่ศูนย์ปฏิบัติธรรมนานาชาติปาย
 in this meditation retreat and I
 
 24
 00:01:22,880 --> 00:01:27,040
-ไม่รู้ทำไมถึงนึกถึงเขาขึ้นมา ฉันเลย
+ไม่รู้ทำไมถึงนึกถึงเขาขึ้นมา แล้วฉันก็
 remembered him for some reason and I
 
 25
 00:01:25,200 --> 00:01:28,640
-ตัดสินใจว่าที่นี่แหละ
+ตัดสินใจเลยว่าที่นี่แหละ
 decided that maybe that's the place I
 
 26
 00:01:27,040 --> 00:01:30,799
-คือที่ที่ฉันควรไป ไม่ได้หาข้อมูลด้วยซ้ำ
+คือที่ที่ฉันต้องไป ไม่ได้หาข้อมูลด้วยซ้ำ
 should go and I didn't even check. I
 
 27
@@ -135,7 +135,7 @@ booked my ticket and I booked a retreat
 
 28
 00:01:30,799 --> 00:01:34,240
-โดยไม่รู้ว่ากำลังจะไปไหน
+ทั้งที่ไม่รู้ว่ากำลังจะไปไหน
 and I didn't know where I was going. So
 
 29
@@ -145,7 +145,7 @@ I was just coming here only reason to
 
 30
 00:01:34,240 --> 00:01:39,479
-คือมาพัก มารีเซ็ตชีวิตตัวเอง
+คือมาพัก มารีเซ็ตชีวิตตัวเองค่ะ
 rest I think to just reset my life.
 
 31
@@ -155,7 +155,7 @@ When I came, I was I was doing just
 
 32
 00:01:50,000 --> 00:01:54,799
-แบบนั้นจริงๆ ฉันพักผ่อน ฉันหลับตา
+แบบนั้นจริงๆ ฉันพักผ่อน หลับตา
 exactly that. I was resting. I closed my
 
 33
@@ -175,7 +175,7 @@ finally I don't have to do anything. And
 
 36
 00:02:00,719 --> 00:02:06,320
-พอผ่านไปหนึ่งสัปดาห์ ฉันรู้สึกว่า
+พอครบหนึ่งสัปดาห์ ฉันรู้สึกว่า
 after the week passed, I felt like the
 
 37
@@ -185,37 +185,37 @@ problems I had a week ago are not
 
 38
 00:02:06,320 --> 00:02:11,120
-ไม่ใช่ปัญหาอีกต่อไป
+ไม่ใช่ปัญหาอีกต่อไปแล้ว
 problem not problems anymore. So it just
 
 39
 00:02:09,039 --> 00:02:13,599
-มันไม่สำคัญแล้ว ไม่มีอะไรสำคัญเลย
+มันไม่สำคัญเลย ไม่มีอะไรสำคัญอีกแล้ว
 it didn't matter. Nothing mattered.
 
 40
 00:02:11,120 --> 00:02:17,360
-ครั้งที่สองที่ฉันมาที่นี่ เมื่อไม่นานมานี้
+ครั้งที่สองที่ฉันมา เมื่อไม่นานมานี้
 Second time when I came here just
 
 41
 00:02:13,599 --> 00:02:19,599
-ฉันมาเพราะ... ฉันนั่งสมาธิ
+ฉันมาเพราะว่า... ฉันนั่งสมาธิ
 recently, I came for uh I've been
 
 42
 00:02:17,360 --> 00:02:21,440
-มาสองสามปีแล้ว และฉัน
+มาสองสามปีแล้ว แล้วฉันก็
 meditating for a couple of years and I
 
 43
 00:02:19,599 --> 00:02:24,080
-ตัดสินใจว่าถึงเวลาที่จะทำให้
+คิดว่าถึงเวลาที่จะทำให้
 decided that it's time for me to deepen
 
 44
 00:02:21,440 --> 00:02:27,280
-ประสบการณ์สมาธิลึกซึ้งขึ้น และ
+การปฏิบัติของฉันลึกซึ้งขึ้น
 my meditation experience and really
 
 45
@@ -240,17 +240,17 @@ experience, see that light, see
 
 49
 00:02:35,440 --> 00:02:41,760
-อะไรสักอย่าง แล้วฉันก็ลำบากมาก
+อะไรสักอย่าง สุดท้ายฉันก็ทรมานมาก
 something and um I really struggled. I
 
 50
 00:02:39,200 --> 00:02:44,560
-ฉันไม่ค่อยมีความสุขกับการนั่งสมาธิ
+ฉันไม่ค่อยมีความสุขกับการนั่งสมาธิเลย
 didn't enjoy meditation that much. I
 
 51
 00:02:41,760 --> 00:02:47,680
-ฉันชอบคอร์สนี้มาก แต่ว่า
+ฉันชอบคอร์สนี้มากนะ แต่ว่า
 really enjoyed the retreat but I was
 
 52
@@ -265,7 +265,7 @@ went back after the retreat I I had to
 
 54
 00:02:51,200 --> 00:02:54,800
-นั่งคิดว่าเกิดอะไรขึ้น ฉันรัก
+มานั่งคิดว่าเกิดอะไรขึ้น ฉันรัก
 sit and think what happened. I love
 
 55
@@ -280,7 +280,7 @@ was I struggling so hard? Um, and I
 
 57
 00:02:57,120 --> 00:03:02,879
-เข้าใจว่า ฉันอาจจะกดดัน
+เพิ่งเข้าใจว่า ฉันอาจจะกดดัน
 realized that maybe I just put so much
 
 58
@@ -300,12 +300,12 @@ particular reason, just because I didn't
 
 61
 00:03:06,720 --> 00:03:12,040
-ครั้งที่แล้วฉันนั่งได้ไม่มาก ฉันแค่
+ครั้งที่แล้วนั่งได้ไม่มาก ฉันแค่
 meditate that much last time. I just
 
 62
 00:03:08,640 --> 00:03:12,040
-อยากนั่งสมาธิ
+อยากนั่งสมาธิเฉยๆ
 wanted to meditate.
 
 63
@@ -315,17 +315,17 @@ So I came and I
 
 64
 00:03:25,040 --> 00:03:28,959
-โดยไม่มีความตั้งใจอะไรเลย นอกจาก
+โดยไม่ได้ตั้งใจอะไรเลย นอกจาก
 no intention whatsoever other than just
 
 65
 00:03:27,360 --> 00:03:31,840
-มานั่งสมาธิ และมันก็เป็นแบบนั้น
+มานั่งสมาธิ และมันก็เป็น
 meditate and that's exactly what
 
 66
 00:03:28,959 --> 00:03:34,640
-จริงๆ ฉันแค่นั่ง แล้วก็นั่งสมาธิ
+แบบนั้นจริงๆ ฉันแค่นั่ง แล้วก็นั่ง
 happened. I just sat and meditated and
 
 67
@@ -355,7 +355,7 @@ session. Exactly the deeper experience I
 
 72
 00:03:44,959 --> 00:03:49,159
-แบบที่เราทุกคนตามหากันอยู่
+แบบที่เราทุกคนตามหากันอยู่ค่ะ
 guess we're all looking for.
 
 73
@@ -370,7 +370,7 @@ eyes, you go into cozy, comfortable
 
 75
 00:04:01,120 --> 00:04:05,760
-แล้วก็มีใครบางคนจับ
+แล้วมีใครบางคนจับ
 place and there's somebody holding your
 
 76
@@ -380,12 +380,12 @@ hand. Then you go into that house and
 
 77
 00:04:05,760 --> 00:04:09,760
-แล้วก็มีคนที่จับมือเราอยู่ตรงนั้น
+แล้วก็เจอคนที่จับมือเราอยู่ตรงนั้น
 there's that person who held your hand.
 
 78
 00:04:07,920 --> 00:04:12,480
-อาจจะกอดเราด้วย ถ้าเรา
+เขาอาจจะกอดเราด้วย ถ้าเรา
 Maybe that was giving you a hug if you
 
 79
@@ -415,17 +415,17 @@ you feel lost if you need if you have a
 
 84
 00:04:21,680 --> 00:04:28,400
-คำถาม ถ้าเรามีความสงสัย เราก็กลับ
+คำถาม ถ้าเรามีข้อสงสัย เราก็กลับ
 question if you have doubts you go back
 
 85
 00:04:26,000 --> 00:04:30,639
-ไปที่บ้านหลังนั้นแล้วถามคำถามนั้น
+ไปที่บ้านหลังนั้น แล้วถามคำถามนั้น
 to that house and ask that question and
 
 86
 00:04:28,400 --> 00:04:34,400
-แล้วก็มีใครอยู่ตรงนั้น การรู้ตัวว่า
+แล้วก็มีใครอยู่ตรงนั้น การได้รู้ว่า
 there's somebody there that realization
 
 87
@@ -435,7 +435,7 @@ that you carry that comfort within you
 
 88
 00:04:34,400 --> 00:04:39,280
-และการนั่งสมาธิคือสิ่งที่ช่วยให้เรา
+และสมาธิคือสิ่งที่ช่วยให้เรา
 and meditation is what helps you to
 
 89
@@ -445,12 +445,12 @@ access it. So you fall in love with
 
 90
 00:04:39,280 --> 00:04:42,320
-การนั่งสมาธิ และในเวลาเดียวกันก็ตกหลุมรัก
+การนั่งสมาธิ และในเวลาเดียวกันก็รัก
 meditation but at the same time you fall
 
 91
 00:04:40,880 --> 00:04:43,600
-ตัวเอง เพราะเราตกหลุมรัก
+ตัวเองไปด้วย เพราะเราตกหลุมรัก
 in love with yourself because you fall
 
 92
@@ -460,7 +460,7 @@ in love with the feeling that's within
 
 93
 00:04:43,600 --> 00:04:46,600
-ตัวเรา
+ตัวเราค่ะ
 you.
 
 94
@@ -485,7 +485,7 @@ with yourself. I think that's
 
 98
 00:05:03,360 --> 00:05:08,720
-มันคือแบบนั้นแหละ สิ่งที่ฉันเจอคือ
+มันคือแบบนั้นแหละค่ะ สิ่งที่ฉันเจอคือ
 that's what it is. I what I found is
 
 99
@@ -505,7 +505,7 @@ position. And it's almost like a muscle
 
 102
 00:05:14,720 --> 00:05:20,639
-จำได้ ร่างกายฉันผ่อนคลายเต็มที่ทันที
+จำได้ ร่างกายผ่อนคลายเต็มที่ทันที
 memory. My body just completely relaxed.
 
 103
@@ -560,7 +560,7 @@ feeling that I was carrying that love
 
 113
 00:05:44,479 --> 00:05:48,479
-ไปทุกที่ที่ฉันไป ฉัน
+ไปทุกที่ที่ไป ฉัน
 wherever where I was going. I was
 
 114
@@ -575,7 +575,7 @@ don't know just you know when you when
 
 116
 00:05:51,280 --> 00:05:55,360
-เรารู้สึกมีความสุขมาก เวลาที่มีอะไร
+เรารู้สึกมีความสุขมากๆ เวลาที่มีอะไร
 you feel very happy when something
 
 117
@@ -595,7 +595,7 @@ that feeling all the time you carry
 
 120
 00:05:58,560 --> 00:06:02,720
-โดยที่ไม่ต้องมีอะไรเกิดขึ้นเป็นพิเศษ
+โดยที่ไม่ต้องมีอะไรเกิดขึ้นเลย
 without anything happened particularly.
 
 121
@@ -615,7 +615,7 @@ see everything with grateful eyes. So
 
 124
 00:06:07,680 --> 00:06:14,319
-เราจะสังเกตเห็นสิ่งสวยงาม
+เราจะเห็นสิ่งสวยงาม
 you know you you notice beautiful things
 
 125
@@ -625,12 +625,12 @@ around you. So it's really powerful and
 
 126
 00:06:14,319 --> 00:06:17,319
-และหาได้ยาก
+และหาได้ยากจริงๆ ค่ะ
 rare.
 
 127
 00:06:26,319 --> 00:06:33,120
-แนวทางสายกลาง ฉันคิดว่า
+แนวทางสายกลาง ฉันว่า
 Uh the middle way approach I think it's
 
 128
@@ -640,7 +640,7 @@ brilliant uh because it's it's really
 
 129
 00:06:33,120 --> 00:06:39,039
-เรียบง่ายจริงๆ ถ้ามันยาก
+เรียบง่ายมาก ถ้ามันยาก
 it's really simple. If it was anything
 
 130
@@ -670,12 +670,12 @@ take away the essence of it. The
 
 135
 00:06:46,319 --> 00:06:50,880
-ความสมดุลที่สวยงามระหว่าง
+ความสมดุลที่งดงามระหว่าง
 beautiful balance between, you know,
 
 136
 00:06:48,560 --> 00:06:52,639
-การหลับไป กับการผ่อนคลาย
+การเคลิ้มหลับ กับการผ่อนคลาย
 going to sleep and being completely
 
 137
@@ -685,7 +685,7 @@ completely relaxed to the extent that
 
 138
 00:06:52,639 --> 00:06:58,400
-เราแทบไม่รู้สึกตัว แต่ก็
+แทบไม่รู้สึกตัว แต่ก็
 you you're not actually conscious, but
 
 139
@@ -715,7 +715,7 @@ you practice.
 
 144
 00:07:07,680 --> 00:07:11,360
-แรกสุดเราได้ความรู้ เราอ่าน
+เริ่มจากเราได้ความรู้ เราอ่าน
 So first you gain knowledge you read the
 
 145
@@ -725,7 +725,7 @@ slides then you apply the knowledge and
 
 146
 00:07:11,360 --> 00:07:15,759
-แล้วเราก็จะเข้าใจความรู้นั้น มัน
+แล้วเราถึงจะเข้าใจความรู้นั้น มัน
 then you understand the knowledge. It
 
 147
@@ -745,7 +745,7 @@ doesn't take me off you know like I take
 
 150
 00:07:22,080 --> 00:07:27,360
-มันได้อย่างสงบขึ้น ไม่ว่าจะเกิดอะไร ซึ่ง
+มันได้อย่างสงบขึ้น ซึ่ง
 it more calmly whatever it happens which
 
 151
@@ -765,7 +765,7 @@ stress which is beautiful thing to it's
 
 154
 00:07:32,160 --> 00:07:35,400
-มันดีต่อใจจริงๆ
+มันดีต่อใจจริงๆ ค่ะ
 just healthy.
 
 155
@@ -835,7 +835,7 @@ after seven days you you not only grow
 
 168
 00:08:15,440 --> 00:08:20,960
-แค่ในฐานะผู้ปฏิบัติธรรม แต่ยังรู้สึก
+แค่ในฐานะผู้ปฏิบัติ แต่ยังรู้สึก
 as a meditator but you also feel like
 
 169
@@ -850,7 +850,7 @@ feeling better. It's uh it's more than
 
 171
 00:08:24,319 --> 00:08:29,120
-แค่ดีเสียอีก เราไม่ค่อยมีโอกาส
+คำว่าดีอีก เราไม่ค่อยมีโอกาส
 okay. You don't get this chance to to
 
 172
@@ -865,7 +865,7 @@ friends at home. You know, you can talk
 
 174
 00:08:31,520 --> 00:08:36,479
-แต่เขาก็... เขาอาจจะ
+แต่เขา... เขาอาจจะ
 but they they don't you know they either
 
 175
@@ -900,12 +900,12 @@ anything to share. But then you start
 
 181
 00:08:48,640 --> 00:08:52,880
-เล่าออกไป เราได้แสดงออก
+เล่าออกไป เราได้ระบายสิ่งที่อยู่ข้างใน
 sharing and it's uh you know you express
 
 182
 00:08:51,279 --> 00:08:54,720
-และพอเราได้แสดงออก
+และพอเราได้พูดออกมา
 yourself and when you express yourself
 
 183
@@ -935,7 +935,7 @@ We have so much information around us.
 
 188
 00:09:12,160 --> 00:09:17,360
-มีเรื่องเกิดขึ้นเยอะไปหมด มี
+มีเรื่องเกิดขึ้นเต็มไปหมด มี
 We have so much going on. There are so
 
 189
@@ -970,7 +970,7 @@ go. You don't know what to do. You don't
 
 195
 00:09:27,680 --> 00:09:31,360
-รู้ว่าจะทำงานอะไร ตอนนี้เรามี
+รู้ว่าจะทำงานอะไร ทุกวันนี้เรามี
 know what job to do. Now, we have all of
 
 196
@@ -1000,7 +1000,7 @@ you try to ask people, "What should I
 
 201
 00:09:39,200 --> 00:09:44,480
-ทำยังไงดี" หรือไม่ก็ทำอะไรมั่วๆ
+ทำยังไงดี" หรือไม่ก็ทำอะไรมั่วๆ ไป
 do?" or you just do random things and
 
 202
@@ -1010,7 +1010,7 @@ get lost and stressed out and you you
 
 203
 00:09:44,480 --> 00:09:50,560
-หมดพลัง เสียตัวตนไป รู้สึก
+หมดพลัง สูญเสียตัวตน รู้สึก
 lose energy. You lose yourself. You feel
 
 204
@@ -1040,12 +1040,12 @@ you feel like talking, where you feel
 
 209
 00:09:59,760 --> 00:10:09,240
-ที่ไหน มันให้ความรู้สึกถึง
+ที่ไหน มันทำให้เรารู้สึกถึง
 like being. Then it gives you that sense
 
 210
 00:10:03,120 --> 00:10:09,240
-ทิศทาง ทิศทางที่ใช้ได้จริง
+ทิศทาง ทิศทางที่ใช้ได้จริงๆ
 of direction, very practical direction.
 
 211
@@ -1065,7 +1065,7 @@ different, but it's just yeah, it's
 
 214
 00:10:25,440 --> 00:10:28,560
-คุ้มค่าที่จะมาครั้งที่สองและครั้งที่สาม
+คุ้มค่าที่จะมาครั้งที่สอง ครั้งที่สาม
 worth coming second and third time
 
 215
@@ -1085,12 +1085,12 @@ practical point of view, so you grow
 
 218
 00:10:32,000 --> 00:10:36,440
-เข้าไปในปัญญาของบทเรียนนั้น
+ซึมซับปัญญาจากบทเรียนเหล่านั้น
 into the wisdom of the lessons.
 
 219
 00:10:44,480 --> 00:10:49,360
-ขอบพระคุณหลวงพ่ออย่างสูง และขอบคุณ
+กราบขอบพระคุณหลวงพ่อค่ะ และขอบคุณ
 Thank you so much to Longpaw and thank
 
 220
@@ -1100,12 +1100,12 @@ you so much for even thinking about the
 
 221
 00:10:49,360 --> 00:10:54,800
-คนต่างชาติอย่างเรา ที่คิดถึงเรา
+คนต่างชาติอย่างพวกเรา
 international people thinking you know
 
 222
 00:10:52,640 --> 00:10:57,440
-โดยไม่ตัดสินว่า
+ที่ไม่ได้ตัดสินว่า
 not not going through judgment that
 
 223
@@ -1125,7 +1125,7 @@ with patience and giving us this this
 
 226
 00:11:05,760 --> 00:11:10,800
-แบ่งปันปัญญานี้กับเรา
+แบ่งปันปัญญานี้ให้เรา
 sharing this wisdom with us so
 
 227
@@ -1140,7 +1140,7 @@ environment for us that you know we
 
 229
 00:11:13,120 --> 00:11:16,880
-ปกติเราไม่มีที่บ้าน
+ปกติที่บ้านเราไม่มี
 don't usually have it at home. So
 
 230
@@ -1170,7 +1170,7 @@ way you know to to to share it to invite
 
 235
 00:11:27,760 --> 00:11:33,680
-ผู้คนมา ฉันจึงรู้สึกซาบซึ้งมาก
+ผู้คนมา ฉันเลยรู้สึกซาบซึ้งมาก
 people to so I I'm so grateful. I'm so
 
 236
@@ -1185,12 +1185,12 @@ of us who come to the meditation retreat
 
 238
 00:11:36,240 --> 00:11:40,240
-จะกลับไปบอกคนคนหนึ่ง
+จะกลับไปบอกใครสักคน
 we go back and we tell that one person
 
 239
 00:11:38,320 --> 00:11:42,800
-ที่ควรได้มาที่นี่ เหมือนที่เพื่อนฉัน
+ที่ควรได้มาที่นี่ เหมือนที่เพื่อน
 who needs to be here as my friend told
 
 240
@@ -1215,5 +1215,5 @@ peace um we're all looking for. Thank
 
 244
 00:11:49,760 --> 00:11:53,160
-มากจริงๆ
+มากค่ะ
 you so much.
