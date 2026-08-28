@@ -30,6 +30,10 @@ const config = {
   googleDriveFolderId: trimmedEnv('GOOGLE_DRIVE_FOLDER_ID'),
   googleSheetId: trimmedEnv('GOOGLE_SHEET_ID'),
   googleSheetTabName: trimmedEnv('GOOGLE_SHEET_TAB_NAME') || 'Documents',
+  // Shown as the contact address on the public / and /privacy pages. Optional -
+  // those pages fall back to generic wording rather than another deployment's
+  // address, so an unset value is never wrong, just less helpful.
+  supportEmail: trimmedEnv('SUPPORT_EMAIL'),
 };
 
 const required = [
