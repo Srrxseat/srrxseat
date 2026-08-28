@@ -65,23 +65,16 @@ Create a key in the new operator's own Anthropic Console account — README
 ### 4. Google Cloud project + OAuth client
 
 README **Setup → 3**. In short: new Cloud project → enable **Drive API** and
-**Sheets API** → configure the OAuth consent screen (External) and **add the
+**Sheets API** → configure the consent screen (External) and **add the
 operator's own Google address as a test user** → create an OAuth client of
-type **Desktop app** → **publish the app** (Google Auth Platform → Audience →
-**PUBLISH APP**).
+type **Desktop app**.
 
 The consent screen must be configured under the same Google account that will
-own the Drive folder and Sheet, or the token in step 6 will authenticate as
+own the Drive folder and Sheet, or the token in step 8 will authenticate as
 the wrong account.
 
-> **Don't skip publishing the app.** While the consent screen sits in
-> *Testing* status, Google expires every refresh token it issues after **7
-> days**. The instance then works flawlessly for a week and dies on day 7
-> with `invalid_grant` / `"Token has been expired or revoked."` — nothing
-> else changes, which makes it a genuinely confusing failure to diagnose
-> after the fact. **Google Auth Platform → Audience → PUBLISH APP** fixes it
-> permanently and does not require going through Google's verification
-> review; you just accept the "unverified app" warning once, during step 6.
+Publishing the app comes later, in step 7 — it needs a URL that doesn't exist
+until the service is deployed.
 
 ### 5. Drive folder + Google Sheet
 
@@ -100,7 +93,52 @@ at runtime as a confusing `404 File not found` / `404 Requested entity was not
 found` rather than at startup. `src/config.js` logs the length and shape of
 each value on boot so you can spot it in the logs.
 
-### 6. Refresh token
+### 6. Deploy
+
+README **Deploying to a host** covers both options. For Render, the operator
+creates a Blueprint from the repo in **their own** Render account;
+`render.yaml` declares every secret as `sync: false`, so Render prompts for
+each one. Fill them with the values from steps 2-5 and leave
+`GOOGLE_OAUTH_REFRESH_TOKEN` blank for now — you'll have it after step 8. The
+service still starts without it (it logs a warning), which is what makes the
+next step possible.
+
+Use a paid plan, not the free tier — README **Why the paid plan** explains
+why: free services spin down when idle and any webhook that arrives during
+the wake-up window is lost outright.
+
+Note the service's public host, e.g. `https://line-doc-assistant.onrender.com`.
+
+### 7. Publish the app
+
+Back in **Google Auth Platform → Branding**, fill in the four fields Google
+requires before an app can leave Testing:
+
+| Field | Value |
+|---|---|
+| App name | anything descriptive, e.g. `PAI Meditation Form Assistant` |
+| User support email | the operator's own address |
+| Application home page | `https://<the-service-host>/` |
+| Application privacy policy link | `https://<the-service-host>/privacy` |
+
+The service hosts those last two pages itself (`src/pages.js`) precisely so
+this step doesn't depend on a separate website existing. Set `SUPPORT_EMAIL`
+in the environment if you want them to show a contact address. Leave the logo
+and terms-of-service fields blank — they're genuinely optional.
+
+Save, then go to **Audience** → **PUBLISH APP** → **Confirm**. Publishing
+status should now read *In production*.
+
+> **Don't skip this step.** While the consent screen sits in *Testing* status,
+> Google expires every refresh token it issues after **7 days**. The instance
+> then works flawlessly for a week and dies on day 7 with `invalid_grant` /
+> `"Token has been expired or revoked."` — nothing else changes, which makes
+> it a genuinely confusing failure to diagnose after the fact. Publishing
+> fixes it permanently and does **not** require going through Google's
+> verification review; you just accept the "unverified app" warning once, in
+> the next step.
+
+### 8. Refresh token
 
 On the operator's **own machine** (not a remote/cloud shell — the OAuth
 callback goes to `127.0.0.1`):
@@ -112,14 +150,14 @@ cp .env.example .env      # then fill in the values from steps 2-5
 node scripts/get-refresh-token.js
 ```
 
-Open the printed URL, **log in as the Google account that owns the folder and
-sheet**, approve, and paste the printed token into `.env` as
-`GOOGLE_OAUTH_REFRESH_TOKEN`. Because the app is published but unverified
-(step 4), Google shows a "Google hasn't verified this app" screen here —
-choose **Advanced → Go to … (unsafe)** to continue. This is the expected
-path for an app only its own owner signs in to.
+Open the printed URL and **log in as the Google account that owns the folder
+and sheet**. Because the app is published but unverified, Google shows a
+"Google hasn't verified this app" screen — choose **Advanced → Go to …
+(unsafe)** to continue. This is the expected path for an app only its own
+owner signs in to. Approve, and paste the printed token into `.env` as
+`GOOGLE_OAUTH_REFRESH_TOKEN`.
 
-Then verify it before deploying anywhere:
+Verify it locally before putting it on the host:
 
 ```bash
 node scripts/test-drive-access.js
@@ -130,18 +168,9 @@ configured folder and sheet by ID. Getting all four checks green locally
 saves a lot of guessing later — if something is wrong, it's wrong here too,
 not just on the host.
 
-### 7. Deploy
+Then set `GOOGLE_OAUTH_REFRESH_TOKEN` on the host and let it redeploy.
 
-README **Deploying to a host** covers both options. For Render, the operator
-creates a Blueprint from the repo in **their own** Render account;
-`render.yaml` declares every secret as `sync: false`, so Render prompts for
-each one. Fill them with the values from steps 2-6.
-
-Use a paid plan, not the free tier — README **Why the paid plan** explains
-why: free services spin down when idle and any webhook that arrives during
-the wake-up window is lost outright.
-
-### 8. Point LINE at the deployment
+### 9. Point LINE at the deployment
 
 Set the channel's webhook URL to `https://<the-new-service-host>/webhook`,
 turn **Use webhook** on, and click **Verify** — it should return Success.
@@ -149,7 +178,7 @@ Also disable the default auto-reply/greeting messages in the LINE Official
 Account Manager, otherwise every photo gets a canned reply alongside the real
 one.
 
-### 9. Invite the bot and test
+### 10. Invite the bot and test
 
 Invite the bot into the target group(s), then send one real form photo and
 confirm all three destinations:
@@ -168,5 +197,5 @@ key, and the three Google OAuth values. Send them through something other
 than the LINE group itself, and keep in mind that anyone with the refresh
 token can read and write that Google account's Drive and Sheets — it grants
 the full `drive` scope, which is required to write into a folder that already
-exists. Rotating it means re-running step 6 and updating one environment
+exists. Rotating it means re-running step 8 and updating one environment
 variable.

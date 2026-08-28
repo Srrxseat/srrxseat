@@ -101,6 +101,17 @@ normal.
    Platform → Audience → PUBLISH APP → Confirm** (older screenshots and
    guides call the same page "OAuth consent screen").
 
+   *Publish app* stays greyed out until the **Branding** page has an app name,
+   a support email, a **homepage URL**, and a **privacy policy URL** — Google
+   requires all four to leave Testing. The service hosts the last two itself
+   at `/` and `/privacy` (see `src/pages.js`), so once it's deployed use
+   `https://<your-service-host>/` and `https://<your-service-host>/privacy`.
+   Set `SUPPORT_EMAIL` if you want those pages to show a contact address.
+   That ordering is circular on a first install — deploy the service first
+   (**Deploying to a host** below), then come back and publish, and only then
+   mint the refresh token in step 4, so the token you mint is a long-lived
+   one.
+
    This is not optional for a deployment you intend to leave running. Google
    expires refresh tokens issued by an app in *Testing* status after **7
    days**, so a bot that works perfectly all week suddenly stops exactly one
