@@ -65,18 +65,27 @@ Create a key in the new operator's own Anthropic Console account — README
 ### 4. Google Cloud project + OAuth client
 
 README **Setup → 3**. In short: new Cloud project → enable **Drive API** and
-**Sheets API** → configure the OAuth consent screen (External, Testing) and
-**add the operator's own Google address as a test user** → create an OAuth
-client of type **Desktop app**.
+**Sheets API** → configure the OAuth consent screen (External) and **add the
+operator's own Google address as a test user** → create an OAuth client of
+type **Desktop app** → **publish the consent screen**.
 
 The consent screen must be configured under the same Google account that will
 own the Drive folder and Sheet, or the token in step 6 will authenticate as
 the wrong account.
 
+> **Don't skip publishing the app.** While the consent screen sits in
+> *Testing* status, Google expires every refresh token it issues after **7
+> days**. The instance then works flawlessly for a week and dies on day 7
+> with `invalid_grant` / `"Token has been expired or revoked."` — nothing
+> else changes, which makes it a genuinely confusing failure to diagnose
+> after the fact. **PUBLISH APP** on the OAuth consent screen fixes it
+> permanently and does not require going through Google's verification
+> review; you just accept the "unverified app" warning once, during step 6.
+
 ### 5. Drive folder + Google Sheet
 
 Create both in the new operator's Google account, and add the header row to
-the sheet tab exactly as listed in README **Setup → 3, step 4**.
+the sheet tab exactly as listed in README **Setup → 3, step 5**.
 
 Take the **bare IDs**, not the URLs:
 
@@ -104,7 +113,10 @@ node scripts/get-refresh-token.js
 
 Open the printed URL, **log in as the Google account that owns the folder and
 sheet**, approve, and paste the printed token into `.env` as
-`GOOGLE_OAUTH_REFRESH_TOKEN`.
+`GOOGLE_OAUTH_REFRESH_TOKEN`. Because the app is published but unverified
+(step 4), Google shows a "Google hasn't verified this app" screen here —
+choose **Advanced → Go to … (unsafe)** to continue. This is the expected
+path for an app only its own owner signs in to.
 
 Then verify it before deploying anywhere:
 

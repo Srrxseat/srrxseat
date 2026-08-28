@@ -94,13 +94,25 @@ normal.
 2. Go to **APIs & Services → Credentials → + CREATE CREDENTIALS → OAuth
    client ID**. If prompted, configure the OAuth consent screen first (choose
    **External**, fill in an app name and your email, and add yourself as a
-   test user — no verification needed for personal use). For the client type
-   choose **Desktop app**, give it a name, and create it. Copy the **Client
-   ID** and **Client secret**.
-3. Create (or pick) a Drive folder for uploaded documents and a Google Sheet
+   test user). For the client type choose **Desktop app**, give it a name, and
+   create it. Copy the **Client ID** and **Client secret**.
+3. **Publish the consent screen** (OAuth consent screen → **PUBLISH APP** →
+   Confirm), so its status reads *In production* rather than *Testing*.
+
+   This is not optional for a deployment you intend to leave running. Google
+   expires refresh tokens issued by an app in *Testing* status after **7
+   days**, so a bot that works perfectly all week suddenly stops exactly one
+   week after the token was minted, with `invalid_grant` /
+   `"Token has been expired or revoked."` in the logs and no other symptom.
+   Publishing does **not** require submitting the app for verification — for
+   an app only you sign in to, publish it and accept the "Google hasn't
+   verified this app" interstitial (**Advanced → Go to … (unsafe)**) during
+   the one-time consent in **Setup → 4** below. Tokens then last until you
+   revoke them (or six months of disuse).
+4. Create (or pick) a Drive folder for uploaded documents and a Google Sheet
    for the log, under the Google account you want to authenticate as. No
    sharing step needed — it's your own account.
-4. Add a header row to the sheet tab (default tab name `Documents`):
+5. Add a header row to the sheet tab (default tab name `Documents`):
 
    ```
    Date | Time | how did you find us | Name | Country | No. of visited | Gender | occupation | FB/IG | E-mail | whatsapp | Meditation experience | Translation | Age | Drive Link | Sender | Raw Text | Received At
@@ -135,7 +147,8 @@ Copy `.env.example` to `.env` and fill in:
 
 - `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_SECRET`
 - `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_MODEL`)
-- `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` — from step 3 above.
+- `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` — from step 3 above
+  (the OAuth client created in its step 2).
 - `GOOGLE_DRIVE_FOLDER_ID` — the ID from the folder's URL.
 - `GOOGLE_SHEET_ID` — only the ID segment of the spreadsheet's URL, e.g. for
   `https://docs.google.com/spreadsheets/d/1AbCdEf.../edit?gid=0` the value is
