@@ -67,7 +67,8 @@ Create a key in the new operator's own Anthropic Console account — README
 README **Setup → 3**. In short: new Cloud project → enable **Drive API** and
 **Sheets API** → configure the OAuth consent screen (External) and **add the
 operator's own Google address as a test user** → create an OAuth client of
-type **Desktop app** → **publish the consent screen**.
+type **Desktop app** → **publish the app** (Google Auth Platform → Audience →
+**PUBLISH APP**).
 
 The consent screen must be configured under the same Google account that will
 own the Drive folder and Sheet, or the token in step 6 will authenticate as
@@ -78,7 +79,7 @@ the wrong account.
 > days**. The instance then works flawlessly for a week and dies on day 7
 > with `invalid_grant` / `"Token has been expired or revoked."` — nothing
 > else changes, which makes it a genuinely confusing failure to diagnose
-> after the fact. **PUBLISH APP** on the OAuth consent screen fixes it
+> after the fact. **Google Auth Platform → Audience → PUBLISH APP** fixes it
 > permanently and does not require going through Google's verification
 > review; you just accept the "unverified app" warning once, during step 6.
 

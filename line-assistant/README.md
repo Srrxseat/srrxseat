@@ -96,8 +96,10 @@ normal.
    **External**, fill in an app name and your email, and add yourself as a
    test user). For the client type choose **Desktop app**, give it a name, and
    create it. Copy the **Client ID** and **Client secret**.
-3. **Publish the consent screen** (OAuth consent screen → **PUBLISH APP** →
-   Confirm), so its status reads *In production* rather than *Testing*.
+3. **Publish the app**, so its publishing status reads *In production* rather
+   than *Testing*. In the current console this lives under **Google Auth
+   Platform → Audience → PUBLISH APP → Confirm** (older screenshots and
+   guides call the same page "OAuth consent screen").
 
    This is not optional for a deployment you intend to leave running. Google
    expires refresh tokens issued by an app in *Testing* status after **7
