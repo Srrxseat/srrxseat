@@ -78,8 +78,10 @@ until the service is deployed.
 
 ### 5. Drive folder + Google Sheet
 
-Create both in the new operator's Google account, and add the header row to
-the sheet tab exactly as listed in README **Setup → 3, step 5**.
+Create both in the new operator's Google account, and add the header rows
+exactly as listed in README **Setup → 3, steps 5 and 6** — one tab for the
+per-visitor forms, and a second for the drop-in attendance sheet if the
+organisation uses that paper.
 
 Take the **bare IDs**, not the URLs:
 

@@ -57,11 +57,64 @@ const RECORD_TOOL = {
   },
 };
 
+// The other paper the center photographs into the chat: a single printed table
+// that the front desk fills in row by row over several days, one row per
+// attendee. One photo therefore produces many records rather than one, which is
+// why it gets its own tool and its own sheet tab.
+const ATTENDANCE_TOOL = {
+  name: 'record_attendance_log',
+  description: 'Record every filled-in row of a "Drop-in Meditation registration" attendance sheet - the printed table whose columns are Date, Morning/Afternoon, Name, Nationality, First time/Revisited, Monk and Facilitator, with one row per attendee.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      rows: {
+        type: 'array',
+        description: 'One entry per filled-in row, in the order they appear down the page. Skip the empty rows at the bottom of the table.',
+        items: {
+          type: 'object',
+          properties: {
+            date_raw: {
+              type: 'string',
+              description: 'The Date cell copied character for character exactly as written, e.g. "20 Aug 26" or "22/8" or "28/08/26". Transcribe only - do NOT reorder the numbers, decide which is the day or month, or complete a missing year. If the cell holds a ditto mark or is covered by an arrow from above, write the value it stands for, not the mark.',
+            },
+            session_time: { type: 'string', enum: ['Morning', 'Afternoon', ''], description: 'The Morning/Afternoon cell. Empty string if blank.' },
+            name: { type: 'string', description: 'The Name cell, exactly as written.' },
+            nationality: { type: 'string', description: 'The Nationality cell, exactly as written (e.g. "Israeli", "UK", "China").' },
+            visit_type: {
+              type: 'string',
+              description: 'The "First time/Revisited" cell as written - usually "first time"/"1st" or "revisit"/"revisited", but occasionally something else such as "third". Copy what is there; do not normalise it. Empty string if blank.',
+            },
+            monk: { type: 'string', description: 'The Monk cell, e.g. "M. Pichet" or "M. Daniel". Several names may share one cell. Empty string if blank.' },
+            facilitator: { type: 'string', description: 'The Facilitator cell, e.g. "Ped" or "Nulex". Empty string if blank.' },
+          },
+          required: ['date_raw', 'session_time', 'name', 'nationality', 'visit_type', 'monk', 'facilitator'],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ['rows'],
+    additionalProperties: false,
+  },
+};
+
+const ATTENDANCE_PROMPT = [
+  'If instead the image is a photo of the printed "Drop-in Meditation registration" table - a grid with the column headings Date, Morning/Afternoon, Name, Nationality, First time/Revisited, Monk, Facilitator - call record_attendance_log and read every filled-in row down the page.',
+  'The staff fill this table in by hand over several days, so it uses shorthand that has to be resolved rather than transcribed:',
+  '- A ditto mark in a cell (", 〃, \'\', ,,) means "the same value as the cell above". Write out the value it stands for.',
+  '- The Monk and Facilitator columns are normally written once and then a single long vertical line or arrow is drawn down through the rows that share those people. Every row the line passes through has those same values - fill them in for each of those rows, do not leave them blank.',
+  '- The Date and Morning/Afternoon columns use the same shorthand. Resolve them the same way.',
+  '- A row may start with a serial number (1, 2, 3 ...) in a narrow column at the far left. That is just a counter, not data.',
+  '- Where something is crossed out and rewritten, record the corrected value.',
+  'Read the rows in the order they appear, top to bottom, and stop at the blank rows at the bottom of the table.',
+].join('\n');
+
 const PROMPT_TEXT = [
-  'This image was shared in a LINE group chat that also carries unrelated messages and photos - candid photos of people, monks, meals, events, screenshots, memes, etc. Only set is_registration_form to true if the image is a photo of the actual printed "Pai International Meditation Center" registration/meditation-experience paper form itself, not merely something related to meditation or the center. For any other photo, set is_registration_form to false and leave every other field as an empty string - do not guess.',
+  'This image was shared in a LINE group chat that also carries unrelated messages and photos - candid photos of people, monks, meals, events, screenshots, memes, etc. Two different papers from the center are worth recording, and they are read in completely different ways, so decide which one you are looking at before extracting anything.',
+  'If the image is a photo of the printed "Pai International Meditation Center" registration/meditation-experience form - one visitor per page, with its letterhead and Name/Date/Country/... fields and a "Meditation EXP." section - call record_document with is_registration_form set to true. For a photo that is neither of the two papers, call record_document with is_registration_form set to false and leave every other field as an empty string - do not guess.',
   'If it is the form, read the handwriting carefully and extract the fields below exactly as filled in. Each field holds only the value of its own labeled box on the form, nothing from elsewhere on the page.',
   'Checkboxes need care because they are small: "How did you hear about us?" and "No. of visit" are each a row of them near the bottom of the personal-information block, and the mark may be a tick, a cross, a filled box, or a circle around the label. Report the label of the box that is marked. Plenty of visitors skip these rows entirely, and an empty field is the correct, useful answer for a row with no mark on it - never infer what the visitor "probably" meant from their name, country, or anything they wrote elsewhere on the form.',
   'For the date: copy the "Date" box exactly as written into date_raw and nothing more. Visitors write dates in their own country\'s convention, so do not try to work out which number is the day, do not reorder anything, and do not convert or complete the date - that is handled elsewhere and your guess would break it. Just transcribe what is on the paper.',
+  ATTENDANCE_PROMPT,
 ].join('\n\n');
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -92,10 +145,40 @@ function thaiDateParts(timestampMs) {
 // The message timestamp also supplies the year whenever the written one is
 // missing or implausible: visitors fill the form on the day they visit and
 // staff photograph it the same day.
+const MONTH_NAMES = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+};
+
+// The attendance log's Date column is often written "20 Aug 26" rather than
+// numerically. A written month removes the day/month ambiguity entirely, so
+// when one is present it settles the question before any of the guessing below.
+function namedMonth(raw) {
+  for (const word of (raw || '').toLowerCase().match(/[a-z]+/g) || []) {
+    const month = MONTH_NAMES[word.slice(0, 3)];
+    if (month) return month;
+  }
+  return null;
+}
+
 function resolveVisitDate(raw, timestampMs) {
   const ref = thaiDateParts(timestampMs);
   const refDate = `${ref.year}/${pad(ref.month)}/${pad(ref.day)}`;
   const numbers = (raw || '').match(/\d+/g);
+
+  const writtenMonth = namedMonth(raw);
+  if (writtenMonth && numbers) {
+    // "20 Aug 26" / "21 Aug" / "Aug 21 2026": the day is the first number that
+    // could be one, and a year - if written at all - follows it.
+    const nums = numbers.map((n) => parseInt(n, 10));
+    const dayIndex = nums.findIndex((n) => n >= 1 && n <= 31);
+    if (dayIndex !== -1) {
+      let year = dayIndex + 1 < nums.length ? nums[dayIndex + 1] : null;
+      if (year !== null && year < 100) year += 2000;
+      if (year === null || Math.abs(year - ref.year) > 1) year = ref.year;
+      return `${year}/${pad(writtenMonth)}/${pad(nums[dayIndex])}`;
+    }
+  }
 
   if (!numbers || numbers.length < 2) {
     console.log(`[documentAnalyzer] unreadable date ${JSON.stringify(raw)}, using the date LINE received the photo (${refDate})`);
@@ -164,6 +247,17 @@ function coerceEnum(value, allowed) {
   return match || '';
 }
 
+// The log's visit column is free handwriting - "1st", "first time", "revisit",
+// "revisited", and occasionally "third". Fold the two common answers together
+// so the column filters cleanly, but keep anything else exactly as written
+// rather than forcing a genuine "third" into one of two buckets.
+function normalizeVisitType(value) {
+  const raw = (value || '').trim();
+  if (/^(1st|first(\s*time)?|new)$/i.test(raw)) return 'First time';
+  if (/^(re-?visit(ed|ing)?|returnee|returning|repeat)$/i.test(raw)) return 'Revisited';
+  return raw;
+}
+
 async function analyzeDocumentImage(base64Data, mediaType, timestampMs) {
   const message = await client.messages.create({
     model: config.anthropicModel,
@@ -172,8 +266,11 @@ async function analyzeDocumentImage(base64Data, mediaType, timestampMs) {
     // 1024 cap the tool input was being truncated mid-record, silently
     // dropping whichever fields came last.
     max_tokens: 8000,
-    tools: [RECORD_TOOL],
-    tool_choice: { type: 'tool', name: 'record_document' },
+    tools: [RECORD_TOOL, ATTENDANCE_TOOL],
+    // The model picks which of the two papers it is looking at, but it always
+    // has to pick one - an unrelated photo comes back as record_document with
+    // is_registration_form false.
+    tool_choice: { type: 'any' },
     messages: [
       {
         role: 'user',
@@ -192,8 +289,22 @@ async function analyzeDocumentImage(base64Data, mediaType, timestampMs) {
   const toolUse = message.content.find((block) => block.type === 'tool_use');
   if (!toolUse) return null;
 
+  if (toolUse.name === ATTENDANCE_TOOL.name) {
+    const rows = Array.isArray(toolUse.input.rows) ? toolUse.input.rows : [];
+    return {
+      document_type: 'attendance_log',
+      rows: rows.map(({ date_raw, ...row }) => ({
+        ...row,
+        visit_date: resolveVisitDate(date_raw, timestampMs),
+        session_time: coerceEnum(row.session_time, ['Morning', 'Afternoon']),
+        visit_type: normalizeVisitType(row.visit_type),
+      })),
+    };
+  }
+
   const { date_raw, ...rest } = toolUse.input;
   return {
+    document_type: 'registration_form',
     ...rest,
     visit_date: resolveVisitDate(date_raw, timestampMs),
     session_time: coerceEnum(rest.session_time, ['Morning', 'Afternoon']),

@@ -1,6 +1,6 @@
 const { client, blobClient } = require('../lineClient');
 const { uploadDocument } = require('../driveService');
-const { appendRow } = require('../sheetsService');
+const { appendRow, appendRows, readRows } = require('../sheetsService');
 const { analyzeDocumentImage } = require('../documentAnalyzer');
 const config = require('../config');
 
@@ -49,10 +49,12 @@ function stripLeakedTags(value) {
 }
 
 function cleanExtracted(extracted) {
-  if (!extracted) return extracted;
+  if (Array.isArray(extracted)) return extracted.map(cleanExtracted);
+  if (!extracted || typeof extracted !== 'object') return extracted;
   const cleaned = { ...extracted };
   for (const [key, value] of Object.entries(cleaned)) {
     if (typeof value === 'string') cleaned[key] = stripLeakedTags(value);
+    else if (value && typeof value === 'object') cleaned[key] = cleanExtracted(value);
   }
   return cleaned;
 }
@@ -101,6 +103,98 @@ function buildReply(extracted) {
   ].filter(Boolean).join('\n');
 }
 
+// The attendance sheet lives on one piece of paper that the front desk keeps
+// adding to, so the same page is photographed again on a later day with the
+// earlier rows still on it. Keying a row by the day, session and name lets a
+// re-read skip what is already recorded instead of doubling it.
+function attendanceKey(date, session, name) {
+  return [date, session, name]
+    .map((value) => (value || '').toString().trim().toLowerCase().replace(/\s+/g, ' '))
+    .join('|');
+}
+
+function buildLogFilename(rows, messageId) {
+  const date = rows.length ? sanitizeForFilename(rows[0].visit_date) : '';
+  return `${[date, 'drop-in-log', messageId.slice(-8)].filter(Boolean).join('_')}.jpg`;
+}
+
+// Listing the names back is what makes a misread catchable - the staff can see
+// at a glance whether a name came out wrong - so the reply groups them by day
+// rather than just reporting a count.
+function buildLogReply(rows, addedRows, duplicates) {
+  const counts = [`${rows.length} row${rows.length === 1 ? '' : 's'} read`];
+  if (addedRows.length !== rows.length) counts.push(`${addedRows.length} new`);
+  if (duplicates) counts.push(`${duplicates} already recorded`);
+
+  const header = `✅ Drop-in log — ${counts.join(', ')}`;
+  if (!addedRows.length) return header;
+
+  const byDate = new Map();
+  for (const row of addedRows) {
+    const date = row.visit_date || 'no date';
+    if (!byDate.has(date)) byDate.set(date, []);
+    byDate.get(date).push(row.name || '(unnamed)');
+  }
+
+  const sections = [...byDate].map(([date, names]) => `📅 ${date} (${names.length})\n${names.join(' · ')}`);
+  const full = [header, ...sections].join('\n\n');
+
+  // LINE caps a text message at 5000 characters; a page with a lot of rows can
+  // approach that, and a truncated-looking reply is worse than a short one.
+  return full.length <= 4500 ? full : header;
+}
+
+async function handleAttendanceLog(event, extracted, buffer, senderName) {
+  const { source, message } = event;
+  const rows = Array.isArray(extracted.rows) ? extracted.rows : [];
+
+  const drive = await uploadDocument(buffer, buildLogFilename(rows, message.id), 'image/jpeg');
+
+  const recorded = new Set(
+    (await readRows(config.googleSheetLogTabName)).map((row) => attendanceKey(row[0], row[1], row[2])),
+  );
+
+  const receivedAt = new Date(event.timestamp).toISOString();
+  const addedRows = [];
+  let duplicates = 0;
+  for (const row of rows) {
+    const key = attendanceKey(row.visit_date, row.session_time, row.name);
+    if (recorded.has(key)) {
+      duplicates += 1;
+      continue;
+    }
+    recorded.add(key);
+    addedRows.push(row);
+  }
+
+  await appendRows(config.googleSheetLogTabName, addedRows.map((row) => [
+    row.visit_date,
+    row.session_time,
+    row.name,
+    row.nationality,
+    row.visit_type,
+    row.monk,
+    row.facilitator,
+    drive.webViewLink,
+    senderName,
+    receivedAt,
+  ]));
+
+  console.log(`[messageHandler] attendance log ${message.id}: ${rows.length} read, ${addedRows.length} added, ${duplicates} already recorded`);
+
+  const chatId = getChatId(source);
+  try {
+    await client.pushMessage({
+      to: chatId,
+      messages: [{ type: 'text', text: buildLogReply(rows, addedRows, duplicates) }],
+    });
+    console.log(`[messageHandler] log reply sent to ${source.type} ${chatId}`);
+  } catch (err) {
+    console.error(`[messageHandler] failed to send log reply to ${source.type} ${chatId}:`, err.message);
+    throw err;
+  }
+}
+
 async function handleImageMessage(event) {
   const { source, message } = event;
   const buffer = await streamToBuffer(await blobClient.getMessageContent(message.id));
@@ -110,6 +204,11 @@ async function handleImageMessage(event) {
     console.error('[documentAnalyzer] failed:', err.message);
     return null;
   }));
+
+  if (extracted && extracted.document_type === 'attendance_log') {
+    await handleAttendanceLog(event, extracted, buffer, senderName);
+    return;
+  }
 
   // Don't just trust the model's is_registration_form flag on its own - a real
   // form always has at least a name or a written experience, so treat a

@@ -4,8 +4,9 @@ An AI assistant for a LINE group chat: whenever someone sends a photo of a
 Pai International Meditation Center visitor registration / meditation
 experience form, it reads the handwriting with Claude, saves the original
 photo to Google Drive, and records the extracted fields as a new row in a
-Google Sheet. Plain files sent in the chat are saved to Drive and logged as
-well (without OCR).
+Google Sheet. It reads the center's drop-in attendance sheet too — a table
+of many attendees at once — into a second tab. Plain files sent in the chat
+are saved to Drive and logged as well (without OCR).
 
 Setting this up for a *different* account or organisation rather than
 maintaining an existing deployment? See
@@ -19,12 +20,19 @@ a per-instance checklist.
 2. For an **image** message: the bot downloads the photo and sends it to
    Claude (`claude-opus-5` by default — reading small handwritten checkboxes
    and scrawled dates is the hard part of this job, and every misread costs
-   manual correction), which first decides
-   whether the image is actually a Pai International Meditation Center
-   registration form at all. This matters in a busy group chat that also
-   carries unrelated photos and messages: if it's confidently **not** a form
+   manual correction), which first decides which of the center's two papers
+   it is looking at, if either:
+
+   - the per-visitor **registration / meditation-experience form** (one
+     visitor per page), covered by the rest of this section;
+   - the **drop-in attendance sheet** (a table the front desk fills in row by
+     row), covered in "The drop-in attendance sheet" below.
+
+   This matters in a busy group chat that also
+   carries unrelated photos and messages: if it's confidently **neither**
    (a selfie, screenshot, meme, etc.), the bot does nothing at all — no
-   upload, no sheet row, no reply, so it doesn't clutter either. If it is,
+   upload, no sheet row, no reply, so it doesn't clutter either. For a
+   registration form,
    Claude reads the handwriting and extracts the visitor's date (as three
    separate day/month/year digits, reassembled deterministically in code
    rather than trusting the model to do date arithmetic — see
@@ -49,8 +57,35 @@ a per-instance checklist.
 5. The bot replies in the chat confirming what was saved — the visitor's name,
    country, date and session, followed by their "how did you feel" answer and
    its Thai translation, so the group can read the experience without opening
-   the sheet (image messages that turned out not to be a form get no reply at
-   all).
+   the sheet (image messages that turned out not to be either paper get no
+   reply at all).
+
+## The drop-in attendance sheet
+
+The center also keeps a printed **"Drop-in Meditation registration"** table —
+columns `Date | Morning/Afternoon | Name | Nationality | First time/Revisited
+| Monk | Facilitator` — that the front desk fills in a row at a time. A photo
+of it produces one sheet row per attendee rather than one per photo, so it
+goes to its own tab (`GOOGLE_SHEET_LOG_TAB_NAME`, default `Drop-in Log`) with
+its own columns. The photo itself lands in the same Drive folder.
+
+Two things about that paper drive how it's read:
+
+- **It's written in shorthand.** Ditto marks and a single long arrow drawn
+  down the Monk and Facilitator columns mean "same as above", often spanning
+  half the page. Claude is asked to resolve those into real values on every
+  row, so the sheet doesn't inherit blanks that only make sense next to the
+  original paper.
+- **The same page gets photographed more than once.** It's filled in over
+  several days, so a later photo still carries all the earlier rows. Before
+  appending, the bot reads back what's already in the tab and skips rows whose
+  day, session and name are already recorded — so re-sending a page adds only
+  what's new, and the reply says how many were skipped. The flip side is that
+  two genuinely different people with the same name in the same session are
+  counted once; that's the trade, and the photo in Drive is the tiebreaker.
+
+The reply lists the names it recorded, grouped by day, so a misread name is
+visible in the chat without opening the sheet.
 
 ## Setup
 
@@ -153,6 +188,19 @@ normal.
    whatever sort the Drive UI is set to (often alphabetical by filename,
    which does *not* match send order). Switch the sort dropdown to "Last
    modified" to see photos in upload order.
+6. Add a **second tab** for the drop-in attendance sheet (default name
+   `Drop-in Log`, override with `GOOGLE_SHEET_LOG_TAB_NAME`), with its own
+   header row:
+
+   ```
+   Date | Session | Name | Nationality | Visit | Monk | Facilitator | Drive Link | Sender | Received At
+   ```
+
+   These mirror the paper's own columns, plus the same `Drive Link` / `Sender`
+   / `Received At` trio as the other tab. `Date` and `Session` are resolved
+   values, not the shorthand written on the page — see "The drop-in attendance
+   sheet" above. Skip this step if the center doesn't use that paper; the tab
+   is only touched when such a photo arrives.
 
 ### 4. Configure environment variables
 
@@ -167,6 +215,8 @@ Copy `.env.example` to `.env` and fill in:
   `https://docs.google.com/spreadsheets/d/1AbCdEf.../edit?gid=0` the value is
   just `1AbCdEf...` — drop everything from `/edit` onward.
 - `GOOGLE_SHEET_TAB_NAME` — defaults to `Documents`.
+- `GOOGLE_SHEET_LOG_TAB_NAME` — tab for the drop-in attendance sheet,
+  defaults to `Drop-in Log`.
 - `ALLOWED_GROUP_IDS` — optional comma-separated allowlist.
 
 With the OAuth client ID/secret in `.env`, get the last value by running:

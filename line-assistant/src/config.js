@@ -30,6 +30,10 @@ const config = {
   googleDriveFolderId: trimmedEnv('GOOGLE_DRIVE_FOLDER_ID'),
   googleSheetId: trimmedEnv('GOOGLE_SHEET_ID'),
   googleSheetTabName: trimmedEnv('GOOGLE_SHEET_TAB_NAME') || 'Documents',
+  // Separate tab for the drop-in attendance sheet: one photo of it produces
+  // many rows with a different shape from the per-visitor form, so the two
+  // don't share a table.
+  googleSheetLogTabName: trimmedEnv('GOOGLE_SHEET_LOG_TAB_NAME') || 'Drop-in Log',
   // Shown as the contact address on the public / and /privacy pages. Optional -
   // those pages fall back to generic wording rather than another deployment's
   // address, so an unset value is never wrong, just less helpful.
