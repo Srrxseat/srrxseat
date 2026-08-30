@@ -1,5 +1,6 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const config = require('./config');
+const { thaiDateParts } = require('./thaiTime');
 
 const client = new Anthropic({ apiKey: config.anthropicApiKey });
 
@@ -118,16 +119,6 @@ const PROMPT_TEXT = [
 ].join('\n\n');
 
 const pad = (n) => String(n).padStart(2, '0');
-
-// The center is in Pai; LINE timestamps are UTC. Shifting by the offset and
-// then reading UTC getters gives the local calendar date without pulling in a
-// timezone library.
-const THAI_OFFSET_MS = 7 * 60 * 60 * 1000;
-
-function thaiDateParts(timestampMs) {
-  const local = new Date(timestampMs + THAI_OFFSET_MS);
-  return { year: local.getUTCFullYear(), month: local.getUTCMonth() + 1, day: local.getUTCDate() };
-}
 
 // The handwritten date is the least reliable thing on the form. The form is
 // printed Day/Month/Year, but visitors write it in their own country's

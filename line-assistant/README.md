@@ -85,7 +85,44 @@ Two things about that paper drive how it's read:
   counted once; that's the trade, and the photo in Drive is the tiebreaker.
 
 The reply lists the names it recorded, grouped by day, so a misread name is
-visible in the chat without opening the sheet.
+visible in the chat without opening the sheet, and is followed by a running
+summary of the month (see below).
+
+### Counting people rather than names
+
+The front desk writes the same visitor down differently on different days —
+"Mia" one afternoon and "Mia Keidar" the next, "Emma berry" / "Emma Berry" /
+"EMMA" across three. Counting the raw strings reported 23 visitors for a month
+that actually had 20, so rows are grouped onto one person first: one name's
+**whole words** must be a subset of the other's, and the nationalities must
+agree once spellings like `Israeli`/`Israel` and `UK`/`England` are folded
+together. Whole words matter — a prefix rule would merge "Dana Peer" into
+"Daniela Sipka".
+
+That grouping fills the tab's three derived columns (`Person`, `Visit #`,
+`Total visits`). All three are recomputed for **every** row after each photo,
+not just the new ones, because a page from earlier in the month is often
+photographed after a later one — which changes the visit numbering of rows
+already in the sheet.
+
+Two people who genuinely share a name and nationality are counted as one. The
+`Person` column makes that visible, and the Drive photo settles it.
+
+### The monthly report
+
+Attendance is counted in hours at one hour per person per session
+(`HOURS_PER_ATTENDANCE` in `src/attendanceStats.js`), so the month's hours are
+its attendance count.
+
+The report goes to the group in two situations:
+
+- **after every drop-in photo**, as a second message, so the running total is
+  visible as the month fills up;
+- **on the last day of each month**, pushed to `REPORT_GROUP_IDS` at
+  `REPORT_HOUR` (default 20:00 Thailand time). The bot has no way to discover
+  which groups it's in, so that list has to be set explicitly or the month-end
+  send stays off — it logs which on startup. The check runs on an interval and
+  asks whether today is the last day, since cron has no way to say that.
 
 ## Setup
 
@@ -193,14 +230,22 @@ normal.
    header row:
 
    ```
-   Date | Session | Name | Nationality | Visit | Monk | Facilitator | Drive Link | Sender | Received At
+   Date | Session | Name | Nationality | Visit | Monk | Facilitator | Drive Link | Sender | Received At | Person | Visit # | Total visits
    ```
 
-   These mirror the paper's own columns, plus the same `Drive Link` / `Sender`
-   / `Received At` trio as the other tab. `Date` and `Session` are resolved
-   values, not the shorthand written on the page — see "The drop-in attendance
-   sheet" above. Skip this step if the center doesn't use that paper; the tab
-   is only touched when such a photo arrives.
+   The first seven mirror the paper's own columns, then the same `Drive Link` /
+   `Sender` / `Received At` trio as the other tab. `Date` and `Session` are
+   resolved values, not the shorthand written on the page — see "The drop-in
+   attendance sheet" above.
+
+   The last three are **derived** — the bot rewrites them for every row after
+   each photo, so don't type anything into them or put formulas there.
+   `Person` is the canonical name the row was counted under, `Visit #` is
+   which of that person's visits this was, and `Total visits` is how many
+   they've made in all.
+
+   Skip this step if the center doesn't use that paper; the tab is only
+   touched when such a photo arrives.
 
 ### 4. Configure environment variables
 
@@ -218,6 +263,10 @@ Copy `.env.example` to `.env` and fill in:
 - `GOOGLE_SHEET_LOG_TAB_NAME` — tab for the drop-in attendance sheet,
   defaults to `Drop-in Log`.
 - `ALLOWED_GROUP_IDS` — optional comma-separated allowlist.
+- `REPORT_GROUP_IDS` — groups the month-end report is pushed to; falls back
+  to `ALLOWED_GROUP_IDS`. With neither set, that send is off.
+- `REPORT_HOUR` — hour of the last day of the month to send it, Thailand
+  time. Defaults to `20`.
 
 With the OAuth client ID/secret in `.env`, get the last value by running:
 

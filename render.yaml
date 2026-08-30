@@ -57,3 +57,7 @@ services:
       #   value: claude-opus-5
       # - key: ALLOWED_GROUP_IDS
       #   sync: false
+      # - key: REPORT_GROUP_IDS
+      #   sync: false
+      # - key: REPORT_HOUR
+      #   value: "20"

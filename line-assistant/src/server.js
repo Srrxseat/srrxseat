@@ -3,6 +3,7 @@ const config = require('./config');
 const { middleware, lineConfig } = require('./lineClient');
 const { handleEvent } = require('./handlers/messageHandler');
 const pages = require('./pages');
+const scheduler = require('./scheduler');
 
 const app = express();
 
@@ -25,4 +26,5 @@ app.post('/webhook', middleware(lineConfig), async (req, res) => {
 
 app.listen(config.port, () => {
   console.log(`LINE document assistant listening on port ${config.port}`);
+  scheduler.start();
 });

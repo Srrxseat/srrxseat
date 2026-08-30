@@ -2,6 +2,7 @@ const { client, blobClient } = require('../lineClient');
 const { uploadDocument } = require('../driveService');
 const { appendRow, appendRows, readRows } = require('../sheetsService');
 const { analyzeDocumentImage } = require('../documentAnalyzer');
+const { readLog, refreshDerivedColumns, buildMonthlyReport, latestMonth } = require('../reportService');
 const config = require('../config');
 
 async function streamToBuffer(stream) {
@@ -154,6 +155,7 @@ async function handleAttendanceLog(event, extracted, buffer, senderName) {
     (await readRows(config.googleSheetLogTabName)).map((row) => attendanceKey(row[0], row[1], row[2])),
   );
 
+
   const receivedAt = new Date(event.timestamp).toISOString();
   const addedRows = [];
   let duplicates = 0;
@@ -182,12 +184,25 @@ async function handleAttendanceLog(event, extracted, buffer, senderName) {
 
   console.log(`[messageHandler] attendance log ${message.id}: ${rows.length} read, ${addedRows.length} added, ${duplicates} already recorded`);
 
+  // Re-read rather than reusing what was read above: the append has happened
+  // since, and the derived columns have to cover the new rows too. Both the
+  // visit numbering and the report come from the same fresh snapshot.
+  const messages = [{ type: 'text', text: buildLogReply(rows, addedRows, duplicates) }];
+  try {
+    const records = await readLog();
+    await refreshDerivedColumns(records);
+    const month = latestMonth(addedRows.map((row) => ({ date: row.visit_date }))) || latestMonth(records);
+    const report = await buildMonthlyReport(month, records);
+    if (report) messages.push({ type: 'text', text: report });
+  } catch (err) {
+    // The rows are already saved; a failure to summarise them shouldn't lose
+    // the confirmation that they were.
+    console.error('[messageHandler] could not build the monthly summary:', err.message);
+  }
+
   const chatId = getChatId(source);
   try {
-    await client.pushMessage({
-      to: chatId,
-      messages: [{ type: 'text', text: buildLogReply(rows, addedRows, duplicates) }],
-    });
+    await client.pushMessage({ to: chatId, messages });
     console.log(`[messageHandler] log reply sent to ${source.type} ${chatId}`);
   } catch (err) {
     console.error(`[messageHandler] failed to send log reply to ${source.type} ${chatId}:`, err.message);

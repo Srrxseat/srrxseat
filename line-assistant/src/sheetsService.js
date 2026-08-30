@@ -36,4 +36,18 @@ async function readRows(tabName) {
   }
 }
 
-module.exports = { appendRow, appendRows, readRows };
+// Overwrites an exact block of cells. Used for the derived Person / Visit #
+// columns, which are recomputed for every row after each append - an older page
+// photographed later changes the visit numbering of rows already written, so
+// they can't just be appended once and left alone.
+async function updateRange(range, rows) {
+  const sheets = google.sheets({ version: 'v4', auth: getAuth() });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: config.googleSheetId,
+    range,
+    valueInputOption: 'RAW',
+    requestBody: { values: rows },
+  });
+}
+
+module.exports = { appendRow, appendRows, readRows, updateRange };

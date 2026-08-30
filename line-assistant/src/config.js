@@ -9,16 +9,17 @@ function trimmedEnv(name) {
   return typeof value === 'string' ? value.trim() : value;
 }
 
+function splitIds(value) {
+  return (value || '').split(',').map((id) => id.trim()).filter(Boolean);
+}
+
 const config = {
   port: process.env.PORT || 3000,
   line: {
     channelAccessToken: trimmedEnv('LINE_CHANNEL_ACCESS_TOKEN'),
     channelSecret: trimmedEnv('LINE_CHANNEL_SECRET'),
   },
-  allowedGroupIds: (process.env.ALLOWED_GROUP_IDS || '')
-    .split(',')
-    .map((id) => id.trim())
-    .filter(Boolean),
+  allowedGroupIds: splitIds(process.env.ALLOWED_GROUP_IDS),
   anthropicApiKey: trimmedEnv('ANTHROPIC_API_KEY'),
   // Reading small handwritten checkboxes and scrawled dates is the hard part of
   // this job, and misreads cost manual correction, so default to the strongest
@@ -38,6 +39,14 @@ const config = {
   // those pages fall back to generic wording rather than another deployment's
   // address, so an unset value is never wrong, just less helpful.
   supportEmail: trimmedEnv('SUPPORT_EMAIL'),
+  // Groups the month-end report is pushed to. There is no way to discover which
+  // groups the bot is in, so this has to be listed explicitly; it falls back to
+  // ALLOWED_GROUP_IDS when that is already the same list.
+  reportGroupIds: splitIds(process.env.REPORT_GROUP_IDS || process.env.ALLOWED_GROUP_IDS),
+  // Hour of the last day of the month, Thailand time, to send that report.
+  reportHour: Number.isInteger(parseInt(trimmedEnv('REPORT_HOUR'), 10))
+    ? parseInt(trimmedEnv('REPORT_HOUR'), 10)
+    : 20,
 };
 
 const required = [
