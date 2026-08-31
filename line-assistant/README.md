@@ -114,15 +114,22 @@ Attendance is counted in hours at one hour per person per session
 (`HOURS_PER_ATTENDANCE` in `src/attendanceStats.js`), so the month's hours are
 its attendance count.
 
-The report goes to the group in two situations:
+The report goes to the group in three situations:
 
 - **after every drop-in photo**, as a second message, so the running total is
   visible as the month fills up;
+- **on demand**, when someone types `report` or `รายงาน` in the chat. Add a
+  month to look back — `report 2026/08`. This is also how to preview exactly
+  what the scheduled send will say before switching it on;
 - **on the last day of each month**, pushed to `REPORT_GROUP_IDS` at
   `REPORT_HOUR` (default 20:00 Thailand time). The bot has no way to discover
   which groups it's in, so that list has to be set explicitly or the month-end
   send stays off — it logs which on startup. The check runs on an interval and
   asks whether today is the last day, since cron has no way to say that.
+
+Leaving `REPORT_GROUP_IDS` unset is therefore the safe way to trial the
+reports: the first two still work in whatever group the photo was sent to,
+and nothing is pushed on a schedule until a group is named.
 
 ## Setup
 

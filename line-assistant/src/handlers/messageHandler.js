@@ -304,6 +304,27 @@ async function handleFileMessage(event) {
   }
 }
 
+// Typing "report" (or "รายงาน") in the chat prints the same summary the
+// month-end job sends, so it can be checked on demand - and previewed in a test
+// group before the scheduled send is switched on. An optional month argument
+// ("report 2026/08") looks back at an earlier one.
+const REPORT_COMMAND = /^\s*(?:report|รายงาน)(?:\s+(\d{4})[/-](\d{1,2}))?\s*$/i;
+
+async function handleTextMessage(event) {
+  const match = REPORT_COMMAND.exec(event.message.text || '');
+  if (!match) return;
+
+  const month = match[1] ? `${match[1]}/${String(parseInt(match[2], 10)).padStart(2, '0')}` : null;
+  const chatId = getChatId(event.source);
+  const report = await buildMonthlyReport(month);
+
+  await client.pushMessage({
+    to: chatId,
+    messages: [{ type: 'text', text: report || 'ยังไม่มีบันทึกผู้เข้าร่วมในชีท' }],
+  });
+  console.log(`[messageHandler] report for ${month || 'the latest month'} sent to ${event.source.type} ${chatId}`);
+}
+
 async function handleEvent(event) {
   if (event.type !== 'message') return;
   if (!isAllowed(event.source)) return;
@@ -312,6 +333,8 @@ async function handleEvent(event) {
     await handleImageMessage(event);
   } else if (event.message.type === 'file') {
     await handleFileMessage(event);
+  } else if (event.message.type === 'text') {
+    await handleTextMessage(event);
   }
 }
 
