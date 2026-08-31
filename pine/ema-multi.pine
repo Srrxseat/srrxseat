@@ -12,6 +12,7 @@ src      = input.source(close, "แหล่งราคา",                   
 tf       = input.timeframe("", "ล็อก Timeframe (ว่าง = ตามกราฟ)", group = grpGen)
 lineW    = input.int(2, "ความหนาเส้น EMA", minval = 1, maxval = 4, group = grpGen)
 showLbl  = input.bool(true,  "แสดงป้ายชื่อท้ายเส้น",              group = grpGen)
+lblGap   = input.int(4, "ระยะห่างป้ายชื่อ (แท่ง, 0 = เรียงตรงกัน)", minval = 0, maxval = 30, group = grpGen)
 showTbl  = input.bool(true,  "แสดงตารางสรุป",                     group = grpGen)
 tblPos   = input.string("ขวาบน", "ตำแหน่งตาราง", options = ["ขวาบน", "ขวาล่าง", "ซ้ายบน", "ซ้ายล่าง"], group = grpGen)
 
@@ -59,7 +60,10 @@ fvgBearCol = input.color(#EF5350, "สีฝั่งขาย (bearish)",  inli
 fvgMinPct  = input.float(0.0, "ขนาดช่องว่างขั้นต่ำ (% ของราคา)", minval = 0.0, step = 0.05, group = grpFvg)
 fvgMinAtr  = input.float(0.0, "ขนาดขั้นต่ำ (เท่าของ ATR14)",     minval = 0.0, step = 0.1, group = grpFvg)
 fvgMax     = input.int(20, "จำนวนกล่องที่เก็บไว้", minval = 1, maxval = 200, group = grpFvg)
-fvgExtend  = input.int(10, "ยืดกล่องไปข้างหน้า (แท่ง)", minval = 0, maxval = 100, group = grpFvg)
+fvgExtMode = input.string("ยืดตามราคา", "รูปแบบความกว้างกล่อง", options = ["ยืดตามราคา", "กว้างคงที่"], group = grpFvg)
+fvgExtend  = input.int(10, "ยืดล่วงหน้า / ความกว้าง (แท่ง)", minval = 1, maxval = 500, group = grpFvg)
+fvgMaxAge  = input.int(0, "ซ่อนกล่องที่เกิดมานานกว่า N แท่ง (0 = ไม่จำกัด)", minval = 0, group = grpFvg)
+fvgNearPct = input.float(0.0, "แสดงเฉพาะกล่องในระยะ ±% จากราคา (0 = ไม่จำกัด)", minval = 0.0, step = 1.0, group = grpFvg)
 fvgFillMode= input.string("แตะขอบไกล", "นับว่าเติมเต็มเมื่อ", options = ["แตะขอบใกล้", "แตะขอบไกล", "ปิดแท่งผ่าน"], group = grpFvg)
 fvgHide    = input.bool(true, "ลบกล่องที่ถูกเติมเต็มแล้ว", group = grpFvg)
 fvgMidOn   = input.bool(false, "แสดงเส้นกลางกล่อง (50%)", group = grpFvg)
@@ -89,20 +93,21 @@ fillCol = not showFill ? na : (e1 > e6 ? color.new(color.green, trFill) : color.
 fill(p1, p6, fillCol, title = "โซนแนวโน้ม")
 
 // ─── ป้ายชื่อท้ายเส้น ───────────────────────────────────────────────
-f_label(bool on, float val, int len, color col) =>
+// slot = ลำดับป้าย ใช้กระจายตำแหน่งแนวนอนกันป้ายทับกันเมื่อ EMA เข้าใกล้กัน
+f_label(bool on, float val, int len, color col, int slot) =>
     var label lb = na
     if barstate.islast
         label.delete(lb)
         if on and not na(val)
-            lb := label.new(bar_index + 3, val, "EMA " + str.tostring(len), xloc.bar_index,
+            lb := label.new(bar_index + 3 + slot * lblGap, val, "EMA " + str.tostring(len), xloc.bar_index,
                  yloc.price, color.new(col, trLbl), label.style_label_left, col, size.small)
 
-f_label(showLbl and on1, e1, l1, c1)
-f_label(showLbl and on2, e2, l2, c2)
-f_label(showLbl and on3, e3, l3, c3)
-f_label(showLbl and on4, e4, l4, c4)
-f_label(showLbl and on5, e5, l5, c5)
-f_label(showLbl and on6, e6, l6, c6)
+f_label(showLbl and on1, e1, l1, c1, 0)
+f_label(showLbl and on2, e2, l2, c2, 1)
+f_label(showLbl and on3, e3, l3, c3, 2)
+f_label(showLbl and on4, e4, l4, c4, 3)
+f_label(showLbl and on5, e5, l5, c5, 4)
+f_label(showLbl and on6, e6, l6, c6, 5)
 
 // ─── Price Imbalance: ตรวจจับช่องว่าง 3 แท่ง ────────────────────────
 // bullish: low ของแท่งนี้ สูงกว่า high ของแท่งก่อนหน้า 2 แท่ง → เหลือช่องว่างไว้ข้างล่าง
@@ -112,6 +117,7 @@ var array<line>  fMid = array.new<line>()
 var array<float> fTop = array.new<float>()
 var array<float> fBot = array.new<float>()
 var array<int>   fDir = array.new<int>()   // 1 = bull, -1 = bear, 0 = ถูกเติมเต็มแล้ว
+var array<int>   fBar = array.new<int>()   // แท่งที่ช่องว่างนี้เกิด
 
 atr = ta.atr(14)
 
@@ -129,6 +135,7 @@ f_drop(int i) =>
     array.remove(fTop, i)
     array.remove(fBot, i)
     array.remove(fDir, i)
+    array.remove(fBar, i)
 
 if fvgOn
     // 1) อัปเดตกล่องเดิม: ยืดไปข้างหน้า และเช็คว่าถูกเติมเต็มหรือยัง
@@ -154,9 +161,19 @@ if fvgOn
                         box.set_border_color(array.get(fBox, i), color.new(color.gray, math.min(99, trFvgBd + 8)))
                         line.delete(array.get(fMid, i))
                 else
-                    box.set_right(array.get(fBox, i), bar_index + fvgExtend)
-                    if fvgMidOn and not na(array.get(fMid, i))
-                        line.set_x2(array.get(fMid, i), bar_index + fvgExtend)
+                    bornAt = array.get(fBar, i)
+                    right  = fvgExtMode == "กว้างคงที่" ? bornAt + fvgExtend : bar_index + fvgExtend
+                    // ตัวกรอง: อายุกล่อง และระยะห่างจากราคาปัจจุบัน
+                    okAge  = fvgMaxAge <= 0 or bar_index - bornAt <= fvgMaxAge
+                    okNear = fvgNearPct <= 0 or (bot <= close * (1 + fvgNearPct / 100.0) and top >= close * (1 - fvgNearPct / 100.0))
+                    show   = okAge and okNear
+                    bxCol  = dir == 1 ? fvgBullCol : fvgBearCol
+                    box.set_right(array.get(fBox, i), right)
+                    box.set_bgcolor(array.get(fBox, i), show ? color.new(bxCol, trFvg) : na)
+                    box.set_border_color(array.get(fBox, i), show ? color.new(bxCol, trFvgBd) : na)
+                    if not na(array.get(fMid, i))
+                        line.set_x2(array.get(fMid, i), right)
+                        line.set_color(array.get(fMid, i), show and fvgMidOn ? color.new(bxCol, math.max(0, trFvgBd - 20)) : na)
 
     // 2) ตรวจจับช่องว่างใหม่บนแท่งปัจจุบัน
     bullGap = low > high[2]
@@ -166,18 +183,20 @@ if fvgOn
     if (bullGap or bearGap) and f_bigEnough(gTop, gBot)
         gDir = bullGap ? 1 : -1
         gCol = bullGap ? fvgBullCol : fvgBearCol
-        bx = box.new(bar_index - 2, gTop, bar_index + fvgExtend, gBot,
+        gRight = fvgExtMode == "กว้างคงที่" ? bar_index - 2 + fvgExtend : bar_index + fvgExtend
+        bx = box.new(bar_index - 2, gTop, gRight, gBot,
              border_color = color.new(gCol, trFvgBd), border_width = 1,
              bgcolor = color.new(gCol, trFvg), xloc = xloc.bar_index)
         line mid = na
         if fvgMidOn
-            mid := line.new(bar_index - 2, math.avg(gTop, gBot), bar_index + fvgExtend, math.avg(gTop, gBot),
+            mid := line.new(bar_index - 2, math.avg(gTop, gBot), gRight, math.avg(gTop, gBot),
                  xloc = xloc.bar_index, color = color.new(gCol, math.max(0, trFvgBd - 20)), style = line.style_dotted)
         array.push(fBox, bx)
         array.push(fMid, mid)
         array.push(fTop, gTop)
         array.push(fBot, gBot)
         array.push(fDir, gDir)
+        array.push(fBar, bar_index - 2)
         // จำกัดจำนวนกล่อง: ทิ้งอันเก่าสุดก่อน
         while array.size(fBox) > fvgMax
             f_drop(0)
