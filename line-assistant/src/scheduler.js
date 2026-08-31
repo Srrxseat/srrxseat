@@ -52,6 +52,13 @@ function start() {
     return null;
   }
   console.log(`[scheduler] month-end report armed for ${config.reportHour}:00 Thailand time, to ${config.reportGroupIds.length} group(s)`);
+
+  // Check straight away as well as on the interval. A deploy that lands inside
+  // the sending hour - which is exactly when someone is likely to be switching
+  // this on - would otherwise wait up to five minutes for the first tick and
+  // could miss the hour entirely, and the next chance is a month away.
+  checkOnce().catch(() => {});
+
   const timer = setInterval(() => { checkOnce().catch(() => {}); }, CHECK_INTERVAL_MS);
   timer.unref?.();
   return timer;
