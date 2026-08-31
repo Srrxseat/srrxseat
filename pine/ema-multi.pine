@@ -59,9 +59,11 @@ fillDnCol = input.color(#EF5350, "สีโซนขาลง",  inline = "fz", 
 // ─── Price Imbalance (FVG) ──────────────────────────────────────────
 grpFvg = "Price Imbalance"
 fvgOn      = input.bool(true, "เปิดใช้ Price Imbalance", group = grpFvg)
-fvgWidth   = input.string("1 แท่ง (แท่งกลาง)", "ความกว้างแท่ง", options = ["1 แท่ง (แท่งกลาง)", "3 แท่ง (คลุมช่องว่าง)"], group = grpFvg)
-fvgPad     = input.int(0, "ต่อความกว้างเพิ่ม (แท่ง)", minval = 0, maxval = 50, group = grpFvg)
-fvgOffset  = input.int(1, "เลื่อนไปทางขวาของแท่งเทียน (แท่ง, 0 = ทับแท่งเทียน)", minval = 0, maxval = 50, group = grpFvg)
+fvgStyle   = input.string("ระบายสีแท่งเทียน", "รูปแบบการแสดง",
+     options = ["ระบายสีแท่งเทียน", "ระบายเฉพาะช่วงช่องว่าง", "กล่อง"], group = grpFvg)
+fvgWidth   = input.string("1 แท่ง", "ความกว้างกล่อง", options = ["1 แท่ง", "3 แท่ง (คลุมช่องว่าง)"], group = grpFvg)
+fvgPad     = input.int(0, "ต่อความกว้างกล่องเพิ่ม (แท่ง)", minval = 0, maxval = 50, group = grpFvg)
+fvgOffset  = input.int(-1, "ตำแหน่งกล่องเทียบแท่งที่ยืนยัน (-2 = แท่งแรก, -1 = แท่งกลาง, 1+ = ขวาของแท่งเทียน)", minval = -5, maxval = 50, group = grpFvg)
 fvgBullCol = input.color(#FFEB3B, "สีฝั่งซื้อ (bullish)",  inline = "fc1", group = grpFvg)
 fvgBearCol = input.color(#B0BEC5, "สีฝั่งขาย (bearish)",   inline = "fc1", group = grpFvg)
 fvgFillCol = input.color(#78909C, "สีเมื่อถูกเติมเต็มแล้ว",              group = grpFvg)
@@ -147,6 +149,8 @@ var array<float> fBot = array.new<float>()
 var array<int>   fDir = array.new<int>()   // 1 = ซื้อ, -1 = ขาย, 0 = ถูกเติมเต็มแล้ว
 var array<int>   fBar = array.new<int>()   // แท่งที่ช่องว่างนี้เกิด
 
+boxMode = fvgStyle == "กล่อง"
+
 f_drop(int i) =>
     box.delete(array.get(fBox, i))
     line.delete(array.get(fMid, i))
@@ -178,8 +182,8 @@ if fvgOn
                     if fvgHide
                         f_drop(i)
                     else
-                        box.set_bgcolor(array.get(fBox, i), color.new(fvgFillCol, math.min(99, trFvg + 25)))
-                        box.set_border_color(array.get(fBox, i), fvgBorder ? color.new(fvgFillCol, math.min(99, trFvgBd + 25)) : na)
+                        box.set_bgcolor(array.get(fBox, i), boxMode ? color.new(fvgFillCol, math.min(99, trFvg + 25)) : na)
+                        box.set_border_color(array.get(fBox, i), boxMode and fvgBorder ? color.new(fvgFillCol, math.min(99, trFvgBd + 25)) : na)
                         line.delete(array.get(fMid, i))
                 else if not okAge
                     box.set_bgcolor(array.get(fBox, i), na)
@@ -191,14 +195,14 @@ if fvgOn
     if newGap
         gDir  = bullGap ? 1 : -1
         gCol  = bullGap ? fvgBullCol : fvgBearCol
-        gWide = (fvgWidth == "1 แท่ง (แท่งกลาง)" ? 1 : 3) + fvgPad
-        // offset 0 = ทับช่องว่างเดิม, >0 = ขยับไปทางขวาของแท่งที่ยืนยันช่องว่าง
-        gLeft = fvgOffset == 0 ? bar_index - 2 : bar_index + fvgOffset
+        gWide = (fvgWidth == "1 แท่ง" ? 1 : 3) + fvgPad
+        gLeft = bar_index + fvgOffset
         gRight= gLeft + gWide
-        bx = box.new(gLeft, gTop, gRight, gBot, xloc = xloc.bar_index, border_width = fvgBorder ? 1 : 0,
-             border_color = fvgBorder ? color.new(gCol, trFvgBd) : na, bgcolor = color.new(gCol, trFvg))
+        bx = box.new(gLeft, gTop, gRight, gBot, xloc = xloc.bar_index, border_width = boxMode and fvgBorder ? 1 : 0,
+             border_color = boxMode and fvgBorder ? color.new(gCol, trFvgBd) : na,
+             bgcolor = boxMode ? color.new(gCol, trFvg) : na)
         line mid = na
-        if fvgMidOn
+        if fvgMidOn and boxMode
             mid := line.new(gLeft, math.avg(gTop, gBot), gRight, math.avg(gTop, gBot),
                  xloc = xloc.bar_index, color = color.new(gCol, math.max(0, trFvgBd)), style = line.style_dotted)
         array.push(fBox, bx)
@@ -209,6 +213,32 @@ if fvgOn
         array.push(fBar, bar_index - 2)
         while array.size(fBox) > fvgMax
             f_drop(0)
+
+// ─── ระบายสีแท่งเทียนที่เกิด Imbalance ──────────────────────────────
+// โหมด "ระบายสีแท่งเทียน"      = ระบายทั้งแท่งกลางของช่องว่าง
+// โหมด "ระบายเฉพาะช่วงช่องว่าง" = ระบายแค่ช่วงราคาที่เป็นช่องว่างจริง
+candleMode = fvgStyle == "ระบายสีแท่งเทียน"
+gapMode    = fvgStyle == "ระบายเฉพาะช่วงช่องว่าง"
+paintBull  = fvgOn and newBull
+paintBear  = fvgOn and newBear
+bullPaint  = color.new(fvgBullCol, trFvg)
+bearPaint  = color.new(fvgBearCol, trFvg)
+
+// ระบายทั้งแท่ง (ใช้ค่าของแท่งก่อนหน้าคู่กับ offset = -1 → ตรงแท่งกลางพอดี)
+plotcandle(candleMode and paintBull ? open[1] : na, candleMode and paintBull ? high[1] : na,
+     candleMode and paintBull ? low[1] : na, candleMode and paintBull ? close[1] : na,
+     "แท่ง Imbalance ซื้อ", bullPaint, bullPaint, bordercolor = bullPaint, offset = -1)
+plotcandle(candleMode and paintBear ? open[1] : na, candleMode and paintBear ? high[1] : na,
+     candleMode and paintBear ? low[1] : na, candleMode and paintBear ? close[1] : na,
+     "แท่ง Imbalance ขาย", bearPaint, bearPaint, bordercolor = bearPaint, offset = -1)
+
+// ระบายเฉพาะช่วงช่องว่าง (แท่งทึบสูงเท่าช่องว่าง วางบนแท่งกลาง)
+plotcandle(gapMode and paintBull ? gBot : na, gapMode and paintBull ? gTop : na,
+     gapMode and paintBull ? gBot : na, gapMode and paintBull ? gTop : na,
+     "ช่วงช่องว่างซื้อ", bullPaint, bullPaint, bordercolor = bullPaint, offset = -1)
+plotcandle(gapMode and paintBear ? gBot : na, gapMode and paintBear ? gTop : na,
+     gapMode and paintBear ? gBot : na, gapMode and paintBear ? gTop : na,
+     "ช่วงช่องว่างขาย", bearPaint, bearPaint, bordercolor = bearPaint, offset = -1)
 
 // ─── Diamond marker สำหรับ back testing ─────────────────────────────
 // plotshape ต้องรับ size เป็นค่าคงที่ จึงแยกเป็นชุดตามขนาดที่เลือก
