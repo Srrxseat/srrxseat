@@ -1,46 +1,70 @@
 //@version=6
-// EMA Multi 7/14/25/50/100/200
-// วาง EMA 6 เส้นในตัวเดียว ปรับความยาว/สี/เปิด-ปิดได้ทุกเส้น
-// รองรับล็อก timeframe (ดู EMA ของ TF ใหญ่บนกราฟเล็ก) และมี alert ตัดกัน
-indicator("EMA Multi 7/14/25/50/100/200", shorttitle = "EMA x6", overlay = true, max_labels_count = 100)
+// EMA Multi 7/14/25/50/100/200 + Price Imbalance (FVG)
+// - EMA 6 เส้น ปรับความยาว/สี/เปิด-ปิดได้ทุกเส้น รองรับล็อก timeframe
+// - Price Imbalance แบบ 3 แท่ง (Fair Value Gap) วาดกล่อง ยืดจนถูกเติมเต็ม
+// - ปรับความโปร่งใส (transparency) ได้แยกทุกพื้นหลัง
+indicator("EMA Multi + Price Imbalance", shorttitle = "EMA x6 + FVG", overlay = true,
+     max_labels_count = 100, max_boxes_count = 500, max_lines_count = 500)
 
 // ─── การตั้งค่าทั่วไป ────────────────────────────────────────────────
 grpGen = "ทั่วไป"
-src      = input.source(close, "แหล่งราคา",                group = grpGen)
+src      = input.source(close, "แหล่งราคา",                       group = grpGen)
 tf       = input.timeframe("", "ล็อก Timeframe (ว่าง = ตามกราฟ)", group = grpGen)
-showLbl  = input.bool(true,  "แสดงป้ายชื่อท้ายเส้น",        group = grpGen)
-showTbl  = input.bool(true,  "แสดงตารางสรุป",               group = grpGen)
+lineW    = input.int(2, "ความหนาเส้น EMA", minval = 1, maxval = 4, group = grpGen)
+showLbl  = input.bool(true,  "แสดงป้ายชื่อท้ายเส้น",              group = grpGen)
+showTbl  = input.bool(true,  "แสดงตารางสรุป",                     group = grpGen)
 tblPos   = input.string("ขวาบน", "ตำแหน่งตาราง", options = ["ขวาบน", "ขวาล่าง", "ซ้ายบน", "ซ้ายล่าง"], group = grpGen)
-showFill = input.bool(true,  "ระบายสีระหว่าง EMA เร็ว-ช้า",  group = grpGen)
-lineW    = input.int(2, "ความหนาเส้น", minval = 1, maxval = 4, group = grpGen)
+
+// ─── ความโปร่งใส (0 = ทึบ, 100 = ใสจนมองไม่เห็น) ───────────────────
+grpTr = "ความโปร่งใส (0 = ทึบ, 100 = ใส)"
+trFill  = input.int(88, "โซนแนวโน้มระหว่าง EMA", minval = 0, maxval = 100, group = grpTr)
+trFvg   = input.int(80, "กล่อง Price Imbalance",  minval = 0, maxval = 100, group = grpTr)
+trFvgBd = input.int(40, "ขอบกล่อง Imbalance",     minval = 0, maxval = 100, group = grpTr)
+trTbl   = input.int(20, "พื้นหลังตารางสรุป",       minval = 0, maxval = 100, group = grpTr)
+trLbl   = input.int(85, "พื้นหลังป้ายชื่อ EMA",     minval = 0, maxval = 100, group = grpTr)
 
 // ─── เส้น EMA ───────────────────────────────────────────────────────
 grpEma = "เส้น EMA"
 on1 = input.bool(true, "", inline = "e1", group = grpEma)
 l1  = input.int(7,     "EMA", inline = "e1", minval = 1, group = grpEma)
-c1  = input.color(color.new(#00E5FF, 0), "", inline = "e1", group = grpEma)
+c1  = input.color(#00E5FF, "", inline = "e1", group = grpEma)
 
 on2 = input.bool(true, "", inline = "e2", group = grpEma)
 l2  = input.int(14,    "EMA", inline = "e2", minval = 1, group = grpEma)
-c2  = input.color(color.new(#4CFF6A, 0), "", inline = "e2", group = grpEma)
+c2  = input.color(#4CFF6A, "", inline = "e2", group = grpEma)
 
 on3 = input.bool(true, "", inline = "e3", group = grpEma)
 l3  = input.int(25,    "EMA", inline = "e3", minval = 1, group = grpEma)
-c3  = input.color(color.new(#FFD400, 0), "", inline = "e3", group = grpEma)
+c3  = input.color(#FFD400, "", inline = "e3", group = grpEma)
 
 on4 = input.bool(true, "", inline = "e4", group = grpEma)
 l4  = input.int(50,    "EMA", inline = "e4", minval = 1, group = grpEma)
-c4  = input.color(color.new(#FF9800, 0), "", inline = "e4", group = grpEma)
+c4  = input.color(#FF9800, "", inline = "e4", group = grpEma)
 
 on5 = input.bool(true, "", inline = "e5", group = grpEma)
 l5  = input.int(100,   "EMA", inline = "e5", minval = 1, group = grpEma)
-c5  = input.color(color.new(#E040FB, 0), "", inline = "e5", group = grpEma)
+c5  = input.color(#E040FB, "", inline = "e5", group = grpEma)
 
 on6 = input.bool(true, "", inline = "e6", group = grpEma)
 l6  = input.int(200,   "EMA", inline = "e6", minval = 1, group = grpEma)
-c6  = input.color(color.new(#FF5252, 0), "", inline = "e6", group = grpEma)
+c6  = input.color(#FF5252, "", inline = "e6", group = grpEma)
 
-// ─── คำนวณ (รองรับ MTF, ไม่ repaint: lookahead ปิด) ──────────────────
+showFill = input.bool(true, "ระบายสีระหว่าง EMA เร็ว-ช้า", group = grpEma)
+
+// ─── Price Imbalance (FVG) ──────────────────────────────────────────
+grpFvg = "Price Imbalance (FVG)"
+fvgOn      = input.bool(true, "เปิดใช้ Price Imbalance", group = grpFvg)
+fvgBullCol = input.color(#26A69A, "สีฝั่งซื้อ (bullish)", inline = "fc", group = grpFvg)
+fvgBearCol = input.color(#EF5350, "สีฝั่งขาย (bearish)",  inline = "fc", group = grpFvg)
+fvgMinPct  = input.float(0.0, "ขนาดช่องว่างขั้นต่ำ (% ของราคา)", minval = 0.0, step = 0.05, group = grpFvg)
+fvgMinAtr  = input.float(0.0, "ขนาดขั้นต่ำ (เท่าของ ATR14)",     minval = 0.0, step = 0.1, group = grpFvg)
+fvgMax     = input.int(20, "จำนวนกล่องที่เก็บไว้", minval = 1, maxval = 200, group = grpFvg)
+fvgExtend  = input.int(10, "ยืดกล่องไปข้างหน้า (แท่ง)", minval = 0, maxval = 100, group = grpFvg)
+fvgFillMode= input.string("แตะขอบไกล", "นับว่าเติมเต็มเมื่อ", options = ["แตะขอบใกล้", "แตะขอบไกล", "ปิดแท่งผ่าน"], group = grpFvg)
+fvgHide    = input.bool(true, "ลบกล่องที่ถูกเติมเต็มแล้ว", group = grpFvg)
+fvgMidOn   = input.bool(false, "แสดงเส้นกลางกล่อง (50%)", group = grpFvg)
+
+// ─── คำนวณ EMA (รองรับ MTF, lookahead ปิด = ไม่ repaint) ────────────
 tfUse = tf == "" ? timeframe.period : tf
 f_ema(int len) =>
     request.security(syminfo.tickerid, tfUse, ta.ema(src, len), lookahead = barmerge.lookahead_off)
@@ -52,16 +76,16 @@ e4 = f_ema(l4)
 e5 = f_ema(l5)
 e6 = f_ema(l6)
 
-// ─── วาดเส้น ────────────────────────────────────────────────────────
+// ─── วาดเส้น EMA ────────────────────────────────────────────────────
 p1 = plot(on1 ? e1 : na, "EMA เส้น 1", c1, lineW)
-p2 = plot(on2 ? e2 : na, "EMA เส้น 2", c2, lineW)
+plot(on2 ? e2 : na, "EMA เส้น 2", c2, lineW)
 plot(on3 ? e3 : na, "EMA เส้น 3", c3, lineW)
 plot(on4 ? e4 : na, "EMA เส้น 4", c4, lineW)
 plot(on5 ? e5 : na, "EMA เส้น 5", c5, lineW)
 p6 = plot(on6 ? e6 : na, "EMA เส้น 6", c6, lineW)
 
-// ระบายสีระหว่างเส้นเร็วสุดกับช้าสุด: เขียว = ขาขึ้น, แดง = ขาลง
-fillCol = not showFill ? na : (e1 > e6 ? color.new(color.green, 88) : color.new(color.red, 88))
+// โซนแนวโน้ม: เขียว = EMA เร็วอยู่เหนือ EMA ช้า, แดง = อยู่ใต้
+fillCol = not showFill ? na : (e1 > e6 ? color.new(color.green, trFill) : color.new(color.red, trFill))
 fill(p1, p6, fillCol, title = "โซนแนวโน้ม")
 
 // ─── ป้ายชื่อท้ายเส้น ───────────────────────────────────────────────
@@ -71,7 +95,7 @@ f_label(bool on, float val, int len, color col) =>
         label.delete(lb)
         if on and not na(val)
             lb := label.new(bar_index + 3, val, "EMA " + str.tostring(len), xloc.bar_index,
-                 yloc.price, color.new(col, 85), label.style_label_left, col, size.small)
+                 yloc.price, color.new(col, trLbl), label.style_label_left, col, size.small)
 
 f_label(showLbl and on1, e1, l1, c1)
 f_label(showLbl and on2, e2, l2, c2)
@@ -80,55 +104,150 @@ f_label(showLbl and on4, e4, l4, c4)
 f_label(showLbl and on5, e5, l5, c5)
 f_label(showLbl and on6, e6, l6, c6)
 
-// ─── ตารางสรุป: ราคาอยู่เหนือ/ใต้แต่ละเส้น + คะแนนแนวโน้ม ───────────
+// ─── Price Imbalance: ตรวจจับช่องว่าง 3 แท่ง ────────────────────────
+// bullish: low ของแท่งนี้ สูงกว่า high ของแท่งก่อนหน้า 2 แท่ง → เหลือช่องว่างไว้ข้างล่าง
+// bearish: high ของแท่งนี้ ต่ำกว่า low ของแท่งก่อนหน้า 2 แท่ง → เหลือช่องว่างไว้ข้างบน
+var array<box>   fBox = array.new<box>()
+var array<line>  fMid = array.new<line>()
+var array<float> fTop = array.new<float>()
+var array<float> fBot = array.new<float>()
+var array<int>   fDir = array.new<int>()   // 1 = bull, -1 = bear, 0 = ถูกเติมเต็มแล้ว
+
+atr = ta.atr(14)
+
+f_bigEnough(float top, float bot) =>
+    gapSize = top - bot
+    okPct = fvgMinPct <= 0 or gapSize >= close * fvgMinPct / 100.0
+    okAtr = fvgMinAtr <= 0 or na(atr) or gapSize >= atr * fvgMinAtr
+    gapSize > 0 and okPct and okAtr
+
+f_drop(int i) =>
+    box.delete(array.get(fBox, i))
+    line.delete(array.get(fMid, i))
+    array.remove(fBox, i)
+    array.remove(fMid, i)
+    array.remove(fTop, i)
+    array.remove(fBot, i)
+    array.remove(fDir, i)
+
+if fvgOn
+    // 1) อัปเดตกล่องเดิม: ยืดไปข้างหน้า และเช็คว่าถูกเติมเต็มหรือยัง
+    if array.size(fBox) > 0
+        for i = array.size(fBox) - 1 to 0
+            dir = array.get(fDir, i)
+            if dir != 0
+                top = array.get(fTop, i)
+                bot = array.get(fBot, i)
+                near = dir == 1 ? top : bot        // ขอบใกล้ = ฝั่งที่ราคาแตะก่อน
+                far  = dir == 1 ? bot : top        // ขอบไกล = เติมเต็มทั้งช่องว่าง
+                filled = switch fvgFillMode
+                    "แตะขอบใกล้" => dir == 1 ? low <= near : high >= near
+                    "แตะขอบไกล" => dir == 1 ? low <= far  : high >= far
+                    =>              dir == 1 ? close < far : close > far
+                if filled
+                    array.set(fDir, i, 0)
+                    if fvgHide
+                        f_drop(i)
+                    else
+                        box.set_right(array.get(fBox, i), bar_index)
+                        box.set_bgcolor(array.get(fBox, i), color.new(color.gray, math.min(99, trFvg + 8)))
+                        box.set_border_color(array.get(fBox, i), color.new(color.gray, math.min(99, trFvgBd + 8)))
+                        line.delete(array.get(fMid, i))
+                else
+                    box.set_right(array.get(fBox, i), bar_index + fvgExtend)
+                    if fvgMidOn and not na(array.get(fMid, i))
+                        line.set_x2(array.get(fMid, i), bar_index + fvgExtend)
+
+    // 2) ตรวจจับช่องว่างใหม่บนแท่งปัจจุบัน
+    bullGap = low > high[2]
+    bearGap = high < low[2]
+    gTop = bullGap ? low : bearGap ? low[2] : na
+    gBot = bullGap ? high[2] : bearGap ? high : na
+    if (bullGap or bearGap) and f_bigEnough(gTop, gBot)
+        gDir = bullGap ? 1 : -1
+        gCol = bullGap ? fvgBullCol : fvgBearCol
+        bx = box.new(bar_index - 2, gTop, bar_index + fvgExtend, gBot,
+             border_color = color.new(gCol, trFvgBd), border_width = 1,
+             bgcolor = color.new(gCol, trFvg), xloc = xloc.bar_index)
+        line mid = na
+        if fvgMidOn
+            mid := line.new(bar_index - 2, math.avg(gTop, gBot), bar_index + fvgExtend, math.avg(gTop, gBot),
+                 xloc = xloc.bar_index, color = color.new(gCol, math.max(0, trFvgBd - 20)), style = line.style_dotted)
+        array.push(fBox, bx)
+        array.push(fMid, mid)
+        array.push(fTop, gTop)
+        array.push(fBot, gBot)
+        array.push(fDir, gDir)
+        // จำกัดจำนวนกล่อง: ทิ้งอันเก่าสุดก่อน
+        while array.size(fBox) > fvgMax
+            f_drop(0)
+
+// ─── ตารางสรุป ──────────────────────────────────────────────────────
 pos = switch tblPos
     "ขวาบน"   => position.top_right
     "ขวาล่าง" => position.bottom_right
     "ซ้ายบน"  => position.top_left
     =>           position.bottom_left
 
-var table tbl = table.new(pos, 3, 8, border_width = 1, frame_width = 1, frame_color = color.new(color.gray, 50))
+var table tbl = table.new(pos, 3, 10, border_width = 1, frame_width = 1, frame_color = color.new(color.gray, 50))
+cellBg = color.new(#131722, trTbl)
+headBg = color.new(color.gray, math.min(100, trTbl + 50))
 
 f_row(int r, bool on, string name, float val, color col) =>
     if on and not na(val)
         above = close > val
-        table.cell(tbl, 0, r, name, text_color = col, text_size = size.small, bgcolor = color.new(#131722, 20))
-        table.cell(tbl, 1, r, str.tostring(val, format.mintick), text_color = color.white, text_size = size.small, bgcolor = color.new(#131722, 20))
-        table.cell(tbl, 2, r, above ? "เหนือ" : "ใต้", text_color = above ? color.lime : color.red, text_size = size.small, bgcolor = color.new(#131722, 20))
+        table.cell(tbl, 0, r, name, text_color = col, text_size = size.small, bgcolor = cellBg)
+        table.cell(tbl, 1, r, str.tostring(val, format.mintick), text_color = color.white, text_size = size.small, bgcolor = cellBg)
+        table.cell(tbl, 2, r, above ? "เหนือ" : "ใต้", text_color = above ? color.lime : color.red, text_size = size.small, bgcolor = cellBg)
 
 if showTbl and barstate.islast
-    table.clear(tbl, 0, 0, 2, 7)
-    // นับเส้นที่ราคายืนเหนือได้ = คะแนนแนวโน้ม
+    table.clear(tbl, 0, 0, 2, 9)
     score = (on1 and close > e1 ? 1 : 0) + (on2 and close > e2 ? 1 : 0) + (on3 and close > e3 ? 1 : 0) + (on4 and close > e4 ? 1 : 0) + (on5 and close > e5 ? 1 : 0) + (on6 and close > e6 ? 1 : 0)
     total = (on1 ? 1 : 0) + (on2 ? 1 : 0) + (on3 ? 1 : 0) + (on4 ? 1 : 0) + (on5 ? 1 : 0) + (on6 ? 1 : 0)
-    stacked = e1 > e2 and e2 > e3 and e3 > e4 and e4 > e5 and e5 > e6
-    stackedDn = e1 < e2 and e2 < e3 and e3 < e4 and e4 < e5 and e5 < e6
-    trend = stacked ? "ขาขึ้นเรียงสวย" : stackedDn ? "ขาลงเรียงสวย" : "ไซด์เวย์ / สลับ"
-    trendCol = stacked ? color.lime : stackedDn ? color.red : color.orange
-    table.cell(tbl, 0, 0, "เส้น",  text_color = color.silver, text_size = size.small, bgcolor = color.new(color.gray, 70))
-    table.cell(tbl, 1, 0, "ค่า",   text_color = color.silver, text_size = size.small, bgcolor = color.new(color.gray, 70))
-    table.cell(tbl, 2, 0, "ราคา", text_color = color.silver, text_size = size.small, bgcolor = color.new(color.gray, 70))
+    stackUp = e1 > e2 and e2 > e3 and e3 > e4 and e4 > e5 and e5 > e6
+    stackDn = e1 < e2 and e2 < e3 and e3 < e4 and e4 < e5 and e5 < e6
+    trend    = stackUp ? "ขาขึ้นเรียงสวย" : stackDn ? "ขาลงเรียงสวย" : "ไซด์เวย์ / สลับ"
+    trendCol = stackUp ? color.lime : stackDn ? color.red : color.orange
+    table.cell(tbl, 0, 0, "เส้น",  text_color = color.silver, text_size = size.small, bgcolor = headBg)
+    table.cell(tbl, 1, 0, "ค่า",   text_color = color.silver, text_size = size.small, bgcolor = headBg)
+    table.cell(tbl, 2, 0, "ราคา", text_color = color.silver, text_size = size.small, bgcolor = headBg)
     f_row(1, on1, "EMA " + str.tostring(l1), e1, c1)
     f_row(2, on2, "EMA " + str.tostring(l2), e2, c2)
     f_row(3, on3, "EMA " + str.tostring(l3), e3, c3)
     f_row(4, on4, "EMA " + str.tostring(l4), e4, c4)
     f_row(5, on5, "EMA " + str.tostring(l5), e5, c5)
     f_row(6, on6, "EMA " + str.tostring(l6), e6, c6)
-    table.cell(tbl, 0, 7, trend, text_color = trendCol, text_size = size.small, bgcolor = color.new(#131722, 20))
-    table.cell(tbl, 1, 7, "เหนือ " + str.tostring(score) + "/" + str.tostring(total), text_color = color.white, text_size = size.small, bgcolor = color.new(#131722, 20))
-    table.cell(tbl, 2, 7, "", bgcolor = color.new(#131722, 20))
+    table.cell(tbl, 0, 7, trend, text_color = trendCol, text_size = size.small, bgcolor = cellBg)
+    table.cell(tbl, 1, 7, "เหนือ " + str.tostring(score) + "/" + str.tostring(total), text_color = color.white, text_size = size.small, bgcolor = cellBg)
+    table.cell(tbl, 2, 7, "", bgcolor = cellBg)
+    // สรุป Price Imbalance ที่ยังไม่ถูกเติมเต็ม
+    if fvgOn
+        openBull = 0
+        openBear = 0
+        if array.size(fDir) > 0
+            for i = 0 to array.size(fDir) - 1
+                d = array.get(fDir, i)
+                openBull += d == 1 ? 1 : 0
+                openBear += d == -1 ? 1 : 0
+        table.cell(tbl, 0, 8, "Imbalance", text_color = color.silver, text_size = size.small, bgcolor = headBg)
+        table.cell(tbl, 1, 8, "ซื้อ " + str.tostring(openBull), text_color = fvgBullCol, text_size = size.small, bgcolor = cellBg)
+        table.cell(tbl, 2, 8, "ขาย " + str.tostring(openBear), text_color = fvgBearCol, text_size = size.small, bgcolor = cellBg)
 
 // ─── สัญญาณ / Alert ─────────────────────────────────────────────────
-goldenX = ta.crossover(e2, e4)                  // EMA 14 ตัดขึ้น EMA 50
-deathX  = ta.crossunder(e2, e4)
-fastX   = ta.crossover(e1, e3)                  // EMA 7 ตัดขึ้น EMA 25
-fastXdn = ta.crossunder(e1, e3)
+fastX    = ta.crossover(e1, e3)     // EMA 7 ตัดขึ้น EMA 25
+fastXdn  = ta.crossunder(e1, e3)
+goldenX  = ta.crossover(e2, e4)     // EMA 14 ตัดขึ้น EMA 50
+deathX   = ta.crossunder(e2, e4)
 above200 = ta.crossover(close, e6)
 below200 = ta.crossunder(close, e6)
+newBull  = fvgOn and low > high[2] and f_bigEnough(low, high[2])
+newBear  = fvgOn and high < low[2] and f_bigEnough(low[2], high)
 
-alertcondition(fastX,    "EMA เร็วตัดขึ้น",   "EMA 7 ตัดขึ้น EMA 25")
-alertcondition(fastXdn,  "EMA เร็วตัดลง",     "EMA 7 ตัดลง EMA 25")
-alertcondition(goldenX,  "Golden Cross",      "EMA 14 ตัดขึ้น EMA 50")
-alertcondition(deathX,   "Death Cross",       "EMA 14 ตัดลง EMA 50")
-alertcondition(above200, "ราคายืนเหนือ EMA 200", "ราคาตัดขึ้นเหนือ EMA 200")
-alertcondition(below200, "ราคาหลุด EMA 200",     "ราคาตัดลงใต้ EMA 200")
+alertcondition(fastX,    "EMA เร็วตัดขึ้น",        "EMA 7 ตัดขึ้น EMA 25")
+alertcondition(fastXdn,  "EMA เร็วตัดลง",          "EMA 7 ตัดลง EMA 25")
+alertcondition(goldenX,  "Golden Cross",           "EMA 14 ตัดขึ้น EMA 50")
+alertcondition(deathX,   "Death Cross",            "EMA 14 ตัดลง EMA 50")
+alertcondition(above200, "ราคายืนเหนือ EMA 200",   "ราคาตัดขึ้นเหนือ EMA 200")
+alertcondition(below200, "ราคาหลุด EMA 200",       "ราคาตัดลงใต้ EMA 200")
+alertcondition(newBull,  "Imbalance ฝั่งซื้อใหม่",  "เกิด Price Imbalance ฝั่งซื้อ")
+alertcondition(newBear,  "Imbalance ฝั่งขายใหม่",  "เกิด Price Imbalance ฝั่งขาย")
