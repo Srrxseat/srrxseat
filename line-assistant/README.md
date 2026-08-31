@@ -110,11 +110,9 @@ Two people who genuinely share a name and nationality are counted as one. The
 
 ### The monthly report
 
-Attendance is counted in hours at one hour per person per session
-(`HOURS_PER_ATTENDANCE` in `src/attendanceStats.js`), so the month's hours are
-its attendance count.
-
-The report goes to the group in three situations:
+The report covers how many people came, from how many countries, how many
+visits that was over how many days, and who came back. The report goes to the
+group in three situations:
 
 - **after every drop-in photo**, appended to the same confirmation message so
   the running total is visible as the month fills up. It shares one message

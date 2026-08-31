@@ -142,11 +142,6 @@ function deriveVisitColumns(rows) {
   return derived;
 }
 
-// One attendee sitting one session is one hour of meditation, so the hour count
-// is the row count - stated here rather than inlined so the assumption is
-// visible if sessions ever stop being an hour.
-const HOURS_PER_ATTENDANCE = 1;
-
 function monthKey(date) {
   const match = (date || '').match(/^(\d{4})\/(\d{2})/);
   return match ? `${match[1]}/${match[2]}` : '';
@@ -171,7 +166,6 @@ function summarizeMonth(rows, month) {
     people: groups.length,
     countries: [...countries].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])),
     days: days.size,
-    hours: inMonth.length * HOURS_PER_ATTENDANCE,
     returning: returning
       .map((group) => ({ name: group.label, visits: group.rows.length }))
       .sort((a, b) => b.visits - a.visits || a.name.localeCompare(b.name)),
@@ -199,7 +193,6 @@ function formatMonthlyReport(summary) {
     '',
     `🧘 ผู้เข้าปฏิบัติธรรม ${summary.people} คน จาก ${summary.countries.length} ประเทศ`,
     `🔁 เข้าร่วมรวม ${summary.attendances} ครั้ง ใน ${summary.days} วัน`,
-    `⏱ ชั่วโมงสมาธิสะสม ${summary.hours} ชั่วโมง`,
     '',
     `🌏 ${summary.countries.map(([country, n]) => `${country} ${n}`).join(' · ')}`,
   ];
@@ -220,5 +213,4 @@ module.exports = {
   summarizeMonth,
   formatMonth,
   formatMonthlyReport,
-  HOURS_PER_ATTENDANCE,
 };
