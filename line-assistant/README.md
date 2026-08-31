@@ -116,8 +116,12 @@ its attendance count.
 
 The report goes to the group in three situations:
 
-- **after every drop-in photo**, as a second message, so the running total is
-  visible as the month fills up;
+- **after every drop-in photo**, appended to the same confirmation message so
+  the running total is visible as the month fills up. It shares one message
+  rather than sending a second because LINE bills per message and the free
+  tier's monthly allowance is small — see "Notes" — so if a page has too many
+  names for both to fit in one message, the names give way and the summary
+  stays;
 - **on demand**, when someone types `report` or `รายงาน` in the chat. Add a
   month to look back — `report 2026/08`. This is also how to preview exactly
   what the scheduled send will say before switching it on;
@@ -444,3 +448,14 @@ always there to check against.
 - If Claude retires a model version, `messages.create` returns a 404 naming
   the model — swap `ANTHROPIC_MODEL` for a current one (see the model table
   in Anthropic's docs).
+- **LINE bills per message sent, and the free Official Account tier's monthly
+  allowance is small** — a few hundred. Every reply here is a `pushMessage`
+  against it, so a busy month of registration forms can exhaust it; this
+  deployment already has once. The symptom is distinctive and easy to
+  misread: Drive and Sheets keep working (they're Google APIs) and only the
+  chat replies stop, with `429 Too Many Requests` and
+  `{"message":"You have reached your monthly limit."}` in the logs. Nothing
+  in the code can fix that — either raise the plan in the LINE Official
+  Account Manager or wait for the quota to reset on the 1st. Keeping the
+  message count per photo down is worth doing for the same reason, which is
+  why the drop-in confirmation and monthly summary share one message.

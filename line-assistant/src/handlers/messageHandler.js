@@ -119,10 +119,19 @@ function buildLogFilename(rows, messageId) {
   return `${[date, 'drop-in-log', messageId.slice(-8)].filter(Boolean).join('_')}.jpg`;
 }
 
+// LINE bills per message sent, not per character, and the free tier's monthly
+// allowance is small enough that it has already run out once. So the
+// confirmation and the month's running total go out as one message rather than
+// two - halving what a photo of the log costs.
+const LINE_TEXT_LIMIT = 5000;
+const SECTION_BREAK = '\n\n────────\n\n';
+
 // Listing the names back is what makes a misread catchable - the staff can see
 // at a glance whether a name came out wrong - so the reply groups them by day
-// rather than just reporting a count.
-function buildLogReply(rows, addedRows, duplicates) {
+// rather than just reporting a count. `budget` is what's left of the message
+// after the monthly summary sharing it; the names are what gets dropped if a
+// page is too long for both.
+function buildLogReply(rows, addedRows, duplicates, budget = LINE_TEXT_LIMIT) {
   const counts = [`${rows.length} row${rows.length === 1 ? '' : 's'} read`];
   if (addedRows.length !== rows.length) counts.push(`${addedRows.length} new`);
   if (duplicates) counts.push(`${duplicates} already recorded`);
@@ -140,9 +149,7 @@ function buildLogReply(rows, addedRows, duplicates) {
   const sections = [...byDate].map(([date, names]) => `📅 ${date} (${names.length})\n${names.join(' · ')}`);
   const full = [header, ...sections].join('\n\n');
 
-  // LINE caps a text message at 5000 characters; a page with a lot of rows can
-  // approach that, and a truncated-looking reply is worse than a short one.
-  return full.length <= 4500 ? full : header;
+  return full.length <= budget ? full : header;
 }
 
 async function handleAttendanceLog(event, extracted, buffer, senderName) {
@@ -187,22 +194,25 @@ async function handleAttendanceLog(event, extracted, buffer, senderName) {
   // Re-read rather than reusing what was read above: the append has happened
   // since, and the derived columns have to cover the new rows too. Both the
   // visit numbering and the report come from the same fresh snapshot.
-  const messages = [{ type: 'text', text: buildLogReply(rows, addedRows, duplicates) }];
+  let report = null;
   try {
     const records = await readLog();
     await refreshDerivedColumns(records);
     const month = latestMonth(addedRows.map((row) => ({ date: row.visit_date }))) || latestMonth(records);
-    const report = await buildMonthlyReport(month, records);
-    if (report) messages.push({ type: 'text', text: report });
+    report = await buildMonthlyReport(month, records);
   } catch (err) {
     // The rows are already saved; a failure to summarise them shouldn't lose
     // the confirmation that they were.
     console.error('[messageHandler] could not build the monthly summary:', err.message);
   }
 
+  const budget = report ? LINE_TEXT_LIMIT - report.length - SECTION_BREAK.length : LINE_TEXT_LIMIT;
+  const confirmation = buildLogReply(rows, addedRows, duplicates, budget);
+  const text = report ? confirmation + SECTION_BREAK + report : confirmation;
+
   const chatId = getChatId(source);
   try {
-    await client.pushMessage({ to: chatId, messages });
+    await client.pushMessage({ to: chatId, messages: [{ type: 'text', text }] });
     console.log(`[messageHandler] log reply sent to ${source.type} ${chatId}`);
   } catch (err) {
     console.error(`[messageHandler] failed to send log reply to ${source.type} ${chatId}:`, err.message);
