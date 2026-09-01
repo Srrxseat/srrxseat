@@ -5,7 +5,7 @@
 // - มี Diamond marker สำหรับไล่ดูย้อนหลัง (back testing)
 // - ปรับความโปร่งใสได้แยกทุกพื้นหลัง
 indicator("EMA + Price Imbalance", shorttitle = "EMA + FVG", overlay = true,
-     max_labels_count = 100, max_boxes_count = 500, max_lines_count = 500)
+     max_labels_count = 100, max_boxes_count = 500, max_lines_count = 500, max_bars_back = 500)
 
 // ─── ทั่วไป ──────────────────────────────────────────────────────────
 grpGen = "ทั่วไป"
@@ -230,11 +230,12 @@ bullPaint  = color.new(fvgBullCol, trFvg)
 bearPaint  = color.new(fvgBearCol, trFvg)
 
 // ระบายตำแหน่งไหน: fvgAt < 0 ใช้ค่าย้อนหลังของแท่งนั้นคู่กับ offset ให้ตรงตำแหน่งพอดี
-shift = fvgAt < 0 ? -fvgAt : 0
-pO = open[shift]
-pH = high[shift]
-pL = low[shift]
-pC = close[shift]
+// หมายเหตุ: ต้องเขียน index เป็นค่าคงที่ (open[1], open[2]) ไม่ใช้ตัวแปร
+// ไม่งั้น Pine จะหาความลึกของ series ไม่ได้ แล้วขึ้น Indicator error
+pO = fvgAt == -2 ? open[2]  : fvgAt == -1 ? open[1]  : open
+pH = fvgAt == -2 ? high[2]  : fvgAt == -1 ? high[1]  : high
+pL = fvgAt == -2 ? low[2]   : fvgAt == -1 ? low[1]   : low
+pC = fvgAt == -2 ? close[2] : fvgAt == -1 ? close[1] : close
 
 // ระบายทั้งแท่งเทียน
 plotcandle(candleMode and paintBull ? pO : na, candleMode and paintBull ? pH : na,
