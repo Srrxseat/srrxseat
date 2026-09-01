@@ -63,8 +63,8 @@ grpFvg = "Price Imbalance"
 fvgOn      = input.bool(true, "เปิดใช้ Price Imbalance", group = grpFvg)
 fvgStyle   = input.string("ระบายสีแท่งเทียน", "รูปแบบการแสดง",
      options = ["ระบายสีแท่งเทียน", "ระบายเฉพาะช่วงช่องว่าง", "กล่อง"], group = grpFvg)
-fvgAt      = input.int(1, "ตำแหน่งที่ระบาย (-2 = แท่งแรก, -1 = แท่งกลาง, 0 = แท่งที่ยืนยัน, 1+ = เยื้องไปทางขวา)",
-     minval = -2, maxval = 5, group = grpFvg)
+fvgAt      = input.int(1, "ตำแหน่งที่ระบาย (0 = แท่งที่ยืนยันช่องว่าง, 1-5 = เยื้องไปทางขวา)",
+     minval = 0, maxval = 5, group = grpFvg)
 fvgWidth   = input.string("1 แท่ง", "ความกว้างกล่อง", options = ["1 แท่ง", "3 แท่ง (คลุมช่องว่าง)"], group = grpFvg)
 fvgPad     = input.int(0, "ต่อความกว้างกล่องเพิ่ม (แท่ง)", minval = 0, maxval = 50, group = grpFvg)
 fvgBullCol = input.color(#FFEB3B, "สีฝั่งซื้อ (bullish)",  inline = "fc1", group = grpFvg)
@@ -229,46 +229,50 @@ paintBear  = fvgOn and newBear
 bullPaint  = color.new(fvgBullCol, trFvg)
 bearPaint  = color.new(fvgBearCol, trFvg)
 
-// ระบายตำแหน่งไหน: fvgAt < 0 ใช้ค่าย้อนหลังของแท่งนั้นคู่กับ offset ให้ตรงตำแหน่งพอดี
-// หมายเหตุ: ต้องเขียน index เป็นค่าคงที่ (open[1], open[2]) ไม่ใช้ตัวแปร
-// ไม่งั้น Pine จะหาความลึกของ series ไม่ได้ แล้วขึ้น Indicator error
-pO = fvgAt == -2 ? open[2]  : fvgAt == -1 ? open[1]  : open
-pH = fvgAt == -2 ? high[2]  : fvgAt == -1 ? high[1]  : high
-pL = fvgAt == -2 ? low[2]   : fvgAt == -1 ? low[1]   : low
-pC = fvgAt == -2 ? close[2] : fvgAt == -1 ? close[1] : close
+// เลื่อนตำแหน่งที่ระบาย: plotcandle ไม่มีพารามิเตอร์ offset จึงใช้วิธี
+// "ถามย้อนหลัง" แทน — ที่แท่งปัจจุบันเช็คว่าช่องว่างถูกยืนยันเมื่อ fvgAt แท่งก่อน
+// แล้วระบายแท่งปัจจุบันเลย (index ต้องเป็นค่าคงที่ ไม่ใช้ตัวแปร)
+sBull = fvgAt == 0 ? paintBull : fvgAt == 1 ? paintBull[1] : fvgAt == 2 ? paintBull[2] :
+     fvgAt == 3 ? paintBull[3] : fvgAt == 4 ? paintBull[4] : paintBull[5]
+sBear = fvgAt == 0 ? paintBear : fvgAt == 1 ? paintBear[1] : fvgAt == 2 ? paintBear[2] :
+     fvgAt == 3 ? paintBear[3] : fvgAt == 4 ? paintBear[4] : paintBear[5]
+sTop  = fvgAt == 0 ? gTop : fvgAt == 1 ? gTop[1] : fvgAt == 2 ? gTop[2] :
+     fvgAt == 3 ? gTop[3] : fvgAt == 4 ? gTop[4] : gTop[5]
+sBot  = fvgAt == 0 ? gBot : fvgAt == 1 ? gBot[1] : fvgAt == 2 ? gBot[2] :
+     fvgAt == 3 ? gBot[3] : fvgAt == 4 ? gBot[4] : gBot[5]
 
-// ระบายทั้งแท่งเทียน
-plotcandle(candleMode and paintBull ? pO : na, candleMode and paintBull ? pH : na,
-     candleMode and paintBull ? pL : na, candleMode and paintBull ? pC : na,
-     "แท่ง Imbalance ซื้อ", bullPaint, bullPaint, bordercolor = bullPaint, offset = fvgAt)
-plotcandle(candleMode and paintBear ? pO : na, candleMode and paintBear ? pH : na,
-     candleMode and paintBear ? pL : na, candleMode and paintBear ? pC : na,
-     "แท่ง Imbalance ขาย", bearPaint, bearPaint, bordercolor = bearPaint, offset = fvgAt)
+// ระบายทั้งแท่งเทียน (ระบายแท่งปัจจุบันตรงๆ)
+plotcandle(candleMode and sBull ? open : na, candleMode and sBull ? high : na,
+     candleMode and sBull ? low : na, candleMode and sBull ? close : na,
+     "แท่ง Imbalance ซื้อ", bullPaint, bullPaint, bordercolor = bullPaint)
+plotcandle(candleMode and sBear ? open : na, candleMode and sBear ? high : na,
+     candleMode and sBear ? low : na, candleMode and sBear ? close : na,
+     "แท่ง Imbalance ขาย", bearPaint, bearPaint, bordercolor = bearPaint)
 
 // ระบายเฉพาะช่วงช่องว่าง (แท่งทึบสูงเท่าช่องว่างจริง)
-plotcandle(gapMode and paintBull ? gBot : na, gapMode and paintBull ? gTop : na,
-     gapMode and paintBull ? gBot : na, gapMode and paintBull ? gTop : na,
-     "ช่วงช่องว่างซื้อ", bullPaint, bullPaint, bordercolor = bullPaint, offset = fvgAt)
-plotcandle(gapMode and paintBear ? gBot : na, gapMode and paintBear ? gTop : na,
-     gapMode and paintBear ? gBot : na, gapMode and paintBear ? gTop : na,
-     "ช่วงช่องว่างขาย", bearPaint, bearPaint, bordercolor = bearPaint, offset = fvgAt)
+plotcandle(gapMode and sBull ? sBot : na, gapMode and sBull ? sTop : na,
+     gapMode and sBull ? sBot : na, gapMode and sBull ? sTop : na,
+     "ช่วงช่องว่างซื้อ", bullPaint, bullPaint, bordercolor = bullPaint)
+plotcandle(gapMode and sBear ? sBot : na, gapMode and sBear ? sTop : na,
+     gapMode and sBear ? sBot : na, gapMode and sBear ? sTop : na,
+     "ช่วงช่องว่างขาย", bearPaint, bearPaint, bordercolor = bearPaint)
 
 // ─── Diamond marker สำหรับ back testing ─────────────────────────────
 // plotshape ต้องรับ size เป็นค่าคงที่ จึงแยกเป็นชุดตามขนาดที่เลือก
-// offset = -1 → วาง diamond ที่แท่งกลางของช่องว่าง (แท่งที่ราคากระโดด)
+// ตำแหน่งใช้เงื่อนไขที่เลื่อนแล้ว (sBull/sBear) ให้ตรงกับที่ระบายสี
 dTiny = diaSize == "จิ๋ว"
 dSml  = diaSize == "เล็ก"
 dNor  = diaSize == "ปกติ"
 dBig  = diaSize == "ใหญ่"
 
-plotshape(diaOn and dTiny and newBull, "Diamond ซื้อ (จิ๋ว)", shape.diamond, location.belowbar, diaBullCol, offset = fvgAt, size = size.tiny)
-plotshape(diaOn and dSml  and newBull, "Diamond ซื้อ (เล็ก)", shape.diamond, location.belowbar, diaBullCol, offset = fvgAt, size = size.small)
-plotshape(diaOn and dNor  and newBull, "Diamond ซื้อ (ปกติ)", shape.diamond, location.belowbar, diaBullCol, offset = fvgAt, size = size.normal)
-plotshape(diaOn and dBig  and newBull, "Diamond ซื้อ (ใหญ่)", shape.diamond, location.belowbar, diaBullCol, offset = fvgAt, size = size.large)
-plotshape(diaOn and dTiny and newBear, "Diamond ขาย (จิ๋ว)", shape.diamond, location.abovebar, diaBearCol, offset = fvgAt, size = size.tiny)
-plotshape(diaOn and dSml  and newBear, "Diamond ขาย (เล็ก)", shape.diamond, location.abovebar, diaBearCol, offset = fvgAt, size = size.small)
-plotshape(diaOn and dNor  and newBear, "Diamond ขาย (ปกติ)", shape.diamond, location.abovebar, diaBearCol, offset = fvgAt, size = size.normal)
-plotshape(diaOn and dBig  and newBear, "Diamond ขาย (ใหญ่)", shape.diamond, location.abovebar, diaBearCol, offset = fvgAt, size = size.large)
+plotshape(diaOn and dTiny and sBull, "Diamond ซื้อ (จิ๋ว)", shape.diamond, location.belowbar, diaBullCol, size = size.tiny)
+plotshape(diaOn and dSml  and sBull, "Diamond ซื้อ (เล็ก)", shape.diamond, location.belowbar, diaBullCol, size = size.small)
+plotshape(diaOn and dNor  and sBull, "Diamond ซื้อ (ปกติ)", shape.diamond, location.belowbar, diaBullCol, size = size.normal)
+plotshape(diaOn and dBig  and sBull, "Diamond ซื้อ (ใหญ่)", shape.diamond, location.belowbar, diaBullCol, size = size.large)
+plotshape(diaOn and dTiny and sBear, "Diamond ขาย (จิ๋ว)", shape.diamond, location.abovebar, diaBearCol, size = size.tiny)
+plotshape(diaOn and dSml  and sBear, "Diamond ขาย (เล็ก)", shape.diamond, location.abovebar, diaBearCol, size = size.small)
+plotshape(diaOn and dNor  and sBear, "Diamond ขาย (ปกติ)", shape.diamond, location.abovebar, diaBearCol, size = size.normal)
+plotshape(diaOn and dBig  and sBear, "Diamond ขาย (ใหญ่)", shape.diamond, location.abovebar, diaBearCol, size = size.large)
 
 // ─── ตารางสรุป ──────────────────────────────────────────────────────
 pos = switch tblPos
