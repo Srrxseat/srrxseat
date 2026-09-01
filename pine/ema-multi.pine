@@ -87,9 +87,14 @@ diaBearCol= input.color(#EF5350, "สี diamond ฝั่งขาย",  inline
 diaSize   = input.string("เล็ก", "ขนาด diamond", options = ["เล็ก", "ใหญ่"], group = grpDia)
 
 // ─── คำนวณ EMA (รองรับ MTF, lookahead ปิด = ไม่ repaint) ────────────
-tfUse = tf == "" ? timeframe.period : tf
+// ช่อง "ล็อก Timeframe" ว่าง = คำนวณบน TF ของกราฟตรงๆ (ไม่ผ่าน request.security)
+// เส้นจึงขยับตามทุกครั้งที่สลับ TF แน่นอน; ใส่ค่า = ล็อกไปที่ TF นั้นโดยตั้งใจ
+useHtf = tf != ""
+tfUse  = tf == "" ? timeframe.period : tf
 f_ema(int len) =>
-    request.security(syminfo.tickerid, tfUse, ta.ema(src, len), lookahead = barmerge.lookahead_off)
+    emaChart = ta.ema(src, len)
+    emaHtf   = request.security(syminfo.tickerid, tfUse, ta.ema(src, len), lookahead = barmerge.lookahead_off)
+    useHtf ? emaHtf : emaChart
 
 e1 = f_ema(l1)
 e2 = f_ema(l2)
@@ -119,6 +124,14 @@ f_label(bool on, float val, int len, color col, int slot) =>
         if on and not na(val)
             lb := label.new(bar_index + 3 + slot * lblGap, val, "EMA " + str.tostring(len), xloc.bar_index,
                  yloc.price, color.new(col, trLbl), label.style_label_left, col, size.small)
+
+// ป้ายเตือนเมื่อ EMA ถูกล็อก TF ไว้ (กันงงว่าทำไมสลับ TF แล้วเส้นไม่ขยับ)
+var label lockLb = na
+if barstate.islast
+    label.delete(lockLb)
+    if useHtf
+        lockLb := label.new(bar_index + 3, e1, "⚠ EMA ล็อกที่ TF " + tf, xloc.bar_index, yloc.price,
+             color.new(color.orange, 20), label.style_label_down, color.black, size.small)
 
 f_label(showLbl and on1, e1, l1, c1, 0)
 f_label(showLbl and on2, e2, l2, c2, 1)
