@@ -1,0 +1,355 @@
+//@version=6
+// EMA 7/30/50/100/200 + Price Imbalance (FVG) — ชุดสี Pantone
+// เหมือน ema-multi.pine ทุกอย่าง ต่างแค่สี default เป็นค่าเทียบเคียง Pantone Coated
+// (ค่า hex เป็นค่าเทียบเคียงบนจอ ไม่ใช่ค่าพิมพ์จริง — Pantone เป็นระบบสีสำหรับงานพิมพ์)
+// - EMA 5 เส้นหลัก + เส้นสำรองอีก 1 เส้น ปรับความยาว/สี/เปิด-ปิดได้ทุกเส้น
+// - Price Imbalance วาดเป็นแท่งสั้นตรงจุดที่เกิด ไม่ลากยาวทั้งกราฟ
+// - มี Diamond marker สำหรับไล่ดูย้อนหลัง (back testing)
+// - ปรับความโปร่งใสได้แยกทุกพื้นหลัง
+indicator("EMA + Price Imbalance (Pantone)", shorttitle = "EMA + FVG PMS", overlay = true,
+     max_labels_count = 100, max_boxes_count = 500, max_lines_count = 500)
+
+// ─── ทั่วไป ──────────────────────────────────────────────────────────
+grpGen = "ทั่วไป"
+src     = input.source(close, "แหล่งราคา",                        group = grpGen)
+emaLock = input.bool(false, "ล็อก Timeframe ของ EMA (ปิด = ตามกราฟเสมอ)", group = grpGen)
+tf      = input.timeframe("", "TF ที่จะล็อก (ใช้เมื่อเปิดสวิตช์ด้านบน)",  group = grpGen)
+lineW   = input.int(2, "ความหนาเส้น EMA", minval = 1, maxval = 4, group = grpGen)
+showLbl = input.bool(true, "แสดงป้ายชื่อท้ายเส้น",                group = grpGen)
+lblGap  = input.int(4, "ระยะห่างป้ายชื่อ (แท่ง, 0 = เรียงตรงกัน)", minval = 0, maxval = 30, group = grpGen)
+showTbl = input.bool(true, "แสดงตารางสรุป",                       group = grpGen)
+tblPos  = input.string("ขวาบน", "ตำแหน่งตาราง", options = ["ขวาบน", "ขวาล่าง", "ซ้ายบน", "ซ้ายล่าง"], group = grpGen)
+
+// ─── ความโปร่งใส (0 = ทึบ, 100 = ใส) ────────────────────────────────
+grpTr = "ความโปร่งใส (0 = ทึบ, 100 = ใส)"
+fillUpOn= input.bool(true, "เปิดพื้นหลังโซนขาขึ้น", inline = "fu", group = grpTr)
+trFillUp= input.int(88, "จาง-เข้ม", inline = "fu", minval = 0, maxval = 100, group = grpTr)
+fillDnOn= input.bool(true, "เปิดพื้นหลังโซนขาลง",  inline = "fd", group = grpTr)
+trFillDn= input.int(88, "จาง-เข้ม", inline = "fd", minval = 0, maxval = 100, group = grpTr)
+trFvg   = input.int(35, "แท่ง Price Imbalance",   minval = 0, maxval = 100, group = grpTr)
+trFvgBd = input.int(20, "ขอบแท่ง Imbalance",      minval = 0, maxval = 100, group = grpTr)
+trTbl   = input.int(20, "พื้นหลังตารางสรุป",       minval = 0, maxval = 100, group = grpTr)
+trLbl   = input.int(85, "พื้นหลังป้ายชื่อ EMA",     minval = 0, maxval = 100, group = grpTr)
+
+// ─── เส้น EMA (7 / 30 / 50 / 100 / 200 + เส้นสำรอง) ─────────────────
+grpEma = "เส้น EMA"
+on1 = input.bool(true, "", inline = "e1", group = grpEma)
+l1  = input.int(7,     "EMA", inline = "e1", minval = 1, group = grpEma)
+c1  = input.color(#00B5E2, "", inline = "e1", group = grpEma)  // Pantone 306 C
+
+on2 = input.bool(true, "", inline = "e2", group = grpEma)
+l2  = input.int(30,    "EMA", inline = "e2", minval = 1, group = grpEma)
+c2  = input.color(#00B140, "", inline = "e2", group = grpEma)  // Pantone 354 C
+
+on3 = input.bool(true, "", inline = "e3", group = grpEma)
+l3  = input.int(50,    "EMA", inline = "e3", minval = 1, group = grpEma)
+c3  = input.color(#FFC72C, "", inline = "e3", group = grpEma)  // Pantone 123 C
+
+on4 = input.bool(true, "", inline = "e4", group = grpEma)
+l4  = input.int(100,   "EMA", inline = "e4", minval = 1, group = grpEma)
+c4  = input.color(#FF671F, "", inline = "e4", group = grpEma)  // Pantone 165 C
+
+on5 = input.bool(true, "", inline = "e5", group = grpEma)
+l5  = input.int(200,   "EMA", inline = "e5", minval = 1, group = grpEma)
+c5  = input.color(#EF3340, "", inline = "e5", group = grpEma)  // Pantone 032 C
+
+on6 = input.bool(false, "", inline = "e6", group = grpEma)
+l6  = input.int(400,    "EMA (สำรอง)", inline = "e6", minval = 1, group = grpEma)
+c6  = input.color(#8031A7, "", inline = "e6", group = grpEma)  // Pantone 2593 C
+
+showFill  = input.bool(true, "ระบายสีระหว่าง EMA เร็ว-ช้า", group = grpEma)
+fillUpCol = input.color(#00AB8E, "สีโซนขาขึ้น", inline = "fz", group = grpEma)  // Pantone 3268 C
+fillDnCol = input.color(#C8102E, "สีโซนขาลง",  inline = "fz", group = grpEma)  // Pantone 186 C
+
+// ─── Price Imbalance (FVG) ──────────────────────────────────────────
+grpFvg = "Price Imbalance"
+fvgOn      = input.bool(true, "เปิดใช้ Price Imbalance", group = grpFvg)
+fvgStyle   = input.string("ระบายสีแท่งเทียน", "รูปแบบการแสดง",
+     options = ["ระบายสีแท่งเทียน", "ระบายเฉพาะช่วงช่องว่าง", "กล่อง"], group = grpFvg)
+fvgAt      = input.int(1, "ตำแหน่งที่ระบาย (0 = แท่งที่ยืนยันช่องว่าง, 1-5 = เยื้องไปทางขวา)",
+     minval = 0, maxval = 5, group = grpFvg)
+fvgWidth   = input.string("1 แท่ง", "ความกว้างกล่อง", options = ["1 แท่ง", "3 แท่ง (คลุมช่องว่าง)"], group = grpFvg)
+fvgPad     = input.int(0, "ต่อความกว้างกล่องเพิ่ม (แท่ง)", minval = 0, maxval = 50, group = grpFvg)
+fvgBullCol = input.color(#FEDD00, "สีฝั่งซื้อ (bullish)",  inline = "fc1", group = grpFvg)  // Pantone 108 C
+fvgBearCol = input.color(#A2AAAD, "สีฝั่งขาย (bearish)",   inline = "fc1", group = grpFvg)  // Pantone 429 C
+fvgFillCol = input.color(#7C878E, "สีเมื่อถูกเติมเต็มแล้ว",              group = grpFvg)  // Pantone 430 C
+fvgBorder  = input.bool(true, "แสดงขอบแท่ง", group = grpFvg)
+fvgMinPct  = input.float(0.0, "ขนาดช่องว่างขั้นต่ำ (% ของราคา)", minval = 0.0, step = 0.05, group = grpFvg)
+fvgMinAtr  = input.float(0.5, "ขนาดขั้นต่ำ (เท่าของ ATR14)",     minval = 0.0, step = 0.1, group = grpFvg)
+fvgMax     = input.int(30, "จำนวนแท่งที่เก็บไว้", minval = 1, maxval = 400, group = grpFvg)
+fvgFillMode= input.string("แตะขอบไกล", "นับว่าเติมเต็มเมื่อ", options = ["แตะขอบใกล้", "แตะขอบไกล", "ปิดแท่งผ่าน"], group = grpFvg)
+fvgHide    = input.bool(true, "ลบแท่งที่ถูกเติมเต็มแล้ว (ปิด = เปลี่ยนเป็นสีจาง)", group = grpFvg)
+fvgMidOn   = input.bool(false, "แสดงเส้นกลาง 50%", group = grpFvg)
+fvgMaxAge  = input.int(0, "ซ่อนแท่งที่เกิดมานานกว่า N แท่ง (0 = ไม่จำกัด)", minval = 0, group = grpFvg)
+
+// ─── Diamond สำหรับ Back Testing ────────────────────────────────────
+grpDia = "Diamond (Back Testing)"
+diaOn     = input.bool(true, "Show Diamond For Back Testing", group = grpDia)
+diaBullCol= input.color(#00AB8E, "สี diamond ฝั่งซื้อ", inline = "dc", group = grpDia)  // Pantone 3268 C
+diaBearCol= input.color(#C8102E, "สี diamond ฝั่งขาย",  inline = "dc", group = grpDia)  // Pantone 186 C
+diaSize   = input.string("เล็ก", "ขนาด diamond", options = ["เล็ก", "ใหญ่"], group = grpDia)
+
+// ─── คำนวณ EMA (รองรับ MTF, lookahead ปิด = ไม่ repaint) ────────────
+// สวิตช์ "ล็อก Timeframe ของ EMA" ปิดอยู่ = คำนวณบน TF ของกราฟตรงๆ ด้วย ta.ema
+// (ไม่ผ่าน request.security) เส้นจึงขยับตามทุกครั้งที่สลับ TF แน่นอน
+// ต่อให้ช่อง TF ด้านล่างมีค่าค้างอยู่ ถ้าสวิตช์ปิดก็ไม่มีผล — กันเคสตั้งค่าค้างจนเส้นนิ่ง
+useHtf = emaLock and tf != "" and tf != timeframe.period
+tfUse  = useHtf ? tf : timeframe.period
+f_ema(int len) =>
+    emaChart = ta.ema(src, len)
+    emaHtf   = request.security(syminfo.tickerid, tfUse, ta.ema(src, len), lookahead = barmerge.lookahead_off)
+    useHtf ? emaHtf : emaChart
+
+e1 = f_ema(l1)
+e2 = f_ema(l2)
+e3 = f_ema(l3)
+e4 = f_ema(l4)
+e5 = f_ema(l5)
+e6 = f_ema(l6)
+
+p1 = plot(on1 ? e1 : na, "EMA เส้น 1", c1, lineW)
+plot(on2 ? e2 : na, "EMA เส้น 2", c2, lineW)
+plot(on3 ? e3 : na, "EMA เส้น 3", c3, lineW)
+plot(on4 ? e4 : na, "EMA เส้น 4", c4, lineW)
+p5 = plot(on5 ? e5 : na, "EMA เส้น 5", c5, lineW)
+plot(on6 ? e6 : na, "EMA เส้น 6", c6, lineW)
+
+// โซนแนวโน้ม: เขียว = EMA เร็วอยู่เหนือ EMA ช้า, แดง = อยู่ใต้
+up      = e1 > e5
+fillCol = not showFill or (up and not fillUpOn) or (not up and not fillDnOn) ? na :
+     (up ? color.new(fillUpCol, trFillUp) : color.new(fillDnCol, trFillDn))
+fill(p1, p5, fillCol, title = "โซนแนวโน้ม")
+
+// ─── ป้ายชื่อท้ายเส้น (slot = ลำดับ ใช้กระจายกันป้ายทับกัน) ──────────
+f_label(bool on, float val, int len, color col, int slot) =>
+    var label lb = na
+    if barstate.islast
+        label.delete(lb)
+        if on and not na(val)
+            lb := label.new(bar_index + 3 + slot * lblGap, val, "EMA " + str.tostring(len), xloc.bar_index,
+                 yloc.price, color.new(col, trLbl), label.style_label_left, col, size.small)
+
+// ป้ายเตือนเมื่อ EMA ถูกล็อก TF ไว้ (กันงงว่าทำไมสลับ TF แล้วเส้นไม่ขยับ)
+var label lockLb = na
+if barstate.islast
+    label.delete(lockLb)
+    if useHtf
+        lockLb := label.new(bar_index + 3, e1, "⚠ EMA ล็อกที่ TF " + tf, xloc.bar_index, yloc.price,
+             color.new(#FF671F, 20), label.style_label_down, #101820, size.small)
+
+f_label(showLbl and on1, e1, l1, c1, 0)
+f_label(showLbl and on2, e2, l2, c2, 1)
+f_label(showLbl and on3, e3, l3, c3, 2)
+f_label(showLbl and on4, e4, l4, c4, 3)
+f_label(showLbl and on5, e5, l5, c5, 4)
+f_label(showLbl and on6, e6, l6, c6, 5)
+
+// ─── ตรวจจับ Price Imbalance แบบ 3 แท่ง ─────────────────────────────
+// ฝั่งซื้อ:  low ของแท่งนี้ > high ของแท่งก่อน 2 แท่ง → เหลือช่องว่างไว้ข้างล่าง
+// ฝั่งขาย:  high ของแท่งนี้ < low ของแท่งก่อน 2 แท่ง  → เหลือช่องว่างไว้ข้างบน
+atr = ta.atr(14)
+
+f_bigEnough(float top, float bot) =>
+    gapSize = top - bot
+    okPct = fvgMinPct <= 0 or gapSize >= close * fvgMinPct / 100.0
+    okAtr = fvgMinAtr <= 0 or na(atr) or gapSize >= atr * fvgMinAtr
+    gapSize > 0 and okPct and okAtr
+
+bullGap = low > high[2]
+bearGap = high < low[2]
+gTop    = bullGap ? low : bearGap ? low[2] : na
+gBot    = bullGap ? high[2] : bearGap ? high : na
+newGap  = (bullGap or bearGap) and f_bigEnough(gTop, gBot)
+newBull = newGap and bullGap
+newBear = newGap and bearGap
+
+// ─── วาดแท่ง Imbalance ──────────────────────────────────────────────
+var array<box>   fBox = array.new<box>()
+var array<line>  fMid = array.new<line>()
+var array<float> fTop = array.new<float>()
+var array<float> fBot = array.new<float>()
+var array<int>   fDir = array.new<int>()   // 1 = ซื้อ, -1 = ขาย, 0 = ถูกเติมเต็มแล้ว
+var array<int>   fBar = array.new<int>()   // แท่งที่ช่องว่างนี้เกิด
+
+boxMode = fvgStyle == "กล่อง"
+
+f_drop(int i) =>
+    box.delete(array.get(fBox, i))
+    line.delete(array.get(fMid, i))
+    array.remove(fBox, i)
+    array.remove(fMid, i)
+    array.remove(fTop, i)
+    array.remove(fBot, i)
+    array.remove(fDir, i)
+    array.remove(fBar, i)
+
+if fvgOn
+    // 1) ติดตามแท่งเดิม: เช็คว่าถูกเติมเต็มหรือยัง + ตัวกรองอายุ (ตำแหน่ง/ความกว้างคงที่ ไม่ลากยาว)
+    if array.size(fBox) > 0
+        for i = array.size(fBox) - 1 to 0
+            dir = array.get(fDir, i)
+            top = array.get(fTop, i)
+            bot = array.get(fBot, i)
+            bornAt = array.get(fBar, i)
+            okAge = fvgMaxAge <= 0 or bar_index - bornAt <= fvgMaxAge
+            if dir != 0
+                near = dir == 1 ? top : bot     // ขอบใกล้ = ฝั่งที่ราคาแตะก่อน
+                far  = dir == 1 ? bot : top     // ขอบไกล = เติมเต็มทั้งช่องว่าง
+                filled = switch fvgFillMode
+                    "แตะขอบใกล้" => dir == 1 ? low <= near : high >= near
+                    "แตะขอบไกล" => dir == 1 ? low <= far  : high >= far
+                    =>              dir == 1 ? close < far : close > far
+                if filled
+                    array.set(fDir, i, 0)
+                    if fvgHide
+                        f_drop(i)
+                    else
+                        box.set_bgcolor(array.get(fBox, i), boxMode ? color.new(fvgFillCol, math.min(99, trFvg + 25)) : na)
+                        box.set_border_color(array.get(fBox, i), boxMode and fvgBorder ? color.new(fvgFillCol, math.min(99, trFvgBd + 25)) : na)
+                        line.delete(array.get(fMid, i))
+                else if not okAge
+                    box.set_bgcolor(array.get(fBox, i), na)
+                    box.set_border_color(array.get(fBox, i), na)
+                    if not na(array.get(fMid, i))
+                        line.set_color(array.get(fMid, i), na)
+
+    // 2) แท่งใหม่
+    if newGap
+        gDir  = bullGap ? 1 : -1
+        gCol  = bullGap ? fvgBullCol : fvgBearCol
+        gWide = (fvgWidth == "1 แท่ง" ? 1 : 3) + fvgPad
+        gLeft = bar_index + fvgAt
+        gRight= gLeft + gWide
+        bx = box.new(gLeft, gTop, gRight, gBot, xloc = xloc.bar_index, border_width = boxMode and fvgBorder ? 1 : 0,
+             border_color = boxMode and fvgBorder ? color.new(gCol, trFvgBd) : na,
+             bgcolor = boxMode ? color.new(gCol, trFvg) : na)
+        line mid = na
+        if fvgMidOn and boxMode
+            mid := line.new(gLeft, math.avg(gTop, gBot), gRight, math.avg(gTop, gBot),
+                 xloc = xloc.bar_index, color = color.new(gCol, math.max(0, trFvgBd)), style = line.style_dotted)
+        array.push(fBox, bx)
+        array.push(fMid, mid)
+        array.push(fTop, gTop)
+        array.push(fBot, gBot)
+        array.push(fDir, gDir)
+        array.push(fBar, bar_index - 2)
+        while array.size(fBox) > fvgMax
+            f_drop(0)
+
+// ─── ระบายสีแท่งเทียนที่เกิด Imbalance ──────────────────────────────
+// โหมด "ระบายสีแท่งเทียน"      = ระบายทั้งแท่งกลางของช่องว่าง
+// โหมด "ระบายเฉพาะช่วงช่องว่าง" = ระบายแค่ช่วงราคาที่เป็นช่องว่างจริง
+candleMode = fvgStyle == "ระบายสีแท่งเทียน"
+gapMode    = fvgStyle == "ระบายเฉพาะช่วงช่องว่าง"
+paintBull  = fvgOn and newBull
+paintBear  = fvgOn and newBear
+bullPaint  = color.new(fvgBullCol, trFvg)
+bearPaint  = color.new(fvgBearCol, trFvg)
+
+// เลื่อนตำแหน่งที่ระบาย: plotcandle ไม่มีพารามิเตอร์ offset จึงใช้วิธี
+// "ถามย้อนหลัง" แทน — ที่แท่งปัจจุบันเช็คว่าช่องว่างถูกยืนยันเมื่อ fvgAt แท่งก่อน
+// แล้วระบายแท่งปัจจุบันเลย (index ต้องเป็นค่าคงที่ ไม่ใช้ตัวแปร)
+sBull = fvgAt == 0 ? paintBull : fvgAt == 1 ? paintBull[1] : fvgAt == 2 ? paintBull[2] :
+     fvgAt == 3 ? paintBull[3] : fvgAt == 4 ? paintBull[4] : paintBull[5]
+sBear = fvgAt == 0 ? paintBear : fvgAt == 1 ? paintBear[1] : fvgAt == 2 ? paintBear[2] :
+     fvgAt == 3 ? paintBear[3] : fvgAt == 4 ? paintBear[4] : paintBear[5]
+sTop  = fvgAt == 0 ? gTop : fvgAt == 1 ? gTop[1] : fvgAt == 2 ? gTop[2] :
+     fvgAt == 3 ? gTop[3] : fvgAt == 4 ? gTop[4] : gTop[5]
+sBot  = fvgAt == 0 ? gBot : fvgAt == 1 ? gBot[1] : fvgAt == 2 ? gBot[2] :
+     fvgAt == 3 ? gBot[3] : fvgAt == 4 ? gBot[4] : gBot[5]
+
+// รวมฝั่งซื้อ/ขายไว้ในชุดเดียว แล้วเลือกสีตามทิศทาง
+// (ทุกครั้งที่ส่งสีเป็น series สีนั้นถูกนับเป็น plot เพิ่ม — รวมชุดช่วยไม่ให้เกินลิมิต 64)
+anyPaint = sBull or sBear
+pCol     = sBull ? bullPaint : bearPaint
+
+// ระบายทั้งแท่งเทียน (ระบายแท่งปัจจุบันตรงๆ)
+plotcandle(candleMode and anyPaint ? open : na, candleMode and anyPaint ? high : na,
+     candleMode and anyPaint ? low : na, candleMode and anyPaint ? close : na,
+     "แท่ง Imbalance", pCol, pCol, bordercolor = pCol)
+
+// ระบายเฉพาะช่วงช่องว่าง (แท่งทึบสูงเท่าช่องว่างจริง)
+plotcandle(gapMode and anyPaint ? sBot : na, gapMode and anyPaint ? sTop : na,
+     gapMode and anyPaint ? sBot : na, gapMode and anyPaint ? sTop : na,
+     "ช่วงช่องว่าง", pCol, pCol, bordercolor = pCol)
+
+// ─── Diamond marker สำหรับ back testing ─────────────────────────────
+// plotshape ต้องรับ size เป็นค่าคงที่ จึงแยกเป็นชุดตามขนาดที่เลือก
+// ตำแหน่งใช้เงื่อนไขที่เลื่อนแล้ว (sBull/sBear) ให้ตรงกับที่ระบายสี
+dSml = diaSize == "เล็ก"
+
+plotshape(diaOn and dSml       and sBull, "Diamond ซื้อ (เล็ก)", shape.diamond, location.belowbar, diaBullCol, size = size.small)
+plotshape(diaOn and not dSml   and sBull, "Diamond ซื้อ (ใหญ่)", shape.diamond, location.belowbar, diaBullCol, size = size.large)
+plotshape(diaOn and dSml       and sBear, "Diamond ขาย (เล็ก)", shape.diamond, location.abovebar, diaBearCol, size = size.small)
+plotshape(diaOn and not dSml   and sBear, "Diamond ขาย (ใหญ่)", shape.diamond, location.abovebar, diaBearCol, size = size.large)
+
+// ─── ตารางสรุป ──────────────────────────────────────────────────────
+pos = switch tblPos
+    "ขวาบน"   => position.top_right
+    "ขวาล่าง" => position.bottom_right
+    "ซ้ายบน"  => position.top_left
+    =>           position.bottom_left
+
+var table tbl = table.new(pos, 3, 10, border_width = 1, frame_width = 1, frame_color = color.new(#A2AAAD, 50))
+cellBg = color.new(#101820, trTbl)
+headBg = color.new(#7C878E, math.min(100, trTbl + 50))
+
+f_row(int r, bool on, string name, float val, color col) =>
+    if on and not na(val)
+        above = close > val
+        table.cell(tbl, 0, r, name, text_color = col, text_size = size.small, bgcolor = cellBg)
+        table.cell(tbl, 1, r, str.tostring(val, format.mintick), text_color = color.white, text_size = size.small, bgcolor = cellBg)
+        table.cell(tbl, 2, r, above ? "เหนือ" : "ใต้", text_color = above ? #00B140 : #EF3340, text_size = size.small, bgcolor = cellBg)
+
+if showTbl and barstate.islast
+    table.clear(tbl, 0, 0, 2, 9)
+    score = (on1 and close > e1 ? 1 : 0) + (on2 and close > e2 ? 1 : 0) + (on3 and close > e3 ? 1 : 0) + (on4 and close > e4 ? 1 : 0) + (on5 and close > e5 ? 1 : 0) + (on6 and close > e6 ? 1 : 0)
+    total = (on1 ? 1 : 0) + (on2 ? 1 : 0) + (on3 ? 1 : 0) + (on4 ? 1 : 0) + (on5 ? 1 : 0) + (on6 ? 1 : 0)
+    stackUp = e1 > e2 and e2 > e3 and e3 > e4 and e4 > e5
+    stackDn = e1 < e2 and e2 < e3 and e3 < e4 and e4 < e5
+    trend    = stackUp ? "ขาขึ้นเรียงสวย" : stackDn ? "ขาลงเรียงสวย" : "ไซด์เวย์ / สลับ"
+    trendCol = stackUp ? #00B140 : stackDn ? #EF3340 : #FFC72C
+    table.cell(tbl, 0, 0, "เส้น",  text_color = #A2AAAD, text_size = size.small, bgcolor = headBg)
+    table.cell(tbl, 1, 0, "ค่า",   text_color = #A2AAAD, text_size = size.small, bgcolor = headBg)
+    table.cell(tbl, 2, 0, "ราคา", text_color = #A2AAAD, text_size = size.small, bgcolor = headBg)
+    f_row(1, on1, "EMA " + str.tostring(l1), e1, c1)
+    f_row(2, on2, "EMA " + str.tostring(l2), e2, c2)
+    f_row(3, on3, "EMA " + str.tostring(l3), e3, c3)
+    f_row(4, on4, "EMA " + str.tostring(l4), e4, c4)
+    f_row(5, on5, "EMA " + str.tostring(l5), e5, c5)
+    f_row(6, on6, "EMA " + str.tostring(l6), e6, c6)
+    table.cell(tbl, 0, 7, trend, text_color = trendCol, text_size = size.small, bgcolor = cellBg)
+    table.cell(tbl, 1, 7, "เหนือ " + str.tostring(score) + "/" + str.tostring(total), text_color = color.white, text_size = size.small, bgcolor = cellBg)
+    table.cell(tbl, 2, 7, "", bgcolor = cellBg)
+    table.cell(tbl, 0, 9, "TF กราฟ", text_color = #A2AAAD, text_size = size.small, bgcolor = headBg)
+    table.cell(tbl, 1, 9, timeframe.period, text_color = color.white, text_size = size.small, bgcolor = cellBg)
+    table.cell(tbl, 2, 9, useHtf ? "EMA ล็อก " + tf : "EMA ตามกราฟ",
+         text_color = useHtf ? #FFC72C : #00B140, text_size = size.small, bgcolor = cellBg)
+    if fvgOn
+        openBull = 0
+        openBear = 0
+        if array.size(fDir) > 0
+            for i = 0 to array.size(fDir) - 1
+                d = array.get(fDir, i)
+                openBull += d ==  1 ? 1 : 0
+                openBear += d == -1 ? 1 : 0
+        table.cell(tbl, 0, 8, "Imbalance", text_color = #A2AAAD, text_size = size.small, bgcolor = headBg)
+        table.cell(tbl, 1, 8, "ซื้อ " + str.tostring(openBull), text_color = fvgBullCol, text_size = size.small, bgcolor = cellBg)
+        table.cell(tbl, 2, 8, "ขาย " + str.tostring(openBear), text_color = fvgBearCol, text_size = size.small, bgcolor = cellBg)
+
+// ─── Alert ──────────────────────────────────────────────────────────
+fastX    = ta.crossover(e1, e2)     // EMA 7 ตัดขึ้น EMA 30
+fastXdn  = ta.crossunder(e1, e2)
+goldenX  = ta.crossover(e3, e5)     // EMA 50 ตัดขึ้น EMA 200
+deathX   = ta.crossunder(e3, e5)
+above200 = ta.crossover(close, e5)
+below200 = ta.crossunder(close, e5)
+
+alertcondition(fastX,    "EMA เร็วตัดขึ้น",      "EMA 7 ตัดขึ้น EMA 30")
+alertcondition(fastXdn,  "EMA เร็วตัดลง",        "EMA 7 ตัดลง EMA 30")
+alertcondition(goldenX,  "Golden Cross",         "EMA 50 ตัดขึ้น EMA 200")
+alertcondition(deathX,   "Death Cross",          "EMA 50 ตัดลง EMA 200")
+alertcondition(above200, "ราคายืนเหนือ EMA 200", "ราคาตัดขึ้นเหนือ EMA 200")
+alertcondition(below200, "ราคาหลุด EMA 200",     "ราคาตัดลงใต้ EMA 200")
+alertcondition(newBull,  "Imbalance ฝั่งซื้อใหม่", "เกิด Price Imbalance ฝั่งซื้อ")
+alertcondition(newBear,  "Imbalance ฝั่งขายใหม่", "เกิด Price Imbalance ฝั่งขาย")
