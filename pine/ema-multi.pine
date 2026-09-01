@@ -5,12 +5,13 @@
 // - มี Diamond marker สำหรับไล่ดูย้อนหลัง (back testing)
 // - ปรับความโปร่งใสได้แยกทุกพื้นหลัง
 indicator("EMA + Price Imbalance", shorttitle = "EMA + FVG", overlay = true,
-     max_labels_count = 100, max_boxes_count = 500, max_lines_count = 500, max_bars_back = 500)
+     max_labels_count = 100, max_boxes_count = 500, max_lines_count = 500)
 
 // ─── ทั่วไป ──────────────────────────────────────────────────────────
 grpGen = "ทั่วไป"
 src     = input.source(close, "แหล่งราคา",                        group = grpGen)
-tf      = input.timeframe("", "ล็อก Timeframe (ว่าง = ตามกราฟ)",  group = grpGen)
+emaLock = input.bool(false, "ล็อก Timeframe ของ EMA (ปิด = ตามกราฟเสมอ)", group = grpGen)
+tf      = input.timeframe("", "TF ที่จะล็อก (ใช้เมื่อเปิดสวิตช์ด้านบน)",  group = grpGen)
 lineW   = input.int(2, "ความหนาเส้น EMA", minval = 1, maxval = 4, group = grpGen)
 showLbl = input.bool(true, "แสดงป้ายชื่อท้ายเส้น",                group = grpGen)
 lblGap  = input.int(4, "ระยะห่างป้ายชื่อ (แท่ง, 0 = เรียงตรงกัน)", minval = 0, maxval = 30, group = grpGen)
@@ -87,10 +88,11 @@ diaBearCol= input.color(#EF5350, "สี diamond ฝั่งขาย",  inline
 diaSize   = input.string("เล็ก", "ขนาด diamond", options = ["เล็ก", "ใหญ่"], group = grpDia)
 
 // ─── คำนวณ EMA (รองรับ MTF, lookahead ปิด = ไม่ repaint) ────────────
-// ช่อง "ล็อก Timeframe" ว่าง = คำนวณบน TF ของกราฟตรงๆ (ไม่ผ่าน request.security)
-// เส้นจึงขยับตามทุกครั้งที่สลับ TF แน่นอน; ใส่ค่า = ล็อกไปที่ TF นั้นโดยตั้งใจ
-useHtf = tf != ""
-tfUse  = tf == "" ? timeframe.period : tf
+// สวิตช์ "ล็อก Timeframe ของ EMA" ปิดอยู่ = คำนวณบน TF ของกราฟตรงๆ ด้วย ta.ema
+// (ไม่ผ่าน request.security) เส้นจึงขยับตามทุกครั้งที่สลับ TF แน่นอน
+// ต่อให้ช่อง TF ด้านล่างมีค่าค้างอยู่ ถ้าสวิตช์ปิดก็ไม่มีผล — กันเคสตั้งค่าค้างจนเส้นนิ่ง
+useHtf = emaLock and tf != "" and tf != timeframe.period
+tfUse  = useHtf ? tf : timeframe.period
 f_ema(int len) =>
     emaChart = ta.ema(src, len)
     emaHtf   = request.security(syminfo.tickerid, tfUse, ta.ema(src, len), lookahead = barmerge.lookahead_off)
@@ -317,6 +319,10 @@ if showTbl and barstate.islast
     table.cell(tbl, 0, 7, trend, text_color = trendCol, text_size = size.small, bgcolor = cellBg)
     table.cell(tbl, 1, 7, "เหนือ " + str.tostring(score) + "/" + str.tostring(total), text_color = color.white, text_size = size.small, bgcolor = cellBg)
     table.cell(tbl, 2, 7, "", bgcolor = cellBg)
+    table.cell(tbl, 0, 9, "TF กราฟ", text_color = color.silver, text_size = size.small, bgcolor = headBg)
+    table.cell(tbl, 1, 9, timeframe.period, text_color = color.white, text_size = size.small, bgcolor = cellBg)
+    table.cell(tbl, 2, 9, useHtf ? "EMA ล็อก " + tf : "EMA ตามกราฟ",
+         text_color = useHtf ? color.orange : color.lime, text_size = size.small, bgcolor = cellBg)
     if fvgOn
         openBull = 0
         openBear = 0
