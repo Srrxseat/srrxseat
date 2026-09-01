@@ -84,7 +84,7 @@ grpDia = "Diamond (Back Testing)"
 diaOn     = input.bool(true, "Show Diamond For Back Testing", group = grpDia)
 diaBullCol= input.color(#26A69A, "สี diamond ฝั่งซื้อ", inline = "dc", group = grpDia)
 diaBearCol= input.color(#EF5350, "สี diamond ฝั่งขาย",  inline = "dc", group = grpDia)
-diaSize   = input.string("เล็ก", "ขนาด diamond", options = ["จิ๋ว", "เล็ก", "ปกติ", "ใหญ่"], group = grpDia)
+diaSize   = input.string("เล็ก", "ขนาด diamond", options = ["เล็ก", "ใหญ่"], group = grpDia)
 
 // ─── คำนวณ EMA (รองรับ MTF, lookahead ปิด = ไม่ repaint) ────────────
 tfUse = tf == "" ? timeframe.period : tf
@@ -241,38 +241,30 @@ sTop  = fvgAt == 0 ? gTop : fvgAt == 1 ? gTop[1] : fvgAt == 2 ? gTop[2] :
 sBot  = fvgAt == 0 ? gBot : fvgAt == 1 ? gBot[1] : fvgAt == 2 ? gBot[2] :
      fvgAt == 3 ? gBot[3] : fvgAt == 4 ? gBot[4] : gBot[5]
 
+// รวมฝั่งซื้อ/ขายไว้ในชุดเดียว แล้วเลือกสีตามทิศทาง
+// (ทุกครั้งที่ส่งสีเป็น series สีนั้นถูกนับเป็น plot เพิ่ม — รวมชุดช่วยไม่ให้เกินลิมิต 64)
+anyPaint = sBull or sBear
+pCol     = sBull ? bullPaint : bearPaint
+
 // ระบายทั้งแท่งเทียน (ระบายแท่งปัจจุบันตรงๆ)
-plotcandle(candleMode and sBull ? open : na, candleMode and sBull ? high : na,
-     candleMode and sBull ? low : na, candleMode and sBull ? close : na,
-     "แท่ง Imbalance ซื้อ", bullPaint, bullPaint, bordercolor = bullPaint)
-plotcandle(candleMode and sBear ? open : na, candleMode and sBear ? high : na,
-     candleMode and sBear ? low : na, candleMode and sBear ? close : na,
-     "แท่ง Imbalance ขาย", bearPaint, bearPaint, bordercolor = bearPaint)
+plotcandle(candleMode and anyPaint ? open : na, candleMode and anyPaint ? high : na,
+     candleMode and anyPaint ? low : na, candleMode and anyPaint ? close : na,
+     "แท่ง Imbalance", pCol, pCol, bordercolor = pCol)
 
 // ระบายเฉพาะช่วงช่องว่าง (แท่งทึบสูงเท่าช่องว่างจริง)
-plotcandle(gapMode and sBull ? sBot : na, gapMode and sBull ? sTop : na,
-     gapMode and sBull ? sBot : na, gapMode and sBull ? sTop : na,
-     "ช่วงช่องว่างซื้อ", bullPaint, bullPaint, bordercolor = bullPaint)
-plotcandle(gapMode and sBear ? sBot : na, gapMode and sBear ? sTop : na,
-     gapMode and sBear ? sBot : na, gapMode and sBear ? sTop : na,
-     "ช่วงช่องว่างขาย", bearPaint, bearPaint, bordercolor = bearPaint)
+plotcandle(gapMode and anyPaint ? sBot : na, gapMode and anyPaint ? sTop : na,
+     gapMode and anyPaint ? sBot : na, gapMode and anyPaint ? sTop : na,
+     "ช่วงช่องว่าง", pCol, pCol, bordercolor = pCol)
 
 // ─── Diamond marker สำหรับ back testing ─────────────────────────────
 // plotshape ต้องรับ size เป็นค่าคงที่ จึงแยกเป็นชุดตามขนาดที่เลือก
 // ตำแหน่งใช้เงื่อนไขที่เลื่อนแล้ว (sBull/sBear) ให้ตรงกับที่ระบายสี
-dTiny = diaSize == "จิ๋ว"
-dSml  = diaSize == "เล็ก"
-dNor  = diaSize == "ปกติ"
-dBig  = diaSize == "ใหญ่"
+dSml = diaSize == "เล็ก"
 
-plotshape(diaOn and dTiny and sBull, "Diamond ซื้อ (จิ๋ว)", shape.diamond, location.belowbar, diaBullCol, size = size.tiny)
-plotshape(diaOn and dSml  and sBull, "Diamond ซื้อ (เล็ก)", shape.diamond, location.belowbar, diaBullCol, size = size.small)
-plotshape(diaOn and dNor  and sBull, "Diamond ซื้อ (ปกติ)", shape.diamond, location.belowbar, diaBullCol, size = size.normal)
-plotshape(diaOn and dBig  and sBull, "Diamond ซื้อ (ใหญ่)", shape.diamond, location.belowbar, diaBullCol, size = size.large)
-plotshape(diaOn and dTiny and sBear, "Diamond ขาย (จิ๋ว)", shape.diamond, location.abovebar, diaBearCol, size = size.tiny)
-plotshape(diaOn and dSml  and sBear, "Diamond ขาย (เล็ก)", shape.diamond, location.abovebar, diaBearCol, size = size.small)
-plotshape(diaOn and dNor  and sBear, "Diamond ขาย (ปกติ)", shape.diamond, location.abovebar, diaBearCol, size = size.normal)
-plotshape(diaOn and dBig  and sBear, "Diamond ขาย (ใหญ่)", shape.diamond, location.abovebar, diaBearCol, size = size.large)
+plotshape(diaOn and dSml       and sBull, "Diamond ซื้อ (เล็ก)", shape.diamond, location.belowbar, diaBullCol, size = size.small)
+plotshape(diaOn and not dSml   and sBull, "Diamond ซื้อ (ใหญ่)", shape.diamond, location.belowbar, diaBullCol, size = size.large)
+plotshape(diaOn and dSml       and sBear, "Diamond ขาย (เล็ก)", shape.diamond, location.abovebar, diaBearCol, size = size.small)
+plotshape(diaOn and not dSml   and sBear, "Diamond ขาย (ใหญ่)", shape.diamond, location.abovebar, diaBearCol, size = size.large)
 
 // ─── ตารางสรุป ──────────────────────────────────────────────────────
 pos = switch tblPos
