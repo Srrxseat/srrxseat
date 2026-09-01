@@ -72,10 +72,10 @@ fvgBearCol = input.color(#B0BEC5, "สีฝั่งขาย (bearish)",   inl
 fvgFillCol = input.color(#78909C, "สีเมื่อถูกเติมเต็มแล้ว",              group = grpFvg)
 fvgBorder  = input.bool(true, "แสดงขอบแท่ง", group = grpFvg)
 fvgMinPct  = input.float(0.0, "ขนาดช่องว่างขั้นต่ำ (% ของราคา)", minval = 0.0, step = 0.05, group = grpFvg)
-fvgMinAtr  = input.float(0.0, "ขนาดขั้นต่ำ (เท่าของ ATR14)",     minval = 0.0, step = 0.1, group = grpFvg)
-fvgMax     = input.int(100, "จำนวนแท่งที่เก็บไว้", minval = 1, maxval = 400, group = grpFvg)
+fvgMinAtr  = input.float(0.5, "ขนาดขั้นต่ำ (เท่าของ ATR14)",     minval = 0.0, step = 0.1, group = grpFvg)
+fvgMax     = input.int(30, "จำนวนแท่งที่เก็บไว้", minval = 1, maxval = 400, group = grpFvg)
 fvgFillMode= input.string("แตะขอบไกล", "นับว่าเติมเต็มเมื่อ", options = ["แตะขอบใกล้", "แตะขอบไกล", "ปิดแท่งผ่าน"], group = grpFvg)
-fvgHide    = input.bool(false, "ลบแท่งที่ถูกเติมเต็มแล้ว (ปิด = เปลี่ยนเป็นสีจาง)", group = grpFvg)
+fvgHide    = input.bool(true, "ลบแท่งที่ถูกเติมเต็มแล้ว (ปิด = เปลี่ยนเป็นสีจาง)", group = grpFvg)
 fvgMidOn   = input.bool(false, "แสดงเส้นกลาง 50%", group = grpFvg)
 fvgMaxAge  = input.int(0, "ซ่อนแท่งที่เกิดมานานกว่า N แท่ง (0 = ไม่จำกัด)", minval = 0, group = grpFvg)
 
