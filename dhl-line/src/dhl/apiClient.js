@@ -16,14 +16,14 @@ class DhlApiClient {
   }
 
   /**
-   * @param {object} shipment ข้อมูลที่ผ่าน validateShipment แล้ว
+   * @param {object} plan ผลจาก buildShipmentPlan().plan
    * @returns {Promise<{trackingNumber: string, label: {buffer: Buffer, ext: string}, raw: object}>}
    */
-  async createShipment(shipment) {
+  async createShipment(plan) {
     if (!this.available) {
       throw new Error('ยังไม่ได้ตั้งค่า DHL_API_USERNAME / DHL_API_PASSWORD / DHL_ACCOUNT_NUMBER');
     }
-    const payload = this.buildPayload(shipment);
+    const payload = this.buildPayload(plan);
     const auth = Buffer.from(`${this.cfg.username}:${this.cfg.password}`).toString('base64');
 
     const res = await fetch(`${this.cfg.base}/shipments`, {
@@ -60,22 +60,18 @@ class DhlApiClient {
     };
   }
 
-  buildPayload(s) {
+  /**
+   * @param {object} plan ผลจาก buildShipmentPlan().plan
+   */
+  buildPayload(plan) {
     const cfg = this.cfg;
-    const packages = [{
-      weight: s.weightKg,
-      dimensions: {
-        length: s.dimensions.length,
-        width: s.dimensions.width,
-        height: s.dimensions.height,
-      },
-      ...(s.reference ? { customerReferences: [{ value: String(s.reference).slice(0, 35), typeCode: 'CU' }] } : {}),
-    }];
+    const pkg = plan.package;
+    const isCustomsDeclarable = plan.receiver.countryCode !== this.shipper.countryCode;
 
     const payload = {
       plannedShippingDateAndTime: nextShippingDateTime(cfg.timezoneOffset),
-      pickup: { isRequested: cfg.pickupRequested },
-      productCode: s.productCode || cfg.productCode,
+      pickup: { isRequested: Boolean(plan.pickup?.requested ?? cfg.pickupRequested) },
+      productCode: cfg.productCode,
       accounts: [{ typeCode: 'shipper', number: cfg.accountNumber }],
       outputImageProperties: {
         printerDPI: 300,
@@ -84,41 +80,58 @@ class DhlApiClient {
       },
       customerDetails: {
         shipperDetails: this.shipperDetails(),
-        receiverDetails: receiverDetails(s),
+        receiverDetails: receiverDetails(plan.receiver),
       },
       content: {
-        packages,
-        isCustomsDeclarable: Boolean(s.isCustomsDeclarable),
-        description: (s.description || 'General goods').slice(0, 70),
-        incoterm: cfg.incoterm,
+        packages: [trimNulls({
+          weight: pkg.weightKg,
+          dimensions: { length: pkg.length, width: pkg.width, height: pkg.height },
+          customerReferences: plan.invoiceNumber
+            ? [{ value: String(plan.invoiceNumber).slice(0, 35), typeCode: 'CU' }]
+            : undefined,
+        })],
+        isCustomsDeclarable,
+        description: (plan.customsLines[0]?.description || 'Car seat spare parts').slice(0, 70),
+        incoterm: plan.incoterm || cfg.incoterm,
         unitOfMeasurement: cfg.unitOfMeasurement,
       },
     };
 
-    if (s.isCustomsDeclarable) {
-      payload.content.declaredValue = s.declaredValue;
-      payload.content.declaredValueCurrency = s.currency || 'THB';
+    if (isCustomsDeclarable) {
+      payload.content.declaredValue = plan.goodsValue;
+      payload.content.declaredValueCurrency = plan.currency || 'USD';
       payload.content.exportDeclaration = {
-        lineItems: [{
-          number: 1,
-          description: (s.description || 'General goods').slice(0, 75),
-          price: round(s.declaredValue / Math.max(1, s.quantity), 2),
-          quantity: { value: s.quantity, unitOfMeasurement: 'PCS' },
-          commodityCodes: [],
+        lineItems: plan.customsLines.map((line) => ({
+          number: line.index,
+          description: line.description.slice(0, 75),
+          price: line.unitValue,
+          quantity: { value: line.quantity, unitOfMeasurement: line.unit === 'Boxes' ? 'BOX' : 'PCS' },
+          commodityCodes: line.hsCode ? [{ typeCode: 'outbound', value: line.hsCode.replace(/\./g, '') }] : [],
           exportReasonType: 'permanent',
           manufacturerCountry: this.shipper.countryCode,
           weight: {
-            netValue: round(s.weightKg * 0.95, 3),
-            grossValue: s.weightKg,
+            netValue: line.netWeightKg,
+            grossValue: pkg.weightKg,
           },
-        }],
+        })),
         invoice: {
-          number: String(s.reference || `INV-${Date.now()}`).slice(0, 35),
+          number: String(plan.invoiceNumber || `INV-${Date.now()}`).slice(0, 35),
           date: new Date().toISOString().slice(0, 10),
         },
         exportReason: 'permanent',
         placeOfIncoterm: this.shipper.city,
+        // ค่าขนส่งที่เก็บลูกค้า ต้องโชว์ในใบขนเพื่อให้มูลค่ารวมตรงกับที่ทำมือ
+        additionalCharges: plan.freightCharge?.amount
+          ? [{ value: plan.freightCharge.amount, caption: 'freight', typeCode: 'freight' }]
+          : undefined,
       };
+      if (!payload.content.exportDeclaration.additionalCharges) {
+        delete payload.content.exportDeclaration.additionalCharges;
+      }
+    }
+
+    if (plan.insurance?.enabled && plan.insurance.value) {
+      payload.valueAddedServices = [{ serviceCode: 'II', value: plan.insurance.value, currency: plan.currency || 'USD' }];
     }
 
     return payload;
@@ -145,22 +158,22 @@ class DhlApiClient {
   }
 }
 
-function receiverDetails(s) {
+function receiverDetails(r) {
   return {
     postalAddress: trimNulls({
-      postalCode: s.postalCode || undefined,
-      cityName: s.city,
-      countryCode: s.countryCode,
-      provinceCode: s.state || undefined,
-      addressLine1: s.addressLine1,
-      addressLine2: s.addressLine2 || undefined,
-      addressLine3: s.addressLine3 || undefined,
+      postalCode: r.postalCode || undefined,
+      cityName: r.city,
+      countryCode: r.countryCode,
+      provinceCode: r.state || undefined,
+      addressLine1: r.addressLine1,
+      addressLine2: r.addressLine2 || undefined,
+      addressLine3: r.addressLine3 || undefined,
     }),
     contactInformation: trimNulls({
-      phone: s.phone,
-      companyName: s.receiverCompany || s.receiverName,
-      fullName: s.receiverName,
-      email: s.email || undefined,
+      phone: r.phoneCountryCode ? `+${r.phoneCountryCode}${r.phoneNumber}` : r.phoneNumber,
+      companyName: r.company && r.company !== '-' ? r.company : r.name,
+      fullName: r.name,
+      email: r.email || undefined,
     }),
   };
 }
@@ -192,11 +205,6 @@ function describeError(body) {
 
 function trimNulls(obj) {
   return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined && v !== null && v !== ''));
-}
-
-function round(value, digits) {
-  const f = 10 ** digits;
-  return Math.round(value * f) / f;
 }
 
 module.exports = { DhlApiClient, nextShippingDateTime };

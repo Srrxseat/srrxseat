@@ -1,8 +1,9 @@
 /**
  * เครื่องมือทดสอบจาก terminal (ไม่ต้องมี LINE)
  *
- *   node src/cli.js parse ตัวอย่าง.txt          ดูผลการอ่านข้อความ + ฟิลด์ที่ขาด
- *   node src/cli.js submit ตัวอย่าง.txt --run    ใส่คิวแล้วสั่งทำเลย (สร้าง shipment + พิมพ์)
+ *   node src/cli.js parse ใบงาน.txt            ดูผลการอ่านข้อความจาก LINE
+ *   node src/cli.js plan ใบงาน.txt             ดูค่าที่จะกรอกลงฟอร์ม DHL ทุกช่อง + ฟิลด์ที่ขาด
+ *   node src/cli.js submit ใบงาน.txt --run      ใส่คิวแล้วสั่งทำเลย (สร้าง shipment + พิมพ์)
  *   node src/cli.js jobs                        ดูรายการงาน
  *   node src/cli.js printers                    ดูรายชื่อเครื่องพิมพ์ที่มองเห็น
  *   node src/cli.js print label.pdf             ทดสอบพิมพ์ไฟล์เดียว
@@ -10,9 +11,10 @@
 const fs = require('fs');
 
 const config = require('./config');
-const { parseShipment } = require('./parse/parseShipment');
-const { validateShipment } = require('./parse/schema');
+const { parseLineShipment } = require('./parse/parseLineShipment');
+const { buildShipmentPlan } = require('./plan/buildShipmentPlan');
 const { JobStore } = require('./store/jobStore');
+const { InvoiceSequence } = require('./store/invoiceSequence');
 const { createDhlClient } = require('./dhl');
 const { createPrinter } = require('./print');
 const { intake } = require('./intake');
@@ -29,9 +31,19 @@ async function main() {
 
   switch (command) {
     case 'parse': {
-      const { shipment, unknownLines } = parseShipment(readInput(args[0]));
-      const result = validateShipment(shipment, { shipperCountryCode: config.shipper.countryCode });
-      console.log(JSON.stringify({ ...result, unknownLines }, null, 2));
+      const parsed = parseLineShipment(readInput(args[0]), { boxTareKg: config.boxTareKg });
+      console.log(JSON.stringify(parsed, null, 2));
+      break;
+    }
+
+    case 'plan': {
+      const parsed = parseLineShipment(readInput(args[0]), { boxTareKg: config.boxTareKg });
+      const result = buildShipmentPlan(parsed, {
+        shipperCountryCode: config.shipper.countryCode,
+        customsLineMode: config.customsLineMode,
+        invoiceNumber: new InvoiceSequence(config.dataDir).peek() || '(ยังไม่ออกเลข)',
+      });
+      console.log(JSON.stringify(result, null, 2));
       break;
     }
 
@@ -47,6 +59,7 @@ async function main() {
           dhl: createDhlClient(config),
           printer: createPrinter(config),
           line: null,
+          invoiceSequence: new InvoiceSequence(config.dataDir),
         }, claimed);
         console.log(JSON.stringify(done, null, 2));
       }
@@ -55,7 +68,7 @@ async function main() {
 
     case 'jobs': {
       for (const j of store.list()) {
-        console.log([j.jobId, j.status, j.shipment?.receiverName || '-', j.trackingNumber || '-', j.error || ''].join(' | '));
+        console.log([j.jobId, j.status, j.invoiceNumber || '-', j.shipment?.receiver?.name || '-', j.trackingNumber || '-', j.error || ''].join(' | '));
       }
       break;
     }

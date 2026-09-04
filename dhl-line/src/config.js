@@ -28,8 +28,11 @@ const config = {
     allowedSourceIds: list(process.env.LINE_ALLOWED_SOURCE_IDS),
   },
 
+  boxTareKg: Number(process.env.BOX_TARE_KG ?? 1),
+  customsLineMode: (process.env.CUSTOMS_LINE_MODE || 'box').toLowerCase(),
+
   dhl: {
-    mode: (process.env.DHL_MODE || 'api').toLowerCase(),
+    mode: (process.env.DHL_MODE || 'web').toLowerCase(),
     api: {
       base: (process.env.DHL_API_BASE || 'https://express.api.dhl.com/mydhlapi').replace(/\/$/, ''),
       username: process.env.DHL_API_USERNAME || '',
@@ -44,7 +47,7 @@ const config = {
       labelTemplate: process.env.DHL_LABEL_TEMPLATE || 'ECOM26_84_A4_001',
     },
     web: {
-      url: process.env.DHL_WEB_URL || 'https://mydhl.express.dhl/th/en/home.html',
+      url: process.env.DHL_WEB_URL || 'https://mydhl.express.dhl/th/th/home.html',
       username: process.env.DHL_WEB_USERNAME || '',
       password: process.env.DHL_WEB_PASSWORD || '',
       headless: bool(process.env.DHL_WEB_HEADLESS, true),

@@ -10,20 +10,23 @@ const { intake } = require('../src/intake');
 const { processJob } = require('../src/pipeline');
 const { verifySignature } = require('../src/line/client');
 
-const CONFIG = { shipper: { countryCode: 'TH' } };
+const CONFIG = { shipper: { countryCode: 'TH' }, boxTareKg: 1, customsLineMode: 'box' };
 
 const GOOD_TEXT = [
-  'ผู้รับ: Taro Yamada',
-  'ที่อยู่: 1-2-3 Shibuya',
-  'เมือง: Tokyo',
-  'รัฐ/จังหวัด: Tokyo',
-  'รหัสไปรษณีย์: 1500002',
-  'ประเทศ: ญี่ปุ่น',
-  'โทร: +81312345678',
-  'น้ำหนัก: 2.5 kg',
-  'ขนาด: 30x20x10 cm',
-  'สินค้า: Car seat cover',
-  'มูลค่า: 4500 บาท',
+  'Item:',
+  'x2 FISHNET HEADREST BLACK AVUS [280 USD]',
+  'Courier: [DHL] / [Commercial]',
+  'Shipping cost: [50 USD]',
+  'HS Code: 9401.99.90',
+  'Export terms: [DAP] / @nut',
+  'Box: 35x25x7 cm / 1 kg',
+  '*******',
+  'Ship to: Chris Konstantaras',
+  '9 Narani Crescent',
+  'Earlwood, NSW 2206',
+  'Australia',
+  '+61 418 219 809',
+  'buyer@members.ebay.com',
 ].join('\n');
 
 function newStore() {
@@ -45,9 +48,18 @@ test('ข้อความครบ -> งานสถานะ pending, ข้
 
 test('ข้อมูลไม่ครบ -> needs_input และบอกฟิลด์ที่ขาด', () => {
   const store = newStore();
-  const result = intake({ store, config: CONFIG, text: 'ผู้รับ: A\nประเทศ: JP\nโทร: 0812345678', sourceId: 'G1', messageId: 'm2' });
+  const text = ['Item:', 'x1 HEADREST [100 USD]', 'Ship to: No Address Guy', 'Australia'].join('\n');
+  const result = intake({ store, config: CONFIG, text, sourceId: 'G1', messageId: 'm2' });
   assert.equal(result.job.status, STATUS.NEEDS_INPUT);
   assert.ok(result.reply.includes('ที่อยู่'));
+});
+
+test('ข้อความคุยกันธรรมดาในกลุ่มไม่สร้างงานและไม่ตอบ', () => {
+  const store = newStore();
+  const result = intake({ store, config: CONFIG, text: 'พี่ส่งของให้ด้วยนะครับ', sourceId: 'G1', messageId: 'm9' });
+  assert.equal(result.kind, 'ignored');
+  assert.equal(result.reply, null);
+  assert.equal(store.list().length, 0);
 });
 
 test('คำว่า "ช่วยเหลือ" และ "สถานะ" ไม่สร้างงาน', () => {
@@ -149,6 +161,50 @@ test('สั่ง "ลองใหม่ <jobId>" ปลุกงานที�
   const result = intake({ store, config: CONFIG, text: `ลองใหม่ ${job.jobId}`, sourceId: 'G1', messageId: 'm7' });
   assert.equal(result.kind, 'retry');
   assert.equal(store.get(job.jobId).status, STATUS.PENDING);
+});
+
+test('pipeline ออกเลขอินวอยซ์ให้ตอนยิงจริง และลองใหม่ใช้เลขเดิม', async () => {
+  const store = newStore();
+  intake({ store, config: CONFIG, text: GOOD_TEXT, sourceId: 'G1', messageId: 'm8' });
+
+  const issued = [];
+  const invoiceSequence = {
+    next() { const n = `2569-09-04-0${issued.length + 1}`; issued.push(n); return n; },
+  };
+  const seen = [];
+  let printOk = false;
+  const deps = {
+    store,
+    config: CONFIG,
+    invoiceSequence,
+    dhl: {
+      async createShipment(plan) {
+        seen.push(plan.invoiceNumber);
+        return {
+          trackingNumber: '2222514055',
+          pickupConfirmation: 'CBJ260904140637',
+          label: { buffer: Buffer.from('pdf'), ext: 'pdf' },
+        };
+      },
+    },
+    printer: {
+      async print() {
+        if (!printOk) { printOk = true; throw new Error('เครื่องพิมพ์ออฟไลน์'); }
+        return { printer: 'TEST', jobId: '1' };
+      },
+    },
+    line: { async push() {} },
+  };
+
+  const first = await processJob(deps, store.claimNext());
+  assert.equal(first.invoiceNumber, '2569-09-04-01');
+  assert.equal(first.trackingNumber, '2222514055');
+  assert.equal(first.pickupConfirmation, 'CBJ260904140637');
+
+  const second = await processJob(deps, store.claimNext());
+  assert.equal(second.status, STATUS.DONE);
+  assert.deepEqual(seen, ['2569-09-04-01'], 'รอบสองไม่สร้าง shipment ใหม่ จึงไม่กินเลขอินวอยซ์เพิ่ม');
+  assert.equal(issued.length, 1);
 });
 
 test('ตรวจลายเซ็น LINE webhook', () => {

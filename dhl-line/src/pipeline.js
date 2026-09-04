@@ -17,12 +17,23 @@ async function processJob(deps, job) {
   try {
     // 1) สร้าง shipment (ข้ามถ้ามี label อยู่แล้ว เช่นรอบก่อนพิมพ์ไม่ผ่าน)
     if (!current.labelPath || !fs.existsSync(current.labelPath)) {
+      // เลขอินวอยซ์รันตามวัน — ขอเลขตอนจะยิงจริงเท่านั้น งานที่ลองใหม่ใช้เลขเดิม
+      const invoiceNumber = current.invoiceNumber || current.shipment.invoiceNumber
+        || (deps.invoiceSequence ? deps.invoiceSequence.next() : null);
+      if (invoiceNumber && invoiceNumber !== current.invoiceNumber) {
+        current = store.update(current.jobId, {
+          invoiceNumber,
+          shipment: { ...current.shipment, invoiceNumber },
+        }, `ออกเลขอินวอยซ์ ${invoiceNumber}`);
+      }
+
       const result = await dhl.createShipment(current.shipment, { jobId: current.jobId });
       const labelPath = store.labelPathFor(current.jobId, result.label.ext || 'pdf');
       fs.writeFileSync(labelPath, result.label.buffer);
       current = store.update(current.jobId, {
         status: STATUS.SHIPMENT_CREATED,
         trackingNumber: result.trackingNumber,
+        pickupConfirmation: result.pickupConfirmation || null,
         labelPath,
       }, `สร้าง shipment สำเร็จ AWB ${result.trackingNumber}`);
     } else {

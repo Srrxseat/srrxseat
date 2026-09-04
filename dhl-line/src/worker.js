@@ -5,6 +5,7 @@
  */
 const config = require('./config');
 const { JobStore } = require('./store/jobStore');
+const { InvoiceSequence } = require('./store/invoiceSequence');
 const { createDhlClient } = require('./dhl');
 const { createPrinter } = require('./print');
 const { LineClient } = require('./line/client');
@@ -21,6 +22,7 @@ async function main() {
     dhl: createDhlClient(config),
     printer: createPrinter(config),
     line: new LineClient({ accessToken: config.line.accessToken }),
+    invoiceSequence: new InvoiceSequence(config.dataDir),
   };
 
   console.log(`[worker] เริ่มทำงาน — DHL_MODE=${config.dhl.mode}, PRINT_MODE=${config.print.mode}`);

@@ -77,7 +77,7 @@ async function handleEvent(event) {
   });
 
   console.log(`[server] ${result.kind}${result.job ? ` งาน ${result.job.jobId} (${result.job.status})` : ''}`);
-  await line.replyOrPush({ replyToken: event.replyToken, to: sourceId }, result.reply);
+  if (result.reply) await line.replyOrPush({ replyToken: event.replyToken, to: sourceId }, result.reply);
 }
 
 function health() {
@@ -96,8 +96,9 @@ function jobsSummary() {
   return store.list().slice(-50).reverse().map((j) => ({
     jobId: j.jobId,
     status: j.status,
-    receiver: j.shipment?.receiverName || null,
-    country: j.shipment?.countryCode || null,
+    receiver: j.shipment?.receiver?.name || null,
+    country: j.shipment?.receiver?.countryCode || null,
+    invoiceNumber: j.invoiceNumber || null,
     trackingNumber: j.trackingNumber,
     missing: j.missing,
     error: j.error,
