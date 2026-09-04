@@ -1,0 +1,19 @@
+{
+  "name": "dhl-line-automation",
+  "version": "1.0.0",
+  "private": true,
+  "description": "รับข้อมูล Shipment จาก LINE -> สร้าง Shipment บน DHL -> สั่งพิมพ์ label ที่ remote printer",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "worker": "node src/worker.js",
+    "submit": "node src/cli.js",
+    "test": "node --test test/*.test.js"
+  },
+  "optionalDependencies": {
+    "playwright": "^1.47.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -3,3 +3,5 @@ node_modules/
 __pycache__/
 .venv/
 *.png
+dhl-line/data/
+dhl-line/.env
