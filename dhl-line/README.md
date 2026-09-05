@@ -119,6 +119,17 @@ npm run worker   # ตัวทำงาน: กรอกฟอร์ม DHL + �
   ถ้ากรอกไม่ผ่านจะมี `error.png` ให้ดูว่าค้างที่ช่องไหน
 - selector ทั้งหมดรวมไว้ที่ตัวแปร `SEL` ใน `src/dhl/mydhlFlow.js` (DHL เปลี่ยน UI = แก้ที่นี่)
 
+**โหมดซ้อมก่อนยิงจริง (`DHL_DRY_RUN=true`)** — กรอกครบทุกช่องแล้ว **หยุดก่อนกดยืนยัน**
+ไม่เกิด shipment ไม่เสียเงิน ใช้ตอนตั้งค่าครั้งแรกและทุกครั้งที่แก้ selector:
+
+```bash
+DHL_DRY_RUN=true DHL_WEB_HEADLESS=false node src/cli.js submit examples/ใบงาน-ตัวอย่าง.txt --run
+open data/steps/<jobId>/     # ดูภาพทีละขั้นว่ากรอกถูกไหม
+```
+
+งานที่หยุดในโหมดซ้อมจะได้สถานะ `dry_run` และ worker จะไม่หยิบไปทำซ้ำ
+พอตรวจครบแล้วค่อยตั้ง `DHL_DRY_RUN=false` แล้วสั่ง `ลองใหม่ <รหัสงาน>`
+
 **`DHL_MODE=api`** — ถ้าขอ MyDHL API ได้แล้วจะเสถียรกว่ามาก ใส่
 `DHL_API_USERNAME` / `DHL_API_PASSWORD` / `DHL_ACCOUNT_NUMBER` แล้วสลับโหมด
 โดยข้อมูลใบงานและกติกาทั้งหมดใช้ร่วมกัน (plan เดียวกัน)
@@ -154,6 +165,7 @@ node src/cli.js jobs
 | `needs_input` | ใบงานไม่ครบ รอส่งใหม่ (worker ไม่หยิบไปทำ) |
 | `pending` | ครบแล้ว รอ worker |
 | `processing` | กำลังกรอกฟอร์ม DHL |
+| `dry_run` | โหมดซ้อม — กรอกครบแล้วหยุดก่อนยืนยัน รอคนตรวจภาพแล้วสั่ง `ลองใหม่` |
 | `shipment_created` | ได้ Tracking + label แล้ว แต่พิมพ์ไม่สำเร็จ |
 | `done` | เรียบร้อย |
 | `failed` | ล้มเหลวครบ 3 ครั้ง แจ้งกลับ LINE แล้ว รอสั่ง `ลองใหม่ <รหัสงาน>` |

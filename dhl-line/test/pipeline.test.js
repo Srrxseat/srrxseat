@@ -207,6 +207,27 @@ test('pipeline ออกเลขอินวอยซ์ให้ตอนย�
   assert.equal(issued.length, 1);
 });
 
+test('โหมดซ้อมหยุดก่อนยืนยัน ไม่สร้าง shipment และ worker ไม่วนซ้ำ', async () => {
+  const store = newStore();
+  intake({ store, config: CONFIG, text: GOOD_TEXT, sourceId: 'G1', messageId: 'm10' });
+  const pushed = [];
+  const dryRunError = Object.assign(new Error('โหมดซ้อม: กรอกครบแล้วแต่ยังไม่กดยืนยัน'), { dryRun: true });
+
+  const job = await processJob({
+    store,
+    config: CONFIG,
+    invoiceSequence: { next: () => '2569-09-04-01' },
+    dhl: { async createShipment() { throw dryRunError; } },
+    printer: { async print() { throw new Error('ไม่ควรถูกเรียก'); } },
+    line: { async push(to, text) { pushed.push(text); } },
+  }, store.claimNext());
+
+  assert.equal(job.status, STATUS.DRY_RUN);
+  assert.equal(job.trackingNumber, null);
+  assert.equal(pushed.length, 0, 'โหมดซ้อมไม่ต้องรบกวนกลุ่ม LINE');
+  assert.equal(store.claimNext(), null, 'worker ต้องไม่หยิบงานซ้อมมาทำซ้ำ');
+});
+
 test('ตรวจลายเซ็น LINE webhook', () => {
   const secret = 'sekret';
   const body = Buffer.from(JSON.stringify({ events: [] }));

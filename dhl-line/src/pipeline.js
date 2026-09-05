@@ -53,6 +53,14 @@ async function processJob(deps, job) {
     await notify(line, current, messages.done(current));
     return current;
   } catch (err) {
+    if (err.dryRun) {
+      // ไม่กลับไป pending เพราะ worker จะวนกรอกฟอร์มซ้ำไม่จบ — รอคนสั่ง "ลองใหม่" เอง
+      const stopped = store.update(job.jobId, { status: STATUS.DRY_RUN, error: err.message },
+        'โหมดซ้อม — กรอกครบแล้วหยุดก่อนยืนยัน');
+      console.log(`[pipeline] ${err.message}`);
+      return stopped;
+    }
+
     const attempts = job.attempts || 1;
     const canRetry = attempts < MAX_ATTEMPTS;
     // อ่านสถานะล่าสุดจาก store — ถ้าสร้าง shipment ไปแล้วในรอบนี้ ห้ามสร้างซ้ำตอนลองใหม่

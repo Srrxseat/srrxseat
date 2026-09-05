@@ -51,6 +51,8 @@ const config = {
       username: process.env.DHL_WEB_USERNAME || '',
       password: process.env.DHL_WEB_PASSWORD || '',
       headless: bool(process.env.DHL_WEB_HEADLESS, true),
+      // true = กรอกทุกช่องให้ดู แต่ไม่กดยืนยัน (ไม่เกิด shipment ไม่เสียเงิน)
+      dryRun: bool(process.env.DHL_DRY_RUN, false),
     },
   },
 

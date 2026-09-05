@@ -14,6 +14,7 @@ const STATUS = {
   PENDING: 'pending',
   NEEDS_INPUT: 'needs_input',
   PROCESSING: 'processing',
+  DRY_RUN: 'dry_run',
   SHIPMENT_CREATED: 'shipment_created',
   DONE: 'done',
   FAILED: 'failed',

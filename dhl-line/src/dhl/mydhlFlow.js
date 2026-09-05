@@ -88,6 +88,16 @@ const SEL = {
   next: 'button:has-text("ถัดไป"), button:has-text("Next")',
 };
 
+/** โหมดซ้อม: กรอกครบแล้วหยุดก่อนกดยืนยัน — ตั้งใจให้ throw เพื่อไม่ให้ pipeline เดินต่อ */
+class DryRunStop extends Error {
+  constructor(stepDir) {
+    super(`โหมดซ้อม (DHL_DRY_RUN=true): กรอกฟอร์มครบแล้วแต่ยังไม่กดยืนยัน — ตรวจภาพหน้าจอที่ ${stepDir}`);
+    this.name = 'DryRunStop';
+    this.dryRun = true;
+    this.stepDir = stepDir;
+  }
+}
+
 const TRACKING_RE = /\b\d{10}\b/;
 const PICKUP_CONFIRM_RE = /\b[A-Z]{3}\d{12}\b/;
 
@@ -169,6 +179,11 @@ class MyDhlFlow {
       await shot('pickup');
       await click(page, SEL.next, { optional: true });
 
+      if (this.cfg.dryRun) {
+        await shot('dry-run-before-confirm');
+        throw new DryRunStop(stepDir);
+      }
+
       const label = await this.acceptAndCollectLabel(page, stepDir, jobId);
       await shot('complete');
 
@@ -180,7 +195,7 @@ class MyDhlFlow {
         steps,
       };
     } catch (err) {
-      await shot('error');
+      if (!(err instanceof DryRunStop)) await shot('error');
       err.message = `${err.message} (ภาพหน้าจอทุกขั้น: ${stepDir})`;
       throw err;
     } finally {
@@ -397,4 +412,4 @@ async function selectOptionSmart(select, value, contains) {
   await select.selectOption(value);
 }
 
-module.exports = { MyDhlFlow, SEL, shipUrl };
+module.exports = { MyDhlFlow, SEL, shipUrl, DryRunStop };
