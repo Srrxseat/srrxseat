@@ -217,18 +217,19 @@ class MyDhlFlow {
   }
 
   async fillReceiver(page, r) {
-    await fill(page, SEL.toCountry, r.countryName || r.countryCode, { autocomplete: true });
-    await fill(page, SEL.toName, r.name);
-    await fill(page, SEL.toCompany, r.company || '-');
-    await fill(page, SEL.toAddress1, r.addressLine1);
-    await fill(page, SEL.toAddress2, r.addressLine2, { optional: true });
-    await fill(page, SEL.toAddress3, r.addressLine3, { optional: true });
-    await fill(page, SEL.toPostal, r.postalCode, { optional: true });
-    await fill(page, SEL.toCity, r.city);
-    await fill(page, SEL.toState, r.state, { optional: true, autocomplete: true });
-    await fill(page, SEL.toEmail, r.email, { optional: true });
-    await fill(page, SEL.toPhoneCountryCode, r.phoneCountryCode, { optional: true });
-    await fill(page, SEL.toPhone, r.phoneNumber, { optional: true });
+    const to = { labelNth: 1 }; // label เดียวกันมีสองฝั่ง — ตัวที่ 2 คือ "ส่งถึง"
+    await fill(page, SEL.toCountry, r.countryName || r.countryCode, { ...to, label: 'ประเทศ', autocomplete: true });
+    await fill(page, SEL.toName, r.name, { ...to, label: 'ชื่อ' });
+    await fill(page, SEL.toCompany, r.company || '-', { ...to, label: 'บริษัท', optional: true });
+    await fill(page, SEL.toAddress1, r.addressLine1, { ...to, label: 'ที่อยู่1' });
+    await fill(page, SEL.toAddress2, r.addressLine2, { ...to, label: 'ที่อยู่ 2', optional: true });
+    await fill(page, SEL.toAddress3, r.addressLine3, { ...to, label: 'ที่อยู่3', optional: true });
+    await fill(page, SEL.toPostal, r.postalCode, { ...to, label: 'รหัสไปรษณีย์', optional: true });
+    await fill(page, SEL.toCity, r.city, { ...to, label: 'เมือง', optional: true });
+    await fill(page, SEL.toState, r.state, { ...to, label: 'State', optional: true, autocomplete: true });
+    await fill(page, SEL.toEmail, r.email, { ...to, label: 'อีเมล', optional: true });
+    await fill(page, SEL.toPhoneCountryCode, r.phoneCountryCode, { ...to, label: 'รหัส', optional: true });
+    await fill(page, SEL.toPhone, r.phoneNumber, { ...to, label: 'โทรศัพท์', optional: true });
     if (r.saveToAddressBook) await setCheckbox(page, SEL.saveAddress, true, { optional: true });
   }
 
@@ -372,14 +373,20 @@ async function setCheckbox(page, selector, checked, { optional = false, timeout 
 }
 
 async function fill(page, selector, value, opts = {}) {
-  const { optional = false, select = false, autocomplete = false, contains = false, nth = 0, timeout = 30_000 } = opts;
+  const {
+    optional = false, select = false, autocomplete = false, contains = false,
+    nth = 0, timeout = 30_000, label = null, labelNth = 0,
+  } = opts;
   if (value === undefined || value === null || value === '' || value === 'null') {
     if (optional) return;
     throw new Error(`ไม่มีค่าที่จะกรอกลง ${selector}`);
   }
-  const el = page.locator(selector).nth(nth);
+  const el = await resolveField(page, selector, { nth, label, labelNth, timeout });
+  if (!el) {
+    if (optional) return;
+    throw new Error(`หาช่องไม่เจอ: ${selector}${label ? ` (label "${label}")` : ''}`);
+  }
   try {
-    await el.waitFor({ state: 'visible', timeout });
     const tag = await el.evaluate((node) => node.tagName.toLowerCase());
     if (tag === 'select' || select) {
       if (tag === 'select') {
@@ -396,6 +403,27 @@ async function fill(page, selector, value, opts = {}) {
   } catch (err) {
     if (!optional) throw new Error(`กรอกช่อง ${selector} ไม่ได้: ${err.message}`);
   }
+}
+
+/**
+ * หาช่องกรอกจาก selector ก่อน ถ้าไม่เจอค่อยหาจากข้อความ label ที่มองเห็น
+ * (ฟอร์ม DHL มี label ซ้ำกันสองฝั่ง ส่งจาก/ส่งถึง — labelNth=1 คือฝั่งผู้รับ)
+ */
+async function resolveField(page, selector, { nth = 0, label = null, labelNth = 0, timeout = 30_000 } = {}) {
+  const bySelector = page.locator(selector).nth(nth);
+  if (await bySelector.isVisible({ timeout }).catch(() => false)) return bySelector;
+  if (!label) return null;
+  for (const candidate of [
+    page.getByLabel(label, { exact: false }).nth(labelNth),
+    page.locator(`input[aria-label*="${label}"], select[aria-label*="${label}"]`).nth(labelNth),
+    page.locator(`xpath=(//label[contains(normalize-space(.), "${label}")]/following::input[1])[${labelNth + 1}]`),
+  ]) {
+    if (await candidate.isVisible({ timeout: 5000 }).catch(() => false)) {
+      console.warn(`[dhl] ใช้ label "${label}" แทน selector ${selector}`);
+      return candidate;
+    }
+  }
+  return null;
 }
 
 async function selectOptionSmart(select, value, contains) {

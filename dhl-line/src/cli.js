@@ -5,6 +5,7 @@
  *   node src/cli.js plan ใบงาน.txt             ดูค่าที่จะกรอกลงฟอร์ม DHL ทุกช่อง + ฟิลด์ที่ขาด
  *   node src/cli.js submit ใบงาน.txt --run      ใส่คิวแล้วสั่งทำเลย (สร้าง shipment + พิมพ์)
  *   node src/cli.js jobs                        ดูรายการงาน
+ *   node src/cli.js inspect [ขั้น]              ดัมพ์ช่องกรอกจริงบนฟอร์ม DHL (แก้ selector)
  *   node src/cli.js printers                    ดูรายชื่อเครื่องพิมพ์ที่มองเห็น
  *   node src/cli.js print label.pdf             ทดสอบพิมพ์ไฟล์เดียว
  */
@@ -18,6 +19,7 @@ const { InvoiceSequence } = require('./store/invoiceSequence');
 const { createDhlClient } = require('./dhl');
 const { createPrinter } = require('./print');
 const { intake } = require('./intake');
+const { inspectStep } = require('./dhl/inspect');
 const { processJob } = require('./pipeline');
 
 function readInput(arg) {
@@ -70,6 +72,11 @@ async function main() {
       for (const j of store.list()) {
         console.log([j.jobId, j.status, j.invoiceNumber || '-', j.shipment?.receiver?.name || '-', j.trackingNumber || '-', j.error || ''].join(' | '));
       }
+      break;
+    }
+
+    case 'inspect': {
+      await inspectStep(config, args[0] || 'address-details');
       break;
     }
 

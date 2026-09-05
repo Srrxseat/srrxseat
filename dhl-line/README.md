@@ -118,6 +118,13 @@ npm run worker   # ตัวทำงาน: กรอกฟอร์ม DHL + �
 - ทุกขั้นเซฟภาพหน้าจอไว้ที่ `data/steps/<jobId>/01-login.png … 09-complete.png`
   ถ้ากรอกไม่ผ่านจะมี `error.png` ให้ดูว่าค้างที่ช่องไหน
 - selector ทั้งหมดรวมไว้ที่ตัวแปร `SEL` ใน `src/dhl/mydhlFlow.js` (DHL เปลี่ยน UI = แก้ที่นี่)
+- ถ้ากรอกไม่ผ่านเพราะหาช่องไม่เจอ ให้ดัมพ์ช่องจริงบนหน้านั้นออกมาก่อน:
+
+```bash
+DHL_WEB_HEADLESS=false node src/cli.js inspect address-details
+# ได้ data/inspect/address-details.json + .png (id/name/label ของทุกช่อง)
+# ขั้นอื่น: shipment-type, customs-declaration, package-details, shipment-products, optional-services, pickup
+```
 
 **โหมดซ้อมก่อนยิงจริง (`DHL_DRY_RUN=true`)** — กรอกครบทุกช่องแล้ว **หยุดก่อนกดยืนยัน**
 ไม่เกิด shipment ไม่เสียเงิน ใช้ตอนตั้งค่าครั้งแรกและทุกครั้งที่แก้ selector:
