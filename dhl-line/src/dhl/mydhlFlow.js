@@ -55,10 +55,10 @@ const SEL = {
   saveAddress: 'input[type="checkbox"][name*="saveAddress"], label:has-text("บันทึกที่อยู่") input[type="checkbox"]',
 
   // ---- 2. ประเภทชิปเมนต์ + สินค้า ----
-  // หน้านี้เป็น radio จริง ๆ (ไม่ใช่ปุ่ม): input[type=radio][name=shipmentType] value=DOCUMENT|PACKAGE
-  // ตัว input มักถูกซ่อนไว้ใต้การ์ด จึงต้อง check แบบ force แล้วค่อยยืนยันว่าติ๊กติด
-  typePackage: 'input[type="radio"][name="shipmentType"][value="PACKAGE"]',
-  typeDocument: 'input[type="radio"][name="shipmentType"][value="DOCUMENT"]',
+  // หน้านี้เป็น radio จริง ๆ (ไม่ใช่ปุ่ม): name=shipmentType ค่า DOCUMENT | PACKAGE
+  // ห้ามใช้ [value="PACKAGE"] ใน CSS เพราะ DHL ตั้ง value ผ่าน JS (เป็น property ไม่ใช่ attribute)
+  // จึงเลือกด้วย name แล้วไปเทียบ el.value เอาใน chooseRadioByValue()
+  shipmentTypeRadios: 'input[type="radio"][name="shipmentType"]',
   purposeSelect: 'select[id*="purpose"], select[id*="Purpose"], select[name*="purpose"]',
   itemDetailsManual: 'button:has-text("กรุณาบอกรายละเอียดสินค้า"), button:has-text("Tell us the item details")',
   itemDescription: 'input[id*="itemDescription"], input[name*="itemDescription"], textarea[id*="itemDescription"], textarea[name*="description" i], input[name*="description" i]',
@@ -295,7 +295,7 @@ class MyDhlFlow {
 
   async fillShipmentType(page, plan, probe = async () => {}) {
     // เลือก "บรรจุภัณฑ์" ก่อน — ช่องสินค้า/ศุลกากรทั้งหมดจะ render ออกมาหลังจากนี้เท่านั้น
-    await chooseRadio(page, SEL.typePackage, 'ประเภทชิปเมนต์ = บรรจุภัณฑ์');
+    await chooseRadioByValue(page, SEL.shipmentTypeRadios, 'PACKAGE', 'บรรจุภัณฑ์', 'ประเภทชิปเมนต์');
     await page.waitForTimeout(2000);
     await probe('shipment-type-package'); // เก็บ DOM หลังเลือกบรรจุภัณฑ์ ไว้ใช้แก้ selector
 
@@ -528,21 +528,40 @@ async function click(page, selector, { optional = false, timeout = 30_000 } = {}
 }
 
 /**
- * เลือก radio ที่ถูกซ่อนไว้ใต้การ์ด/ label ของ MyDHL+
- * ลองกด label ก่อน (เหมือนคนคลิก) ถ้ายังไม่ติดค่อย check แบบ force แล้วยืนยันผลเสมอ
+ * เลือก radio ของ MyDHL+ จากค่า value (อ่านจาก property) หรือข้อความบน label
+ * ตัว input ถูกซ่อนไว้ใต้การ์ด จึงลองกด label ก่อน แล้วค่อย check แบบ force และยืนยันผลทุกครั้ง
  */
-async function chooseRadio(page, selector, what) {
-  const radio = page.locator(selector).first();
+async function chooseRadioByValue(page, groupSelector, value, labelText, what) {
+  const group = page.locator(groupSelector);
   try {
-    await radio.waitFor({ state: 'attached', timeout: 30_000 });
+    await group.first().waitFor({ state: 'attached', timeout: 30_000 });
   } catch {
-    throw new Error(`หาตัวเลือก "${what}" ไม่เจอบนหน้า (selector: ${selector})`);
+    throw new Error(`หากลุ่มตัวเลือก "${what}" ไม่เจอบนหน้า (selector: ${groupSelector})`);
+  }
+
+  const count = await group.count();
+  const seen = [];
+  let radio = null;
+  for (let i = 0; i < count; i += 1) {
+    const candidate = group.nth(i);
+    const info = await candidate.evaluate((el) => ({
+      value: el.value,
+      label: (el.closest('label')?.innerText
+        || (el.id && document.querySelector(`label[for="${el.id}"]`)?.innerText)
+        || el.closest('div, li')?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 40),
+    })).catch(() => ({ value: null, label: '' }));
+    seen.push(`${info.value}/${info.label}`);
+    if (info.value === value || (labelText && info.label.includes(labelText))) { radio = candidate; break; }
+  }
+  if (!radio) {
+    throw new Error(`ไม่พบตัวเลือก "${labelText || value}" ใน "${what}" — บนหน้ามีแค่: ${seen.join(', ') || '(ไม่มี)'}`);
   }
   if (await radio.isChecked().catch(() => false)) return;
 
   const id = await radio.getAttribute('id');
-  if (id) {
-    await page.locator(`label[for="${id}"]`).first().click({ timeout: 5000 }).catch(() => {});
+  if (id) await page.locator(`label[for="${id}"]`).first().click({ timeout: 5000 }).catch(() => {});
+  if (!(await radio.isChecked().catch(() => false))) {
+    await radio.locator('xpath=ancestor::label[1]').first().click({ timeout: 5000 }).catch(() => {});
   }
   if (!(await radio.isChecked().catch(() => false))) {
     await radio.check({ force: true, timeout: 10_000 }).catch(() => {});
@@ -551,7 +570,7 @@ async function chooseRadio(page, selector, what) {
     await radio.evaluate((el) => { el.click(); el.dispatchEvent(new Event('change', { bubbles: true })); }).catch(() => {});
   }
   if (!(await radio.isChecked().catch(() => false))) {
-    throw new Error(`เลือก "${what}" ไม่สำเร็จ — DHL อาจเปลี่ยนหน้าจอ ให้ดูภาพหน้าจอขั้นนี้`);
+    throw new Error(`เลือก "${labelText || value}" ใน "${what}" ไม่สำเร็จ — ดูภาพหน้าจอขั้นนี้ประกอบ`);
   }
 }
 
