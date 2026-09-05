@@ -4,6 +4,7 @@
  *   node src/cli.js parse ใบงาน.txt            ดูผลการอ่านข้อความจาก LINE
  *   node src/cli.js plan ใบงาน.txt             ดูค่าที่จะกรอกลงฟอร์ม DHL ทุกช่อง + ฟิลด์ที่ขาด
  *   node src/cli.js submit ใบงาน.txt --run      ใส่คิวแล้วสั่งทำเลย (สร้าง shipment + พิมพ์)
+ *   node src/cli.js retry [jobId]               สั่งทำงานเดิมซ้ำ (ดีฟอลต์ = งานล่าสุด)
  *   node src/cli.js jobs                        ดูรายการงาน
  *   node src/cli.js inspect [ขั้น]              ดัมพ์ช่องกรอกจริงบนฟอร์ม DHL (แก้ selector)
  *   node src/cli.js fields [jobId]              อ่าน DOM ที่เก็บไว้ตอนรันซ้อมแบบย่อ
@@ -67,6 +68,34 @@ async function main() {
         }, claimed);
         console.log(JSON.stringify(done, null, 2));
       }
+      break;
+    }
+
+    // สั่งงานเดิมใหม่โดยไม่ต้องส่งข้อความเข้า LINE ซ้ำ — ใช้ตอนไล่แก้ selector ของหน้า DHL
+    // node src/cli.js retry              งานล่าสุด
+    // node src/cli.js retry <jobId>      ระบุงาน
+    case 'retry': {
+      const wanted = args.find((a) => !a.startsWith('--'));
+      const all = store.list();
+      const job = wanted ? store.get(wanted) : all[all.length - 1];
+      if (!job) {
+        console.error(wanted ? `ไม่พบงาน ${wanted}` : 'ยังไม่มีงานในคิว');
+        process.exitCode = 1;
+        break;
+      }
+      const next = job.status === 'shipment_created' ? 'shipment_created' : 'pending';
+      store.update(job.jobId, { status: next, error: null }, 'สั่งลองใหม่จาก CLI');
+      console.log(`ลองใหม่ ${job.jobId} (${job.shipment?.receiver?.name || '-'})`);
+      const claimed = store.claimNext();
+      const done = await processJob({
+        store,
+        config,
+        dhl: createDhlClient(config),
+        printer: createPrinter(config),
+        line: null,
+        invoiceSequence: new InvoiceSequence(config.dataDir),
+      }, claimed);
+      console.log(JSON.stringify(done, null, 2));
       break;
     }
 
