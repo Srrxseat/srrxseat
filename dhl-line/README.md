@@ -141,7 +141,10 @@ open data/steps/<jobId>/     # ดูภาพทีละขั้นว่า�
 `DHL_API_USERNAME` / `DHL_API_PASSWORD` / `DHL_ACCOUNT_NUMBER` แล้วสลับโหมด
 โดยข้อมูลใบงานและกติกาทั้งหมดใช้ร่วมกัน (plan เดียวกัน)
 
-ข้อมูลผู้ส่ง `SHIPPER_*` ต้องกรอกให้ครบทั้งสองโหมด
+ข้อมูลผู้ส่ง `SHIPPER_*` ต้องกรอกให้ครบทั้งสองโหมด — โหมด web ใช้เติมฝั่ง "ส่งจาก" บนฟอร์ม
+ด้วย (บางครั้ง MyDHL+ ไม่เติมให้จาก address book แล้วหน้าจะไม่ยอมไปขั้นต่อไป)
+อย่าลืม `SHIPPER_PHONE_COUNTRY_CODE` / `SHIPPER_PHONE_NUMBER` (ฟอร์มแยกสองช่อง)
+และ `SHIPPER_VAT_TAX_ID`
 
 ### 3) เครื่องพิมพ์
 - `PRINT_MODE=cups` + `CUPS_PRINTER` (+ `CUPS_HOST=192.168.1.50:631` ถ้าอยู่เครื่องอื่น)

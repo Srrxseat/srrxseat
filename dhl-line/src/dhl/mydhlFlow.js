@@ -22,6 +22,19 @@ const SEL = {
   loginSubmit: 'button#loginSubmitButton, button[type="submit"]:has-text("Log in"), button:has-text("เข้าสู่ระบบ")',
   loggedInMarker: 'a:has-text("การส่งชิปเมนต์"), a:has-text("Ship")',
 
+  // ---- 1a. ที่อยู่ผู้ส่ง (ฝั่ง "ส่งจาก") = ช่อง name เดียวกันตัวแรกใน DOM ----
+  fromName: 'input[name="fullName"]',
+  fromCompany: 'input[name="companyName"]',
+  fromCountry: 'input[name="countryName"]',
+  fromAddress1: 'input[name="address"]',
+  fromAddress2: 'input[name="address2"]',
+  fromCity: 'input[name="city"]',
+  fromEmail: 'input[name="fromEmail"]',
+  fromPhoneCountryCode: 'input[name="phoneCode"]',
+  fromPhone: 'input[name="phoneNumber"]',
+  fromVatTax: 'input[name="fromVatTax"]',
+  fromPostalXpath: 'xpath=(//input[@name="city"])[1]/preceding::input[1]',
+
   // ---- 1. ที่อยู่ผู้รับ (ฝั่ง "ส่งถึง") ----
   // ฟอร์มนี้ไม่มี id — ใช้ name และช่องชื่อซ้ำกันสองฝั่ง (ส่งจากมาก่อน ส่งถึงมาหลัง)
   // จึงหยิบตัวท้ายสุดเสมอด้วย receiverInput() ด้านล่าง
@@ -108,6 +121,7 @@ const PICKUP_CONFIRM_RE = /\b[A-Z]{3}\d{12}\b/;
 class MyDhlFlow {
   constructor(config) {
     this.cfg = config.dhl.web;
+    this.shipper = config.shipper;
     this.dataDir = config.dataDir;
     this.sessionFile = path.join(config.dataDir, 'dhl-web-session.json');
   }
@@ -158,21 +172,26 @@ class MyDhlFlow {
       await shot('login');
 
       await page.goto(`${shipUrl(this.cfg.url)}#/address-details`, { waitUntil: 'domcontentloaded' });
+      await this.fillShipper(page);
       await this.fillReceiver(page, plan.receiver);
       await shot('address-details');
       await click(page, SEL.next);
+      await expectStep(page, 'shipment-type');
 
       await this.fillShipmentType(page, plan);
       await shot('shipment-type');
       await click(page, SEL.next);
+      await expectStep(page, 'customs-declaration');
 
       await this.fillCustomsInvoice(page, plan);
       await shot('customs-declaration');
       await click(page, SEL.next);
+      await expectStep(page, 'package-details');
 
       await this.fillPackage(page, plan.package);
       await shot('package-details');
       await click(page, SEL.next);
+      await expectStep(page, 'shipment-products');
 
       await this.pickService(page, plan.service);
       await shot('shipment-products');
@@ -223,6 +242,26 @@ class MyDhlFlow {
     await page.locator(SEL.loggedInMarker).first()
       .waitFor({ state: 'visible', timeout: this.cfg.headless ? 60_000 : 180_000 })
       .catch(() => {});
+  }
+
+  /**
+   * กรอกฝั่ง "ส่งจาก" จากค่าใน .env — เติมเฉพาะช่องที่ยังว่าง
+   * (บางบัญชี MyDHL+ เติมให้เองจาก address book บางครั้งไม่เติม ถ้าไม่ครบหน้าจะไม่ยอมไปต่อ)
+   */
+  async fillShipper(page) {
+    const sp = this.shipper;
+    const first = (selector) => page.locator(selector).first();
+    await fillIfEmpty(first(SEL.fromCountry), countryLabelFor(sp.countryCode), { page, autocomplete: true, what: 'ประเทศผู้ส่ง' });
+    await fillIfEmpty(first(SEL.fromName), sp.name, { what: 'ชื่อผู้ส่ง' });
+    await fillIfEmpty(first(SEL.fromCompany), sp.company, { optional: true, what: 'บริษัทผู้ส่ง' });
+    await fillIfEmpty(first(SEL.fromAddress1), sp.addressLine1, { what: 'ที่อยู่ผู้ส่ง 1' });
+    await fillIfEmpty(first(SEL.fromAddress2), sp.addressLine2, { optional: true, what: 'ที่อยู่ผู้ส่ง 2' });
+    await fillIfEmpty(page.locator(SEL.fromPostalXpath).first(), sp.postalCode, { optional: true, what: 'รหัสไปรษณีย์ผู้ส่ง' });
+    await fillIfEmpty(first(SEL.fromCity), sp.city, { optional: true, what: 'เมืองผู้ส่ง' });
+    await fillIfEmpty(first(SEL.fromEmail), sp.email, { what: 'อีเมลผู้ส่ง' });
+    await fillIfEmpty(first(SEL.fromPhoneCountryCode), stripPlus(sp.phoneCountryCode || dialCodeFor(sp.countryCode)), { optional: true, what: 'รหัสประเทศผู้ส่ง' });
+    await fillIfEmpty(first(SEL.fromPhone), sp.phoneNumber, { optional: true, what: 'เบอร์โทรผู้ส่ง' });
+    await fillIfEmpty(first(SEL.fromVatTax), sp.vatTaxId, { optional: true, what: 'VAT/Tax ID ผู้ส่ง' });
   }
 
   async fillReceiver(page, r) {
@@ -365,6 +404,64 @@ function shipUrl(homeUrl) {
   } catch {
     return 'https://mydhl.express.dhl/th/th/shipment.html';
   }
+}
+
+/** กรอกเฉพาะช่องที่ยังว่าง — ไม่ทับค่าที่ MyDHL+ เติมมาจากบัญชีเอง */
+async function fillIfEmpty(locator, value, opts = {}) {
+  if (value === undefined || value === null || value === '') {
+    if (opts.optional) return false;
+    throw new Error(`ไม่มีค่าที่จะกรอกลง ${opts.what || 'ช่อง'} — ตรวจค่า SHIPPER_* ใน .env`);
+  }
+  try {
+    await locator.waitFor({ state: 'visible', timeout: opts.optional ? 8000 : 20_000 });
+    const current = (await locator.inputValue().catch(() => '')).trim();
+    if (current && !current.includes('_')) return false; // มีค่าอยู่แล้ว (ยกเว้นช่องที่เป็น mask ว่าง)
+  } catch (err) {
+    if (opts.optional) return false;
+    throw new Error(`หาช่อง ${opts.what || ''} ไม่เจอ: ${err.message.split('\n')[0]}`);
+  }
+  return fillLocator(locator, value, opts);
+}
+
+/**
+ * หน้า MyDHL+ จะไปขั้นต่อไปก็ต่อเมื่อกรอกครบ — ถ้าไม่ไป ให้เก็บข้อความ error บนหน้ามาบอก
+ */
+async function expectStep(page, step, timeout = 45_000) {
+  try {
+    await page.waitForURL(new RegExp(`#/${step}`), { timeout });
+    await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
+    await page.waitForTimeout(1500);
+  } catch {
+    const problems = await page.evaluate(() => {
+      const seen = new Set();
+      const messages = [];
+      const nodes = document.querySelectorAll('[class*="error" i], [class*="invalid" i], [aria-invalid="true"], .field-error, .validation-message');
+      for (const node of nodes) {
+        const text = (node.innerText || node.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+        if (text && text.length < 200 && !seen.has(text)) { seen.add(text); messages.push(text); }
+      }
+      return { url: location.href, messages: messages.slice(0, 15) };
+    }).catch(() => ({ url: 'unknown', messages: [] }));
+    throw new Error(
+      `หน้าไม่ไปขั้น "${step}" (ยังอยู่ ${problems.url})`
+      + (problems.messages.length ? ` — ข้อความบนหน้า: ${problems.messages.join(' / ')}` : ' — ไม่พบข้อความ error บนหน้า ให้ดูภาพหน้าจอ'),
+    );
+  }
+}
+
+const DIAL_CODES = { TH: '66', AU: '61', US: '1', GB: '44', JP: '81', SG: '65', DE: '49', FR: '33' };
+const COUNTRY_LABELS_BY_CODE = { TH: 'Thailand', AU: 'Australia', US: 'United States of America', GB: 'United Kingdom', JP: 'Japan', SG: 'Singapore', DE: 'Germany', FR: 'France' };
+
+function countryLabelFor(code) {
+  return COUNTRY_LABELS_BY_CODE[code] || code;
+}
+
+function dialCodeFor(code) {
+  return DIAL_CODES[code] || null;
+}
+
+function stripPlus(value) {
+  return value ? String(value).replace(/^\+/, '') : value;
 }
 
 /** ช่องฝั่ง "ส่งถึง" = ช่อง name เดียวกันตัวท้ายสุดในหน้า (ฝั่งส่งจากมาก่อนใน DOM) */
@@ -519,4 +616,4 @@ async function dumpFields(page, file, { quiet = false } = {}) {
   }
 }
 
-module.exports = { MyDhlFlow, SEL, shipUrl, DryRunStop, receiverInput, dumpFields };
+module.exports = { MyDhlFlow, SEL, shipUrl, DryRunStop, receiverInput, dumpFields, expectStep, countryLabelFor };
