@@ -95,7 +95,15 @@ async function main() {
         line: null,
         invoiceSequence: new InvoiceSequence(config.dataDir),
       }, claimed);
-      console.log(JSON.stringify(done, null, 2));
+      // ดีฟอลต์พิมพ์แบบย่อ — JSON เต็มยาวเกินจะอ่านบน terminal (ใส่ --json ถ้าอยากได้ทั้งก้อน)
+      if (args.includes('--json')) {
+        console.log(JSON.stringify(done, null, 2));
+      } else {
+        console.log(`สถานะ: ${done.status}`);
+        if (done.trackingNumber) console.log(`Tracking: ${done.trackingNumber}`);
+        if (done.labelPath) console.log(`ฉลาก: ${done.labelPath}`);
+        if (done.error) console.log(`สาเหตุ: ${done.error}`);
+      }
       break;
     }
 
