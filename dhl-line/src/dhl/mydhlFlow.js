@@ -431,7 +431,12 @@ async function fillIfEmpty(locator, value, opts = {}) {
  */
 async function expectStep(page, step, timeout = 45_000) {
   try {
-    await page.waitForURL(new RegExp(`#/${step}`), { timeout });
+    // URL จริงของ MyDHL+ เป็นรูป shipment.html#/#<ขั้น> (มี # สองตัว) จึงจับแค่ชื่อขั้น
+    await page.waitForFunction(
+      (name) => location.hash.includes(name),
+      step,
+      { timeout, polling: 500 },
+    );
     await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
     await page.waitForTimeout(1500);
   } catch {
@@ -440,6 +445,8 @@ async function expectStep(page, step, timeout = 45_000) {
       const messages = [];
       const nodes = document.querySelectorAll('[class*="error" i], [class*="invalid" i], [aria-invalid="true"], .field-error, .validation-message');
       for (const node of nodes) {
+        const rect = node.getBoundingClientRect();
+        if (!rect.width || !rect.height) continue; // ข้อความที่ซ่อนอยู่ ไม่ใช่ error จริงบนหน้า
         const text = (node.innerText || node.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
         if (text && text.length < 200 && !seen.has(text)) { seen.add(text); messages.push(text); }
       }
