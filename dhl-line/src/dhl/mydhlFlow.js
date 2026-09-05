@@ -255,6 +255,7 @@ class MyDhlFlow {
     await fillIfEmpty(first(SEL.fromName), sp.name, { what: 'ชื่อผู้ส่ง' });
     await fillIfEmpty(first(SEL.fromCompany), sp.company, { optional: true, what: 'บริษัทผู้ส่ง' });
     await fillIfEmpty(first(SEL.fromAddress1), sp.addressLine1, { what: 'ที่อยู่ผู้ส่ง 1' });
+    await page.keyboard.press('Escape').catch(() => {});
     await fillIfEmpty(first(SEL.fromAddress2), sp.addressLine2, { optional: true, what: 'ที่อยู่ผู้ส่ง 2' });
     await fillIfEmpty(page.locator(SEL.fromPostalXpath).first(), sp.postalCode, { optional: true, what: 'รหัสไปรษณีย์ผู้ส่ง' });
     await fillIfEmpty(first(SEL.fromCity), sp.city, { optional: true, what: 'เมืองผู้ส่ง' });
@@ -276,6 +277,8 @@ class MyDhlFlow {
     await fillLocator(receiverInput(page, SEL.toName), r.name, { what: 'ชื่อผู้รับ' });
     await fillLocator(receiverInput(page, SEL.toCompany), r.company || '-', { optional: true, what: 'บริษัทผู้รับ' });
     await fillLocator(receiverInput(page, SEL.toAddress1), r.addressLine1, { what: 'ที่อยู่1' });
+    // ช่องที่อยู่มี dropdown แนะนำที่อยู่เด้งขึ้นมา ปิดทิ้งไม่ให้บังปุ่ม/ช่องอื่น
+    await page.keyboard.press('Escape').catch(() => {});
     await fillLocator(receiverInput(page, SEL.toAddress2), r.addressLine2, { optional: true, what: 'ที่อยู่2' });
     await fillLocator(receiverInput(page, SEL.toAddress3), r.addressLine3, { optional: true, what: 'ที่อยู่3' });
     await fillLocator(page.locator(SEL.toPostalXpath).first(), r.postalCode, { optional: true, what: 'รหัสไปรษณีย์' });
