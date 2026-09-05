@@ -23,19 +23,23 @@ const SEL = {
   loggedInMarker: 'a:has-text("การส่งชิปเมนต์"), a:has-text("Ship")',
 
   // ---- 1. ที่อยู่ผู้รับ (ฝั่ง "ส่งถึง") ----
-  toName: '[id*="receiver"][id*="Name"], input[name*="receiverContactName"]',
-  toCompany: 'input[id*="receiverCompany"], input[name*="receiverCompanyName"]',
-  toCountry: 'input[id*="receiverCountry"], select[id*="receiverCountry"], input[name*="receiverCountry"]',
-  toAddress1: 'input[id*="receiverAddress1"], input[name*="receiverAddress1"]',
-  toAddress2: 'input[id*="receiverAddress2"], input[name*="receiverAddress2"]',
-  toAddress3: 'input[id*="receiverAddress3"], input[name*="receiverAddress3"]',
-  toPostal: 'input[id*="receiverPostalCode"], input[id*="receiverPostcode"], input[name*="receiverPostalCode"]',
-  toCity: 'input[id*="receiverCity"], input[name*="receiverCity"]',
-  toState: 'input[id*="receiverState"], select[id*="receiverState"], input[name*="receiverState"]',
-  toEmail: 'input[id*="receiverEmail"], input[name*="receiverEmail"]',
-  toPhoneCountryCode: 'input[id*="receiverPhoneCountry"], input[name*="receiverPhoneCountryCode"]',
-  toPhone: 'input[id*="receiverPhone"]:not([id*="Country"]), input[name*="receiverPhone"]:not([name*="Country"])',
-  saveAddress: 'input[type="checkbox"][id*="saveAddress"], label:has-text("บันทึกที่อยู่") input[type="checkbox"]',
+  // ฟอร์มนี้ไม่มี id — ใช้ name และช่องชื่อซ้ำกันสองฝั่ง (ส่งจากมาก่อน ส่งถึงมาหลัง)
+  // จึงหยิบตัวท้ายสุดเสมอด้วย receiverInput() ด้านล่าง
+  toName: 'input[name="fullName"]',
+  toCompany: 'input[name="companyName"]',
+  toCountry: 'input[name="countryName"]',
+  toAddress1: 'input[name="address"]',
+  toAddress2: 'input[name="address2"]',
+  toAddress3: 'input[name="address3"]',
+  toCity: 'input[name="city"]',
+  toEmail: 'input[name="toEmail"]',
+  toPhoneCountryCode: 'input[name="phoneCode"]',
+  toPhone: 'input[name="phoneNumber"]',
+  toVatTax: 'input[name="toVatTax"]',
+  // รหัสไปรษณีย์กับ State ไม่มี name — อ้างตำแหน่งจากช่องเมืองของฝั่งผู้รับ
+  toPostalXpath: 'xpath=(//input[@name="city"])[last()]/preceding::input[1]',
+  toStateXpath: 'xpath=(//input[@name="city"])[last()]/following::input[1]',
+  saveAddress: 'input[type="checkbox"][name*="saveAddress"], label:has-text("บันทึกที่อยู่") input[type="checkbox"]',
 
   // ---- 2. ประเภทชิปเมนต์ + สินค้า ----
   typePackage: 'button:has-text("บรรจุภัณฑ์"), [data-testid="shipment-type-package"], div[role="button"]:has-text("บรรจุภัณฑ์")',
@@ -137,11 +141,13 @@ class MyDhlFlow {
     const page = await context.newPage();
     const steps = [];
     let stepNo = 0;
+    // ทุกขั้นเก็บทั้งภาพหน้าจอและรายการช่องกรอก เพื่อแก้ selector ได้จากการรันซ้อมรอบเดียว
     const shot = async (name) => {
       stepNo += 1;
-      const file = path.join(stepDir, `${String(stepNo).padStart(2, '0')}-${name}.png`);
-      await page.screenshot({ path: file, fullPage: true }).catch(() => {});
-      steps.push(file);
+      const prefix = path.join(stepDir, `${String(stepNo).padStart(2, '0')}-${name}`);
+      await page.screenshot({ path: `${prefix}.png`, fullPage: true }).catch(() => {});
+      await dumpFields(page, `${prefix}.json`, { quiet: true });
+      steps.push(`${prefix}.png`);
     };
 
     try {
@@ -195,7 +201,10 @@ class MyDhlFlow {
         steps,
       };
     } catch (err) {
-      if (!(err instanceof DryRunStop)) await shot('error');
+      if (!(err instanceof DryRunStop)) {
+        await shot('error');
+        await dumpFields(page, path.join(stepDir, 'fields-on-error.json'));
+      }
       err.message = `${err.message} (ภาพหน้าจอทุกขั้น: ${stepDir})`;
       throw err;
     } finally {
@@ -217,19 +226,25 @@ class MyDhlFlow {
   }
 
   async fillReceiver(page, r) {
-    const to = { labelNth: 1 }; // label เดียวกันมีสองฝั่ง — ตัวที่ 2 คือ "ส่งถึง"
-    await fill(page, SEL.toCountry, r.countryName || r.countryCode, { ...to, label: 'ประเทศ', autocomplete: true });
-    await fill(page, SEL.toName, r.name, { ...to, label: 'ชื่อ' });
-    await fill(page, SEL.toCompany, r.company || '-', { ...to, label: 'บริษัท', optional: true });
-    await fill(page, SEL.toAddress1, r.addressLine1, { ...to, label: 'ที่อยู่1' });
-    await fill(page, SEL.toAddress2, r.addressLine2, { ...to, label: 'ที่อยู่ 2', optional: true });
-    await fill(page, SEL.toAddress3, r.addressLine3, { ...to, label: 'ที่อยู่3', optional: true });
-    await fill(page, SEL.toPostal, r.postalCode, { ...to, label: 'รหัสไปรษณีย์', optional: true });
-    await fill(page, SEL.toCity, r.city, { ...to, label: 'เมือง', optional: true });
-    await fill(page, SEL.toState, r.state, { ...to, label: 'State', optional: true, autocomplete: true });
-    await fill(page, SEL.toEmail, r.email, { ...to, label: 'อีเมล', optional: true });
-    await fill(page, SEL.toPhoneCountryCode, r.phoneCountryCode, { ...to, label: 'รหัส', optional: true });
-    await fill(page, SEL.toPhone, r.phoneNumber, { ...to, label: 'โทรศัพท์', optional: true });
+    // 1) ประเทศต้องมาก่อน เพราะช่องที่อยู่/ไปรษณีย์/State จะ render ตามประเทศที่เลือก
+    await fillLocator(receiverInput(page, SEL.toCountry), r.countryName || r.countryCode, {
+      page, autocomplete: true, what: 'ประเทศผู้รับ',
+    });
+    await page.locator(SEL.toAddress1).nth(1)
+      .waitFor({ state: 'visible', timeout: 30_000 })
+      .catch(() => {});
+
+    await fillLocator(receiverInput(page, SEL.toName), r.name, { what: 'ชื่อผู้รับ' });
+    await fillLocator(receiverInput(page, SEL.toCompany), r.company || '-', { optional: true, what: 'บริษัทผู้รับ' });
+    await fillLocator(receiverInput(page, SEL.toAddress1), r.addressLine1, { what: 'ที่อยู่1' });
+    await fillLocator(receiverInput(page, SEL.toAddress2), r.addressLine2, { optional: true, what: 'ที่อยู่2' });
+    await fillLocator(receiverInput(page, SEL.toAddress3), r.addressLine3, { optional: true, what: 'ที่อยู่3' });
+    await fillLocator(page.locator(SEL.toPostalXpath).first(), r.postalCode, { optional: true, what: 'รหัสไปรษณีย์' });
+    await fillLocator(receiverInput(page, SEL.toCity), r.city, { optional: true, what: 'เมือง' });
+    await fillLocator(page.locator(SEL.toStateXpath).first(), r.state, { optional: true, autocomplete: true, page, what: 'State' });
+    await fillLocator(page.locator(SEL.toEmail).first(), r.email, { optional: true, what: 'อีเมลผู้รับ' });
+    await fillLocator(receiverInput(page, SEL.toPhoneCountryCode), r.phoneCountryCode, { optional: true, what: 'รหัสประเทศเบอร์โทร' });
+    await fillLocator(receiverInput(page, SEL.toPhone), r.phoneNumber, { optional: true, what: 'เบอร์โทรผู้รับ' });
     if (r.saveToAddressBook) await setCheckbox(page, SEL.saveAddress, true, { optional: true });
   }
 
@@ -352,6 +367,42 @@ function shipUrl(homeUrl) {
   }
 }
 
+/** ช่องฝั่ง "ส่งถึง" = ช่อง name เดียวกันตัวท้ายสุดในหน้า (ฝั่งส่งจากมาก่อนใน DOM) */
+function receiverInput(page, selector) {
+  return page.locator(selector).last();
+}
+
+/** กรอกค่าลง locator ที่หามาแล้ว (รู้จัก select / ช่อง autocomplete / ช่องที่ไม่บังคับ) */
+async function fillLocator(locator, value, opts = {}) {
+  const { optional = false, autocomplete = false, page = null, what = 'ช่อง', timeout = 30_000, contains = false } = opts;
+  if (value === undefined || value === null || value === '' || value === 'null') {
+    if (optional) return false;
+    throw new Error(`ไม่มีค่าที่จะกรอกลง ${what}`);
+  }
+  try {
+    await locator.waitFor({ state: 'visible', timeout: optional ? 8000 : timeout });
+    const tag = await locator.evaluate((node) => node.tagName.toLowerCase());
+    if (tag === 'select') {
+      await selectOptionSmart(locator, String(value), contains);
+      return true;
+    }
+    await locator.fill(String(value));
+    if (autocomplete && page) {
+      // ช่องแบบ autocomplete ของ DHL ต้องเลือกจากรายการที่เด้งขึ้นมา ไม่ใช่แค่พิมพ์
+      await page.waitForTimeout(600);
+      await page.keyboard.press('ArrowDown').catch(() => {});
+      await page.keyboard.press('Enter').catch(() => {});
+    }
+    return true;
+  } catch (err) {
+    if (optional) {
+      console.warn(`[dhl] ข้าม ${what}: ${err.message.split('\n')[0]}`);
+      return false;
+    }
+    throw new Error(`กรอก ${what} ไม่ได้: ${err.message.split('\n')[0]}`);
+  }
+}
+
 async function click(page, selector, { optional = false, timeout = 30_000 } = {}) {
   const el = page.locator(selector).first();
   try {
@@ -440,4 +491,32 @@ async function selectOptionSmart(select, value, contains) {
   await select.selectOption(value);
 }
 
-module.exports = { MyDhlFlow, SEL, shipUrl, DryRunStop };
+/** เก็บรายการช่องกรอกของหน้าปัจจุบันไว้ตอนล้มเหลว เพื่อแก้ selector ได้โดยไม่ต้องรันซ้ำ */
+async function dumpFields(page, file, { quiet = false } = {}) {
+  try {
+    const data = await page.evaluate(() => ({
+      url: location.href,
+      fields: [...document.querySelectorAll('input, select, textarea')]
+        .filter((el) => el.type !== 'hidden')
+        .map((el) => {
+          const rect = el.getBoundingClientRect();
+          const label = el.closest('div, td, li')?.querySelector('label')?.innerText?.trim() || null;
+          return {
+            tag: el.tagName.toLowerCase(), type: el.type || null, name: el.getAttribute('name'),
+            id: el.id || null, label, placeholder: el.getAttribute('placeholder'),
+            value: el.value ? String(el.value).slice(0, 40) : '',
+            options: el.tagName === 'SELECT' ? [...el.options].slice(0, 15).map((o) => o.text.trim()) : undefined,
+            x: Math.round(rect.x), y: Math.round(rect.y), visible: rect.width > 0 && rect.height > 0,
+          };
+        }),
+      buttons: [...document.querySelectorAll('button, [role="tab"], a[role="button"]')]
+        .map((el) => el.innerText.trim().slice(0, 60)).filter(Boolean),
+    }));
+    fs.writeFileSync(file, JSON.stringify(data, null, 2));
+    if (!quiet) console.warn(`[dhl] เก็บรายการช่องของหน้าที่ค้างไว้ที่ ${file} — ส่งไฟล์นี้มาแก้ selector ได้เลย`);
+  } catch {
+    // ไม่ต้องทำอะไร ถ้าหน้าปิดไปแล้ว
+  }
+}
+
+module.exports = { MyDhlFlow, SEL, shipUrl, DryRunStop, receiverInput, dumpFields };
