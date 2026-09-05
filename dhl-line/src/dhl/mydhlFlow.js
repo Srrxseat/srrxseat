@@ -55,10 +55,13 @@ const SEL = {
   saveAddress: 'input[type="checkbox"][name*="saveAddress"], label:has-text("บันทึกที่อยู่") input[type="checkbox"]',
 
   // ---- 2. ประเภทชิปเมนต์ + สินค้า ----
-  typePackage: 'button:has-text("บรรจุภัณฑ์"), [data-testid="shipment-type-package"], div[role="button"]:has-text("บรรจุภัณฑ์")',
+  // หน้านี้เป็น radio จริง ๆ (ไม่ใช่ปุ่ม): input[type=radio][name=shipmentType] value=DOCUMENT|PACKAGE
+  // ตัว input มักถูกซ่อนไว้ใต้การ์ด จึงต้อง check แบบ force แล้วค่อยยืนยันว่าติ๊กติด
+  typePackage: 'input[type="radio"][name="shipmentType"][value="PACKAGE"]',
+  typeDocument: 'input[type="radio"][name="shipmentType"][value="DOCUMENT"]',
   purposeSelect: 'select[id*="purpose"], select[id*="Purpose"], select[name*="purpose"]',
   itemDetailsManual: 'button:has-text("กรุณาบอกรายละเอียดสินค้า"), button:has-text("Tell us the item details")',
-  itemDescription: 'input[id*="itemDescription"], input[name*="itemDescription"], textarea[id*="itemDescription"]',
+  itemDescription: 'input[id*="itemDescription"], input[name*="itemDescription"], textarea[id*="itemDescription"], textarea[name*="description" i], input[name*="description" i]',
   itemHsCode: 'input[id*="commodityCode"], input[id*="hsCode"], input[name*="commodityCode"]',
   itemQuantity: 'input[id*="itemQuantity"], input[name*="itemQuantity"]',
   itemUnit: 'select[id*="itemUnit"], select[name*="itemUnit"], select[id*="quantityUnit"]',
@@ -178,7 +181,7 @@ class MyDhlFlow {
       await click(page, SEL.next);
       await expectStep(page, 'shipment-type');
 
-      await this.fillShipmentType(page, plan);
+      await this.fillShipmentType(page, plan, shot);
       await shot('shipment-type');
       await click(page, SEL.next);
       await expectStep(page, 'customs-declaration');
@@ -290,8 +293,12 @@ class MyDhlFlow {
     if (r.saveToAddressBook) await setCheckbox(page, SEL.saveAddress, true, { optional: true });
   }
 
-  async fillShipmentType(page, plan) {
-    await click(page, SEL.typePackage, { optional: true });
+  async fillShipmentType(page, plan, probe = async () => {}) {
+    // เลือก "บรรจุภัณฑ์" ก่อน — ช่องสินค้า/ศุลกากรทั้งหมดจะ render ออกมาหลังจากนี้เท่านั้น
+    await chooseRadio(page, SEL.typePackage, 'ประเภทชิปเมนต์ = บรรจุภัณฑ์');
+    await page.waitForTimeout(2000);
+    await probe('shipment-type-package'); // เก็บ DOM หลังเลือกบรรจุภัณฑ์ ไว้ใช้แก้ selector
+
     await fill(page, SEL.purposeSelect, plan.purpose, { optional: true, select: true });
     await click(page, SEL.itemDetailsManual, { optional: true });
 
@@ -517,6 +524,34 @@ async function click(page, selector, { optional = false, timeout = 30_000 } = {}
     await el.click();
   } catch (err) {
     if (!optional) throw new Error(`กดปุ่มไม่ได้: ${selector}`);
+  }
+}
+
+/**
+ * เลือก radio ที่ถูกซ่อนไว้ใต้การ์ด/ label ของ MyDHL+
+ * ลองกด label ก่อน (เหมือนคนคลิก) ถ้ายังไม่ติดค่อย check แบบ force แล้วยืนยันผลเสมอ
+ */
+async function chooseRadio(page, selector, what) {
+  const radio = page.locator(selector).first();
+  try {
+    await radio.waitFor({ state: 'attached', timeout: 30_000 });
+  } catch {
+    throw new Error(`หาตัวเลือก "${what}" ไม่เจอบนหน้า (selector: ${selector})`);
+  }
+  if (await radio.isChecked().catch(() => false)) return;
+
+  const id = await radio.getAttribute('id');
+  if (id) {
+    await page.locator(`label[for="${id}"]`).first().click({ timeout: 5000 }).catch(() => {});
+  }
+  if (!(await radio.isChecked().catch(() => false))) {
+    await radio.check({ force: true, timeout: 10_000 }).catch(() => {});
+  }
+  if (!(await radio.isChecked().catch(() => false))) {
+    await radio.evaluate((el) => { el.click(); el.dispatchEvent(new Event('change', { bubbles: true })); }).catch(() => {});
+  }
+  if (!(await radio.isChecked().catch(() => false))) {
+    throw new Error(`เลือก "${what}" ไม่สำเร็จ — DHL อาจเปลี่ยนหน้าจอ ให้ดูภาพหน้าจอขั้นนี้`);
   }
 }
 
