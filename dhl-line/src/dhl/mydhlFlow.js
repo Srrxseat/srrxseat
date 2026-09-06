@@ -299,6 +299,8 @@ class MyDhlFlow {
         throw new Error(`ไล่หน้าหลังเลือกบริการไม่ถึงหน้ายืนยัน — หน้าที่ผ่านมา: ${[...seen].join(' -> ')}`);
       }
 
+      await this.checkSummary(page);
+
       if (this.cfg.dryRun) {
         await shot('dry-run-before-confirm');
         throw new DryRunStop(stepDir);
@@ -656,25 +658,65 @@ class MyDhlFlow {
     }
     if (from === ready) return;
 
-    // ค่านี้ผูกกับสไลเดอร์ของ Angular ตั้งค่าเปล่า ๆ ไม่พอ ต้องยิง event ให้มันรู้ตัวด้วย
-    await slider.evaluate((el, value) => {
-      el.value = value;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-      if (window.angular) {
-        const wrapped = window.angular.element(el);
-        wrapped.triggerHandler('input');
-        wrapped.triggerHandler('change');
-        wrapped.scope?.()?.$applyAsync?.();
-      }
-    }, `${ready};${to}`);
-    await page.waitForTimeout(800);
+    const readFrom = async () => {
+      const raw = await slider.inputValue().catch(() => '');
+      return { raw, from: Number(raw.split(';')[0]) };
+    };
+    const write = async () => {
+      // ค่านี้ผูกกับสไลเดอร์ของ Angular ตั้งค่าเปล่า ๆ ไม่พอ ต้องยิง event ให้มันรู้ตัวด้วย
+      await slider.evaluate((el, value) => {
+        el.value = value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        if (window.angular) {
+          const wrapped = window.angular.element(el);
+          wrapped.triggerHandler('input');
+          wrapped.triggerHandler('change');
+          wrapped.scope?.()?.$applyAsync?.();
+        }
+      }, `${ready};${to}`);
+    };
 
-    const after = await slider.inputValue().catch(() => '');
-    if (Number(after.split(';')[0]) !== ready) {
-      this.warnings?.push(`ตั้งเวลาพร้อมเข้ารับเป็น ${this.cfg.pickupReadyTime} ไม่ได้ (ค่าบนหน้าคือ "${after}")`);
-    } else {
+    let stuck = false;
+    for (let attempt = 1; attempt <= 3 && !stuck; attempt += 1) {
+      await write();
+      await page.waitForTimeout(1200);
+      // DHL ตรวจความกว้างของช่วงเวลาแบบดีเลย์ ค่าที่เพิ่งเขียนอาจถูกดันกลับทีหลัง
+      // จึงอ่านซ้ำอีกครั้งหลังรอ ไม่เชื่อผลอ่านครั้งแรก
+      if ((await readFrom()).from !== ready) continue;
+      await page.waitForTimeout(2000);
+      stuck = (await readFrom()).from === ready;
+    }
+
+    if (stuck) {
       console.log(`[dhl] ช่วงเวลาเข้ารับ: ${clockFromMinutes(ready)} - ${clockFromMinutes(to)}`);
+      return;
+    }
+
+    const { raw, from: reverted } = await readFrom();
+    this.warnings?.push(`ตั้งเวลาพร้อมเข้ารับเป็น ${this.cfg.pickupReadyTime} ไม่ได้`
+      + ` — DHL ดันกลับไป ${clockFromMinutes(reverted) || raw} (ปิดรับ ${clockFromMinutes(to)})`
+      + ' — ช่วงเวลาที่ขออาจแคบกว่าที่สาขายอมรับ');
+  }
+
+  /**
+   * หน้าสรุปเป็นที่เดียวที่บอกได้ว่าค่าที่กรอกไปตกลงจริงหรือถูก DHL เขียนทับ
+   * เช็กที่นี่ก่อนกดยืนยัน เพื่อไม่ให้ชิปเมนต์ผิดหลุดไปโดยไม่มีใครรู้
+   */
+  async checkSummary(page) {
+    const text = await page.locator('body').innerText().catch(() => '');
+    const ready = text.match(/รับสินค้าก่อนเวลานัดหมาย\s*(\d{1,2}[:.]\d{2})/)?.[1];
+    const latest = text.match(/รับสินค้าได้ช้าสุด\s*เวลา\s*(\d{1,2}[:.]\d{2})/)?.[1];
+    const total = text.match(/Total\s*THB\s*([\d,.]+)/)?.[1];
+
+    if (ready) console.log(`[dhl] หน้าสรุป — เข้ารับ ${ready}${latest ? ` ถึง ${latest}` : ''}`);
+    if (total) console.log(`[dhl] หน้าสรุป — ยอดรวม THB ${total}`);
+
+    const wanted = minutesFromClock(this.cfg.pickupReadyTime);
+    const got = minutesFromClock(ready?.replace('.', ':'));
+    if (wanted !== null && got !== null && got !== wanted) {
+      this.warnings?.push(`หน้าสรุปบอกเวลาเข้ารับ ${ready} ไม่ใช่ ${this.cfg.pickupReadyTime} ที่ตั้งไว้`
+        + (latest ? ` (สาขาปิดรับ ${latest})` : ''));
     }
   }
 
@@ -1090,6 +1132,7 @@ function minutesFromClock(clock) {
 }
 
 function clockFromMinutes(minutes) {
+  if (!Number.isFinite(minutes)) return '';
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 }
 
