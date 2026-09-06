@@ -299,18 +299,34 @@ class MyDhlFlow {
     await page.waitForLoadState('domcontentloaded', { timeout: 30_000 }).catch(() => {});
     await click(page, SEL.cookieAccept, { optional: true, timeout: 8000 });
 
-    const user = page.locator(SEL.loginUser).filter({ visible: true }).first();
-    if (!(await waitVisible(user, 20_000))) {
-      throw new Error('เปิดฟอร์มล็อกอิน MyDHL+ ไม่ได้ — ดูภาพหน้าจอขั้น login');
-    }
-    await user.fill(this.cfg.username);
-    await page.locator(SEL.loginPass).filter({ visible: true }).first().fill(this.cfg.password);
-    await click(page, SEL.loginSubmit, { what: 'ปุ่มเข้าสู่ระบบ' });
+    // หน้าล็อกอินรีเฟรชตัวเองหลังโหลด widget เสร็จ (console: "Triggering Page Refresh")
+    // ถ้าพิมพ์ก่อนหน้านั้นค่าจะหายเกลี้ยงแล้วกดปุ่มไปบนฟอร์มเปล่า — ต้องเช็กว่าค่ายังอยู่ก่อนกด
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
+      const user = page.locator(SEL.loginUser).filter({ visible: true }).first();
+      if (!(await waitVisible(user, 20_000))) {
+        if (await isLoggedIn(page, 3000)) return;
+        throw new Error('เปิดฟอร์มล็อกอิน MyDHL+ ไม่ได้ — ดูภาพหน้าจอขั้น login');
+      }
+      const pass = page.locator(SEL.loginPass).filter({ visible: true }).first();
+      await user.fill(this.cfg.username);
+      await pass.fill(this.cfg.password);
+      await page.waitForTimeout(1000);
+      const typed = (await user.inputValue().catch(() => '')).trim();
+      if (typed !== this.cfg.username.trim()) {
+        console.warn(`[dhl] หน้าล็อกอินล้างค่าที่พิมพ์ (ครั้งที่ ${attempt}/3) — พิมพ์ใหม่`);
+        continue;
+      }
 
-    // ถ้ามี OTP และเปิดหน้าจออยู่ ให้ผู้ใช้กรอกเอง (รอได้ถึง 3 นาที)
-    const deadline = Date.now() + (this.cfg.headless ? 60_000 : 180_000);
-    while (Date.now() < deadline) {
-      if (await isLoggedIn(page, 2000)) return;
+      await click(page, SEL.loginSubmit, { what: 'ปุ่มเข้าสู่ระบบ' });
+
+      // ถ้ามี OTP และเปิดหน้าจออยู่ ให้ผู้ใช้กรอกเอง (รอได้ถึง 3 นาที)
+      const deadline = Date.now() + (this.cfg.headless ? 60_000 : 180_000);
+      while (Date.now() < deadline) {
+        if (await isLoggedIn(page, 2000)) return;
+        // ยังอยู่หน้าเดิมและช่องว่างอีกแล้ว = โดนรีเฟรชทับ ออกไปพิมพ์ใหม่ ไม่ต้องรอจนหมดเวลา
+        if ((await user.inputValue().catch(() => null)) === '') break;
+      }
     }
     throw new Error('ล็อกอิน MyDHL+ ไม่สำเร็จ — ถ้าติด OTP ให้รันครั้งแรกด้วย DHL_WEB_HEADLESS=false'
       + ' เพื่อกรอกเอง (session จะถูกเก็บไว้ใช้ครั้งต่อไป)');
