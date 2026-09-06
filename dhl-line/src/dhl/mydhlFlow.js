@@ -288,7 +288,12 @@ class MyDhlFlow {
           }
         }
         atConfirm = await waitVisible(page.locator(SEL.acceptAndPrint).filter({ visible: true }).first(), 3000);
-        if (!atConfirm) await clickNext(page, 'confirm');
+        if (!atConfirm) {
+          await clickNext(page, 'confirm');
+          // hash เปลี่ยนก่อนที่เนื้อหาหน้าใหม่จะ render — ถ้าไม่รอ จะไปสแกนหาช่องบนหน้าเปล่า
+          await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
+          await page.waitForTimeout(1500);
+        }
       }
       if (!atConfirm) {
         throw new Error(`ไล่หน้าหลังเลือกบริการไม่ถึงหน้ายืนยัน — หน้าที่ผ่านมา: ${[...seen].join(' -> ')}`);
@@ -858,6 +863,8 @@ async function click(page, selector, { optional = false, timeout = 30_000, what 
  * ตัว input ถูกซ่อนไว้ใต้การ์ด จึงลองกด label ก่อน แล้วค่อย check แบบ force และยืนยันผลทุกครั้ง
  */
 async function chooseRadioByValue(page, groupSelector, value, labelText, what) {
+  // รอให้ radio ของหน้านั้นโผล่ก่อน ไม่งั้นจะสรุปว่า "ไม่มีตัวเลือก" ทั้งที่หน้ายัง render ไม่เสร็จ
+  await waitVisible(page.locator(groupSelector).filter({ visible: true }).first(), 20_000);
   const group = page.locator(groupSelector);
   try {
     await group.first().waitFor({ state: 'attached', timeout: 30_000 });
