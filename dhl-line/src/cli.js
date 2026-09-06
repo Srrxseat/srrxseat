@@ -84,8 +84,23 @@ async function main() {
         break;
       }
       const next = job.status === 'shipment_created' ? 'shipment_created' : 'pending';
-      store.update(job.jobId, { status: next, error: null }, 'สั่งลองใหม่จาก CLI');
-      console.log(`ลองใหม่ ${job.jobId} (${job.shipment?.receiver?.name || '-'})`);
+      const patch = { status: next, error: null };
+
+      // แผนงานถูก snapshot ไว้ตอนรับใบงาน — ถ้าไม่สร้างใหม่ การแก้ config/products.json
+      // จะไม่มีผลกับงานเก่าเลย แต่ห้ามสร้างใหม่ถ้าชิปเมนต์เกิดขึ้นแล้ว (ข้อมูลต้องตรงกับของที่ยิงไป)
+      if (!job.trackingNumber && job.text) {
+        const rebuilt = buildShipmentPlan(parseLineShipment(job.text, { boxTareKg: config.boxTareKg }), {
+          shipperCountryCode: config.shipper.countryCode,
+          customsLineMode: config.customsLineMode,
+        });
+        patch.shipment = { ...rebuilt.plan, invoiceNumber: job.invoiceNumber || rebuilt.plan.invoiceNumber };
+        patch.missing = rebuilt.missing;
+        patch.warnings = rebuilt.warnings;
+        for (const w of rebuilt.warnings) console.log(`หมายเหตุ: ${w}`);
+      }
+      store.update(job.jobId, patch, 'สั่งลองใหม่จาก CLI');
+      console.log(`ลองใหม่ ${job.jobId} (${job.shipment?.receiver?.name || '-'})`
+        + (patch.shipment ? ` — HS code ${patch.shipment.customsLines?.[0]?.hsCode || '-'}` : ''));
       const claimed = store.claimNext();
       const done = await processJob({
         store,
