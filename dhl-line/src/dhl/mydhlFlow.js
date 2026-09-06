@@ -61,20 +61,25 @@ const SEL = {
   shipmentTypeRadios: 'input[type="radio"]',
   // ชื่อจริงคือ shippingPurpose — โผล่มาหลังติ๊ก "บรรจุภัณฑ์" เท่านั้น (ตัวเลือกมี Commercial อยู่)
   purposeSelect: 'select[name="shippingPurpose"], select[id*="purpose"], select[name*="urpose"]',
-  itemDetailsManual: 'button:has-text("กรุณาบอกรายละเอียดสินค้า"), button:has-text("Tell us the item details")',
-  itemDescription: 'input[id*="itemDescription"], input[name*="itemDescription"], textarea[id*="itemDescription"], textarea[name*="description" i], input[name*="description" i]',
-  itemHsCode: 'input[id*="commodityCode"], input[id*="hsCode"], input[name*="commodityCode"]',
-  itemQuantity: 'input[id*="itemQuantity"], input[name*="itemQuantity"]',
-  itemUnit: 'select[id*="itemUnit"], select[name*="itemUnit"], select[id*="quantityUnit"]',
-  itemUnitValue: 'input[id*="itemValue"], input[name*="itemValue"], input[id*="unitPrice"]',
-  itemWeight: 'input[id*="itemWeight"], input[name*="itemWeight"]',
-  itemManufacturerCountry: 'input[id*="manufactureCountry"], input[id*="itemCountry"], input[name*="manufactureCountry"]',
-  addItemLine: 'a:has-text("เพิ่มรายการ"), button:has-text("เพิ่มรายการ"), a:has-text("Add another item")',
+  // ---- ชื่อช่องจริงของแถวสินค้า (แถวที่ n ใช้ nth เดียวกันทุกช่อง; id ของช่องแรกคือ itemDescription0) ----
+  itemDetailsManual: 'button:has-text("สร้างรายละเอียดสินค้า"), button:has-text("กรุณาบอกรายละเอียดสินค้า")',
+  itemDescription: 'input[name="description"]',
+  itemHsCode: 'input[name="commodityCode"]',
+  itemQuantity: 'input[name="quantity"]',
+  itemUnit: 'select[name="quantityUnits"]',
+  itemUnitValue: 'input[name="itemValue"]',
+  itemCurrency: 'select[name="currentCurrency"]',   // ดีฟอลต์เป็น THB ต้องเปลี่ยนเป็นสกุลของงานเสมอ
+  itemWeight: 'input[name="weight"]',               // ช่องบังคับ ถ้าเว้นไว้หน้าจะไม่ยอมไปต่อ
+  itemManufacturerCountry: 'input[name="countryName"]',
+  addItemLine: 'button:has-text("เพิ่มรายการ"), a:has-text("เพิ่มรายการ")',
 
-  extraChargeType: 'select[id*="chargeType"], select[id*="additionalCharge"], select[name*="chargeType"]',
-  extraChargeAmount: 'input[id*="chargeValue"], input[id*="additionalChargeValue"], input[name*="chargeValue"]',
-  insuranceCheckbox: 'input[type="checkbox"][id*="insurance"], label:has-text("เพิ่มการป้องกัน") input[type="checkbox"]',
-  insuranceValue: 'input[id*="insuranceValue"], input[id*="insuredValue"], input[name*="insuranceValue"]',
+  extraChargeToggle: 'button:has-text("ค่าใช้จ่ายอื่นๆ/เพิ่มค่าใช้จ่าย")',
+  extraChargeType: 'select[name*="charge" i], select[id*="charge" i]',
+  extraChargeAmount: 'input[name*="charge" i], input[id*="charge" i]',
+  insuranceCheckbox: 'input[type="checkbox"][name="insureShipment"]',
+  insuranceValue: 'input[name="shipmentInsuredValue"]',
+  // สกุลเงินของประกันไม่มี name — อ้างจากช่องมูลค่าประกันที่อยู่ติดกัน
+  insuranceCurrencyXpath: 'xpath=//input[@name="shipmentInsuredValue"]/following::select[1]',
 
   // ---- 3. customs invoice ----
   createInvoice: 'button:has-text("สร้าง Invoice"), button:has-text("Create invoice")',
@@ -311,41 +316,55 @@ class MyDhlFlow {
 
     // ช่องรายการศุลกากรอาจอยู่หน้านี้หรือไปโผล่ขั้น customs-declaration แล้วแต่บัญชี/ปลายทาง
     // จึงลองกรอกทั้งสองที่ แล้วค่อยตรวจตอนท้ายว่ากรอกไปแล้วจริงหรือยัง
-    return this.fillCustomsLines(page, plan);
+    return this.fillCustomsLines(page, plan, probe);
   }
 
   /**
    * กรอกรายการสินค้า/ศุลกากร + ค่าขนส่ง + ประกัน เท่าที่หน้าปัจจุบันมีช่องให้กรอก
    * @returns {Promise<boolean>} true ถ้ากรอกช่อง "รายละเอียดสินค้า" ได้อย่างน้อยหนึ่งรายการ
    */
-  async fillCustomsLines(page, plan) {
+  async fillCustomsLines(page, plan, probe = async () => {}) {
     await click(page, SEL.itemDetailsManual, { optional: true });
     let filled = false;
 
     for (const [index, line] of plan.customsLines.entries()) {
       if (index > 0) await click(page, SEL.addItemLine, { optional: true });
       const nth = index;
+      const row = `สินค้ารายการที่ ${index + 1}`;
       const ok = await fill(page, SEL.itemDescription, line.description, { nth, optional: true });
       if (!ok) break; // หน้านี้ไม่มีช่องสินค้า ไปกรอกที่ขั้นถัดไปแทน
       filled = true;
-      await fill(page, SEL.itemHsCode, line.hsCode, { nth, optional: true });
-      await fill(page, SEL.itemQuantity, String(line.quantity), { nth, optional: true });
-      await fill(page, SEL.itemUnit, line.unit, { nth, optional: true, select: true });
-      await fill(page, SEL.itemUnitValue, String(line.unitValue), { nth, optional: true });
-      await fill(page, SEL.itemWeight, String(line.netWeightKg), { nth, optional: true });
-      await fill(page, SEL.itemManufacturerCountry, line.manufacturerCountry, { nth, optional: true, autocomplete: true });
+      await fill(page, SEL.itemHsCode, line.hsCode, { nth, what: `HS code (${row})` });
+      await fill(page, SEL.itemQuantity, String(line.quantity), { nth, what: `จำนวน (${row})` });
+      await fill(page, SEL.itemUnit, line.unit, { nth, select: true, what: `หน่วย (${row})` });
+      await fill(page, SEL.itemUnitValue, String(line.unitValue), { nth, what: `มูลค่าต่อชิ้น (${row})` });
+      // ดีฟอลต์ของบัญชีไทยคือ THB — ถ้าไม่เปลี่ยน มูลค่าศุลกากรจะผิดสกุลทั้งใบ
+      await fill(page, SEL.itemCurrency, line.currency || plan.currency, { nth, select: true, what: `สกุลเงิน (${row})` });
+      await fill(page, SEL.itemWeight, String(line.netWeightKg), { nth, what: `น้ำหนักต่อชิ้น (${row})` });
+      await fill(page, SEL.itemManufacturerCountry, line.manufacturerCountry, {
+        nth, autocomplete: true, what: `ประเทศผู้ผลิต (${row})`,
+      });
     }
     if (!filled) return false;
 
     // ค่าขนส่งที่เก็บลูกค้า ใส่เป็น "ค่าใช้จ่ายเพิ่ม" เพื่อให้มูลค่าชิปเมนต์รวมถูกต้อง
     if (plan.freightCharge?.amount) {
-      await fill(page, SEL.extraChargeType, 'freight', { optional: true, select: true, contains: true });
-      await fill(page, SEL.extraChargeAmount, String(plan.freightCharge.amount), { optional: true });
+      await click(page, SEL.extraChargeToggle, { optional: true });
+      await page.waitForTimeout(1200);
+      await probe('shipment-type-charges');
+      const typed = await fill(page, SEL.extraChargeType, 'freight', { optional: true, select: true, contains: true });
+      const amount = await fill(page, SEL.extraChargeAmount, String(plan.freightCharge.amount), { optional: true });
+      if (!typed || !amount) {
+        console.warn(`[dhl] ยังใส่ค่าขนส่ง ${plan.freightCharge.amount} ${plan.freightCharge.currency} ไม่ได้`
+          + ' — มูลค่าชิปเมนต์รวมจะขาดส่วนนี้ ต้องแก้ selector ของ "ค่าใช้จ่ายอื่นๆ/เพิ่มค่าใช้จ่าย"');
+      }
     }
 
     if (plan.insurance?.enabled) {
-      await setCheckbox(page, SEL.insuranceCheckbox, true, { optional: true });
-      await fill(page, SEL.insuranceValue, String(plan.insurance.value), { optional: true });
+      await setCheckbox(page, SEL.insuranceCheckbox, true, { what: 'ติ๊กเพิ่มการป้องกันชิปเมนต์' });
+      await page.waitForTimeout(800);
+      await fill(page, SEL.insuranceValue, String(plan.insurance.value), { what: 'มูลค่าที่เอาประกัน' });
+      await fill(page, SEL.insuranceCurrencyXpath, plan.currency, { select: true, optional: true, what: 'สกุลเงินประกัน' });
     }
     return true;
   }
@@ -605,13 +624,13 @@ async function chooseRadioByValue(page, groupSelector, value, labelText, what) {
   }
 }
 
-async function setCheckbox(page, selector, checked, { optional = false, timeout = 15_000 } = {}) {
+async function setCheckbox(page, selector, checked, { optional = false, timeout = 15_000, what = null } = {}) {
   const el = page.locator(selector).first();
   try {
     await el.waitFor({ state: 'attached', timeout });
     if ((await el.isChecked()) !== checked) await el.setChecked(checked, { force: true });
   } catch (err) {
-    if (!optional) throw new Error(`ติ๊ก checkbox ไม่ได้: ${selector}`);
+    if (!optional) throw new Error(`ติ๊ก checkbox ไม่ได้: ${what || selector}`);
   }
 }
 
