@@ -76,9 +76,10 @@ const SEL = {
   itemManufacturerCountry: 'input[name="countryName"]',
   addItemLine: 'button:has-text("เพิ่มรายการ"), a:has-text("เพิ่มรายการ")',
 
+  // แผงค่าใช้จ่ายเพิ่ม: select กับ input ไม่มีทั้ง name และ id — อ้างจากข้อความในตัวเลือกแทน
   extraChargeToggle: 'button:has-text("ค่าใช้จ่ายอื่นๆ/เพิ่มค่าใช้จ่าย")',
-  extraChargeType: 'select[name*="charge" i], select[id*="charge" i]',
-  extraChargeAmount: 'input[name*="charge" i], input[id*="charge" i]',
+  extraChargeType: 'xpath=//select[option[contains(text(), "ค่าขนส่ง/ค่าธรรมเนียม")]]',
+  extraChargeAmount: 'xpath=//select[option[contains(text(), "ค่าขนส่ง/ค่าธรรมเนียม")]]/following::input[1]',
   insuranceCheckbox: 'input[type="checkbox"][name="insureShipment"]',
   insuranceValue: 'input[name="shipmentInsuredValue"]',
   // สกุลเงินของประกันไม่มี name — อ้างจากช่องมูลค่าประกันที่อยู่ติดกัน
@@ -192,7 +193,8 @@ class MyDhlFlow {
 
       let customsFilled = await this.fillShipmentType(page, plan, shot);
       await shot('shipment-type');
-      await click(page, SEL.next);
+      await dismissModal(page);
+      await click(page, SEL.next, { what: 'ปุ่มถัดไป (หน้าสินค้า)' });
       await expectStep(page, 'customs-declaration');
 
       customsFilled = await this.fillCustomsInvoice(page, plan, customsFilled);
@@ -354,7 +356,7 @@ class MyDhlFlow {
       await click(page, SEL.extraChargeToggle, { optional: true });
       await page.waitForTimeout(1200);
       await probe('shipment-type-charges');
-      const typed = await fill(page, SEL.extraChargeType, 'freight', { optional: true, select: true, contains: true });
+      const typed = await fill(page, SEL.extraChargeType, 'ค่าขนส่ง', { optional: true, select: true, contains: true });
       const amount = await fill(page, SEL.extraChargeAmount, String(plan.freightCharge.amount), { optional: true });
       if (!typed || !amount) {
         console.warn(`[dhl] ยังใส่ค่าขนส่ง ${plan.freightCharge.amount} ${plan.freightCharge.currency} ไม่ได้`
@@ -566,14 +568,32 @@ async function fillLocator(locator, value, opts = {}) {
   }
 }
 
-async function click(page, selector, { optional = false, timeout = 30_000 } = {}) {
-  const el = page.locator(selector).first();
-  try {
-    await el.waitFor({ state: 'visible', timeout });
-    await el.click();
-  } catch (err) {
-    if (!optional) throw new Error(`กดปุ่มไม่ได้: ${selector}`);
-  }
+/**
+ * กดปุ่มแบบไล่ลอง "ทุกตัวที่มองเห็น" ไม่ใช่แค่ตัวแรก
+ * หน้า MyDHL+ มีปุ่มข้อความซ้ำกันหลายตัว (บางตัวซ่อนอยู่/อยู่นอกจอ) การจับตัวแรกอย่างเดียวจึงพลาดบ่อย
+ */
+async function click(page, selector, { optional = false, timeout = 30_000, what = null } = {}) {
+  const all = page.locator(selector);
+  const deadline = Date.now() + timeout;
+  do {
+    const count = await all.count().catch(() => 0);
+    for (let i = 0; i < count; i += 1) {
+      const el = all.nth(i);
+      if (!(await el.isVisible().catch(() => false))) continue;
+      await el.scrollIntoViewIfNeeded().catch(() => {});
+      try {
+        await el.click({ timeout: 5000 });
+        return true;
+      } catch {
+        // มีอะไรบังอยู่ ลองยิง click ผ่าน DOM ตรง ๆ เป็นทางสุดท้ายของปุ่มตัวนี้
+        const clicked = await el.evaluate((node) => { node.click(); return true; }).catch(() => false);
+        if (clicked) return true;
+      }
+    }
+    await page.waitForTimeout(500);
+  } while (Date.now() < deadline);
+  if (!optional) throw new Error(`กดปุ่มไม่ได้: ${what || selector}`);
+  return false;
 }
 
 /**
