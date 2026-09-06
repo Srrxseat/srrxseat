@@ -114,8 +114,10 @@ const SEL = {
 
   // ---- 6. บริการ ----
   productCard: '[data-testid*="product"], .product-card, [class*="productOption"]',
-  // ต้องเทียบข้อความแบบตรงตัว ไม่งั้นไปโดน "ยืนยันที่เลือก" ของแบนเนอร์คุกกี้
-  productSelectButton: 'button:text-is("เลือก"), button:text-is("Select")',
+  // ปุ่ม "เลือก" ในตารางราคาเป็น <a> ที่แต่งให้เหมือนปุ่ม ไม่ใช่ <button>
+  // และต้องเทียบข้อความแบบตรงตัว ไม่งั้นไปโดน "ยืนยันที่เลือก" ของแบนเนอร์คุกกี้
+  productSelectButton: 'a:text-is("เลือก"), button:text-is("เลือก"),'
+    + ' [role="button"]:text-is("เลือก"), a:text-is("Select"), button:text-is("Select")',
 
   // ---- 7. บริการเสริม ----
   goGreenPlus: 'input[type="checkbox"][id*="goGreen"], label:has-text("GoGreen Plus") input[type="checkbox"]',
@@ -1115,7 +1117,7 @@ async function dumpFields(page, file, { quiet = false, error = null, consoleLogs
             x: Math.round(rect.x), y: Math.round(rect.y), visible: rect.width > 0 && rect.height > 0,
           };
         }),
-      buttons: [...document.querySelectorAll('button, [role="tab"], a[role="button"]')]
+      buttons: [...document.querySelectorAll('button, [role="tab"], [role="button"], a[href], a[ng-click], a[onclick]')]
         .map((el) => {
           const rect = el.getBoundingClientRect();
           const text = el.innerText.trim().slice(0, 60);
