@@ -160,11 +160,11 @@ class MyDhlFlow {
     const steps = [];
     let stepNo = 0;
     // ทุกขั้นเก็บทั้งภาพหน้าจอและรายการช่องกรอก เพื่อแก้ selector ได้จากการรันซ้อมรอบเดียว
-    const shot = async (name) => {
+    const shot = async (name, error = null) => {
       stepNo += 1;
       const prefix = path.join(stepDir, `${String(stepNo).padStart(2, '0')}-${name}`);
       await page.screenshot({ path: `${prefix}.png`, fullPage: true }).catch(() => {});
-      await dumpFields(page, `${prefix}.json`, { quiet: true });
+      await dumpFields(page, `${prefix}.json`, { quiet: true, error });
       steps.push(`${prefix}.png`);
     };
 
@@ -229,8 +229,8 @@ class MyDhlFlow {
       };
     } catch (err) {
       if (!(err instanceof DryRunStop)) {
-        await shot('error');
-        await dumpFields(page, path.join(stepDir, 'fields-on-error.json'));
+        await shot('error', err.message);
+        await dumpFields(page, path.join(stepDir, 'fields-on-error.json'), { error: err.message });
       }
       err.message = `${err.message} (ภาพหน้าจอทุกขั้น: ${stepDir})`;
       throw err;
@@ -654,16 +654,26 @@ async function fill(page, selector, value, opts = {}) {
  * หาช่องกรอกจาก selector ก่อน ถ้าไม่เจอค่อยหาจากข้อความ label ที่มองเห็น
  * (ฟอร์ม DHL มี label ซ้ำกันสองฝั่ง ส่งจาก/ส่งถึง — labelNth=1 คือฝั่งผู้รับ)
  */
+/** isVisible() ไม่รอ (Playwright เมิน timeout ที่ส่งให้) — ต้องใช้ waitFor ถึงจะรอช่องที่ render ช้าจริง */
+async function waitVisible(locator, timeout) {
+  try {
+    await locator.waitFor({ state: 'visible', timeout });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function resolveField(page, selector, { nth = 0, label = null, labelNth = 0, timeout = 30_000 } = {}) {
   const bySelector = page.locator(selector).nth(nth);
-  if (await bySelector.isVisible({ timeout }).catch(() => false)) return bySelector;
+  if (await waitVisible(bySelector, timeout)) return bySelector;
   if (!label) return null;
   for (const candidate of [
     page.getByLabel(label, { exact: false }).nth(labelNth),
     page.locator(`input[aria-label*="${label}"], select[aria-label*="${label}"]`).nth(labelNth),
     page.locator(`xpath=(//label[contains(normalize-space(.), "${label}")]/following::input[1])[${labelNth + 1}]`),
   ]) {
-    if (await candidate.isVisible({ timeout: 5000 }).catch(() => false)) {
+    if (await waitVisible(candidate, 5000)) {
       console.warn(`[dhl] ใช้ label "${label}" แทน selector ${selector}`);
       return candidate;
     }
@@ -671,22 +681,47 @@ async function resolveField(page, selector, { nth = 0, label = null, labelNth = 
   return null;
 }
 
+/**
+ * เลือกตัวเลือกใน <select> โดยเทียบข้อความ แล้ว "ตรวจซ้ำ" ว่าค่าเปลี่ยนจริง
+ * บางหน้าของ DHL ผูกกับ JS framework ที่ไม่ยอมรับค่าจนกว่าจะมี event change — จึงมีทางสำรองไว้
+ */
 async function selectOptionSmart(select, value, contains) {
   const options = await select.locator('option').all();
   const wanted = value.toLowerCase();
+  const texts = [];
+  let target = null;
   for (const option of options) {
     const label = ((await option.textContent()) || '').trim();
+    texts.push(label);
     const lower = label.toLowerCase();
-    if (lower === wanted || (contains && lower.includes(wanted))) {
-      await select.selectOption({ label });
-      return;
-    }
+    if (lower === wanted || (contains && lower.includes(wanted))) { target = label; break; }
   }
-  await select.selectOption(value);
+
+  if (target) await select.selectOption({ label: target }).catch(() => {});
+  else await select.selectOption(value).catch(() => {});
+
+  if (await selectHasValue(select)) return;
+
+  // ทางสำรอง: ตั้งค่าเองแล้วยิง event ให้หน้าเว็บรู้ตัว
+  await select.evaluate((el, wantedText) => {
+    const match = [...el.options].find((o) => o.text.trim().toLowerCase() === wantedText);
+    if (!match) return;
+    el.value = match.value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }, wanted).catch(() => {});
+
+  if (!(await selectHasValue(select))) {
+    throw new Error(`เลือก "${value}" ไม่สำเร็จ — ตัวเลือกที่มีคือ: ${texts.join(' | ')}`);
+  }
+}
+
+async function selectHasValue(select) {
+  return select.evaluate((el) => Boolean(el.value) && el.selectedIndex > 0).catch(() => false);
 }
 
 /** เก็บรายการช่องกรอกของหน้าปัจจุบันไว้ตอนล้มเหลว เพื่อแก้ selector ได้โดยไม่ต้องรันซ้ำ */
-async function dumpFields(page, file, { quiet = false } = {}) {
+async function dumpFields(page, file, { quiet = false, error = null } = {}) {
   try {
     const data = await page.evaluate(() => ({
       url: location.href,
@@ -706,7 +741,8 @@ async function dumpFields(page, file, { quiet = false } = {}) {
       buttons: [...document.querySelectorAll('button, [role="tab"], a[role="button"]')]
         .map((el) => el.innerText.trim().slice(0, 60)).filter(Boolean),
     }));
-    fs.writeFileSync(file, JSON.stringify(data, null, 2));
+    // ใส่ข้อความ error ลงไฟล์ด้วย จะได้ดูไฟล์เดียวจบ ไม่ต้องไล่หาใน terminal
+    fs.writeFileSync(file, JSON.stringify(error ? { error, ...data } : data, null, 2));
     if (!quiet) console.warn(`[dhl] เก็บรายการช่องของหน้าที่ค้างไว้ที่ ${file} — ส่งไฟล์นี้มาแก้ selector ได้เลย`);
   } catch {
     // ไม่ต้องทำอะไร ถ้าหน้าปิดไปแล้ว
