@@ -264,13 +264,32 @@ class MyDhlFlow {
       await this.pickService(page, plan.service);
       await shot('shipment-products');
 
-      await this.pickOptionalServices(page, plan.optionalServices);
-      await shot('optional-services');
-      await click(page, SEL.next, { optional: true });
-
-      await this.fillPickup(page, plan.pickup);
-      await shot('pickup');
-      await click(page, SEL.next, { optional: true });
+      // หลังเลือกบริการ DHL พาไล่ไปหลายหน้า และมีไม่ครบทุกครั้ง (บริการเสริม /
+      // เอกสารศุลกากรอิเล็กทรอนิกส์ / นัดรับ) จึงดูจาก hash ว่าอยู่หน้าไหนแล้วทำงานของหน้านั้น
+      // แทนการไล่ตามลำดับตายตัว — จบเมื่อถึงหน้าสรุปที่มีปุ่มยืนยัน
+      const seen = new Set();
+      let atConfirm = false;
+      for (let guard = 0; guard < 10 && !atConfirm; guard += 1) {
+        const step = await currentStep(page);
+        if (step && !seen.has(step)) {
+          seen.add(step);
+          if (step.includes('optional-services')) {
+            await this.pickOptionalServices(page, plan.optionalServices);
+            await shot('optional-services');
+          } else if (step.includes('pickup')) {
+            await this.fillPickup(page, plan.pickup);
+            await shot('pickup');
+          } else {
+            // หน้าอย่าง digital_customs_invoice ค่าดีฟอลต์ถูกอยู่แล้ว (ติ๊ก "ใช่" ให้ตั้งแต่ต้น) แค่กดผ่าน
+            await shot(step);
+          }
+        }
+        atConfirm = await waitVisible(page.locator(SEL.acceptAndPrint).filter({ visible: true }).first(), 3000);
+        if (!atConfirm) await clickNext(page, 'confirm');
+      }
+      if (!atConfirm) {
+        throw new Error(`ไล่หน้าหลังเลือกบริการไม่ถึงหน้ายืนยัน — หน้าที่ผ่านมา: ${[...seen].join(' -> ')}`);
+      }
 
       if (this.cfg.dryRun) {
         await shot('dry-run-before-confirm');
@@ -1002,6 +1021,12 @@ async function goto(page, url, tries = 3) {
     }
   }
   throw new Error(`เปิดหน้า ${url} ไม่ได้: ${last?.message.split('\n')[0]}`);
+}
+
+/** ชื่อขั้นที่อยู่ตอนนี้ — URL จริงเป็นรูป shipment.html#/#<ขั้น> */
+async function currentStep(page) {
+  const hash = await page.evaluate(() => location.hash).catch(() => '');
+  return hash.replace(/^[#/]+/, '').split(/[?&]/)[0] || null;
 }
 
 /** อยู่ขั้นนี้อยู่หรือเปล่า — ใช้ตอนที่หน้าถัดไปมีได้หลายแบบ */
