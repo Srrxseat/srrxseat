@@ -90,13 +90,13 @@ const SEL = {
   invoiceNumber: 'input[id*="invoiceNumber"], input[name*="invoiceNumber"]',
   tradeAgreementNo: 'input[type="radio"][id*="tradeAgreement"][value="false"], label:has-text("ไม่") input[type="radio"]',
 
-  // ---- 4. บรรจุภัณฑ์ ----
-  packagingSelect: 'select[id*="packaging"], select[name*="packaging"], input[id*="packaging"]',
-  packageQuantity: 'input[id*="packageQuantity"], input[name*="packageQuantity"]',
-  packageWeight: 'input[id*="packageWeight"], input[name*="packageWeight"]',
-  packageLength: 'input[id*="packageLength"], input[name*="packageLength"]',
-  packageWidth: 'input[id*="packageWidth"], input[name*="packageWidth"]',
-  packageHeight: 'input[id*="packageHeight"], input[name*="packageHeight"]',
+  // ---- 4. บรรจุภัณฑ์ (ชื่อช่องสั้น ๆ ซ้ำกับหน้าสินค้า แต่คนละหน้ากันจึงไม่ชนกัน) ----
+  packagingSelect: 'input[name="packagingName"]',   // ช่อง autocomplete "เลือกบรรจุภัณฑ์"
+  packageQuantity: 'input[name="quantity"]',
+  packageWeight: 'input[name="weight"]',
+  packageLength: 'input[name="length"]',
+  packageWidth: 'input[name="width"]',
+  packageHeight: 'input[name="height"]',
 
   // ---- 5. บริการ ----
   productCard: '[data-testid*="product"], .product-card, [class*="productOption"]',
@@ -198,7 +198,7 @@ class MyDhlFlow {
       await this.fillShipper(page);
       await this.fillReceiver(page, plan.receiver);
       await shot('address-details');
-      await click(page, SEL.next);
+      await clickNext(page, 'shipment-type');
       await expectStep(page, 'shipment-type');
 
       let customsFilled = await this.fillShipmentType(page, plan, shot);
@@ -213,12 +213,12 @@ class MyDhlFlow {
           + ' — ต้องแก้ selector ก่อน ไม่งั้นชิปเมนต์จะไม่มีข้อมูลศุลกากร');
       }
       await shot('customs-declaration');
-      await click(page, SEL.next);
+      await clickNext(page, 'package-details');
       await expectStep(page, 'package-details');
 
       await this.fillPackage(page, plan.package);
       await shot('package-details');
-      await click(page, SEL.next);
+      await clickNext(page, 'shipment-products');
       await expectStep(page, 'shipment-products');
 
       await this.pickService(page, plan.service);
@@ -396,12 +396,14 @@ class MyDhlFlow {
   }
 
   async fillPackage(page, pkg) {
-    await fill(page, SEL.packagingSelect, pkg.packaging, { select: true, autocomplete: true });
-    await fill(page, SEL.packageQuantity, String(pkg.quantity), { optional: true });
-    await fill(page, SEL.packageWeight, String(pkg.weightKg), { optional: true });
-    await fill(page, SEL.packageLength, String(pkg.length), { optional: true });
-    await fill(page, SEL.packageWidth, String(pkg.width), { optional: true });
-    await fill(page, SEL.packageHeight, String(pkg.height), { optional: true });
+    // ชื่อบรรจุภัณฑ์เป็นรายการที่บันทึกไว้ในบัญชี ต้องเลือกจาก dropdown ไม่ใช่พิมพ์เฉย ๆ
+    await fill(page, SEL.packagingSelect, pkg.packaging, { autocomplete: true, what: 'บรรจุภัณฑ์' });
+    // ช่องที่เหลือเป็นช่องบังคับทั้งหมด — ถ้าเว้นไว้หน้าจะไม่ยอมไปต่อ
+    await fill(page, SEL.packageQuantity, String(pkg.quantity), { what: 'จำนวนกล่อง' });
+    await fill(page, SEL.packageWeight, String(pkg.weightKg), { what: 'น้ำหนักรวมกล่อง' });
+    await fill(page, SEL.packageLength, String(pkg.length), { what: 'ความยาวกล่อง' });
+    await fill(page, SEL.packageWidth, String(pkg.width), { what: 'ความกว้างกล่อง' });
+    await fill(page, SEL.packageHeight, String(pkg.height), { what: 'ความสูงกล่อง' });
   }
 
   /** เลือกบริการที่ต้องการ (ดีฟอลต์ EXPRESS WORLDWIDE) วันส่ง = วันแรกที่เลือกไว้ให้แล้ว */
