@@ -20,8 +20,9 @@ const SEL = {
   cookieAccept: '#onetrust-accept-btn-handler, button:has-text("Accept All"), button:has-text("ยอมรับทั้งหมด")',
   // ฟอร์มล็อกอินอยู่ในป๊อปอัป ต้องกดลิงก์ "ล็อกอิน" บนหัวเว็บก่อนถึงจะโผล่มา
   loginLink: 'a:has-text("ล็อกอิน"), a:has-text("Log in"), button:has-text("ล็อกอิน")',
-  loginUser: 'input#popup_form_username, input#loginUsername, input[name="username"], input[type="email"]',
-  loginPass: 'input#popup_form_password, input#loginPassword, input[name="password"], input[type="password"]',
+  // ลิงก์ล็อกอินพาไปหน้ากลางของ DHL (dhlpass.dhl.com) — ช่องอีเมลที่นั่นเป็น type=text ไม่ใช่ email
+  loginUser: 'input#email_input, input[name="email_phone"], input#popup_form_username, input[name="username"], input[type="email"]',
+  loginPass: 'input#password_input, input#popup_form_password, input[name="password"], input[type="password"]',
   loginSubmit: 'button#loginSubmitButton, button[type="submit"]:has-text("Log in"), button:has-text("เข้าสู่ระบบ"), button:has-text("ล็อกอิน")',
   // "การส่งชิปเมนต์" อยู่บนเมนูตลอดแม้ยังไม่ล็อกอิน ใช้เช็กไม่ได้ — ต้องดูปุ่มออกจากระบบแทน
   logoutMarker: 'a:has-text("ออกจากระบบ"), a:has-text("Log out"), a:has-text("Logout"), button:has-text("ออกจากระบบ")',
@@ -294,6 +295,10 @@ class MyDhlFlow {
     if (await isLoggedIn(page)) return;
 
     await click(page, SEL.loginLink, { optional: true, timeout: 10_000, what: 'ลิงก์ล็อกอิน' });
+    // ลิงก์นี้พาข้ามโดเมนไปหน้าล็อกอินกลาง ซึ่งมีแบนเนอร์คุกกี้ของตัวเองบังปุ่มอยู่
+    await page.waitForLoadState('domcontentloaded', { timeout: 30_000 }).catch(() => {});
+    await click(page, SEL.cookieAccept, { optional: true, timeout: 8000 });
+
     const user = page.locator(SEL.loginUser).filter({ visible: true }).first();
     if (!(await waitVisible(user, 20_000))) {
       throw new Error('เปิดฟอร์มล็อกอิน MyDHL+ ไม่ได้ — ดูภาพหน้าจอขั้น login');
