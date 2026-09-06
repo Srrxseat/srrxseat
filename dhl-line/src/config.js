@@ -53,6 +53,8 @@ const config = {
       headless: bool(process.env.DHL_WEB_HEADLESS, true),
       // true = กรอกทุกช่องให้ดู แต่ไม่กดยืนยัน (ไม่เกิด shipment ไม่เสียเงิน)
       dryRun: bool(process.env.DHL_DRY_RUN, false),
+      // ต้องจ่ายผ่านเลขบัญชี DHL ไม่ใช่บัตรเครดิต ไม่งั้นจะได้เรทหน้าร้านแทนเรทของบัญชี
+      paymentAccount: process.env.DHL_PAYMENT_ACCOUNT || '',
     },
   },
 

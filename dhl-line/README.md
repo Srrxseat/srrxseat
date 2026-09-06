@@ -113,6 +113,9 @@ npm run worker   # ตัวทำงาน: กรอกฟอร์ม DHL + �
 ### 2) DHL
 **`DHL_MODE=web` (ค่าเริ่มต้น — flow เดียวกับที่ทำมือ)**
 - `DHL_WEB_USERNAME` / `DHL_WEB_PASSWORD` = บัญชี MyDHL+
+- `DHL_PAYMENT_ACCOUNT` = เลขบัญชี DHL ที่ใช้จ่ายค่าขนส่ง (เช่น `566194467`)
+  หน้า "คุณต้องการชำระอย่างไร?" ต้องเลือกบัญชีนี้ + ติ๊ก "ใช้หมายเลข Account นี้ เพื่อชำระค่าขนส่ง"
+  ไม่งั้นจะไปจ่ายด้วยบัตรเครดิตแล้วได้เรทหน้าร้านแทนเรทของบัญชี
 - ครั้งแรกให้รัน worker ด้วย `DHL_WEB_HEADLESS=false` เพื่อทำ OTP เอง
   session เก็บที่ `data/dhl-web-session.json` ครั้งต่อไปไม่ต้อง login
 - ทุกขั้นเซฟภาพหน้าจอไว้ที่ `data/steps/<jobId>/01-login.png … 09-complete.png`

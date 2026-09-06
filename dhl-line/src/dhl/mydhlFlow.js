@@ -101,6 +101,11 @@ const SEL = {
 
   // ---- 5. การจ่ายเงิน (มาก่อนหน้าเลือกบริการ — DHL ต้องรู้ก่อนถึงจะคิดราคาให้) ----
   paymentMethod: 'select[name="paymentMethod"]',
+  // ต้องติ๊กด้วยว่าให้ใช้บัญชีนี้จ่ายค่าขนส่ง ไม่งั้นเลขบัญชีที่เลือกไว้ไม่ถูกใช้คิดเรท
+  useAccountForFreight: 'xpath=//input[@type="checkbox"][ancestor::label[contains(., "ชำระค่าขนส่ง")]'
+    + ' or @id=//label[contains(., "ชำระค่าขนส่ง")]/@for]',
+  // ใครเป็นคนจ่ายภาษี/อากรปลายทาง — select นี้ไม่มี name จึงอ้างจากข้อความในตัวเลือก
+  dutiesPayerXpath: 'xpath=//select[option[contains(text(), "ผู้รับจ่าย") or contains(text(), "Receiver")]]',
   incoterm: 'select[name="incoterm"], select#incoterm',
 
   // ---- 6. บริการ ----
@@ -422,12 +427,43 @@ class MyDhlFlow {
    * ปกติ DHL เติมค่าจากบัญชีมาให้แล้ว แต่ต้องยืนยันเองเพราะถ้าพลาดจะไปหน้าคิดราคาไม่ได้
    */
   async fillPaymentDetails(page, plan, warnings = []) {
+    const account = this.cfg.paymentAccount;
+    if (!account) throw new Error('ยังไม่ได้ตั้ง DHL_PAYMENT_ACCOUNT ใน .env — ต้องจ่ายผ่านเลขบัญชี DHL'
+      + ' ไม่งั้นจะได้เรทหน้าร้านแทนเรทของบัญชี');
+
     const method = page.locator(SEL.paymentMethod).filter({ visible: true }).first();
     if (await waitVisible(method, 20_000)) {
-      const picked = await pickOptionByAnyText(method, ['เครดิตการ์ด', 'credit card']);
-      if (!picked) throw new Error('เลือกวิธีการจ่ายเงิน (เครดิตการ์ด) ไม่ได้ — ดูตัวเลือกในไฟล์ dump');
+      // ตัวเลือกเขียนว่า "566194467 - New account" — เทียบด้วยเลขบัญชีอย่างเดียว ชื่อบัญชีเปลี่ยนได้
+      await selectOptionSmart(method, account, true).catch(() => {});
+      if (!(await selectedTextMatches(method, account.toLowerCase(), true))) {
+        const options = await method.locator('option').allTextContents();
+        throw new Error(`เลือกบัญชีจ่ายเงิน ${account} ไม่ได้ — ตัวเลือกที่มีคือ ${options.join(' | ')}`
+          + ' (ถ้ามีแต่บัตรเครดิต แปลว่าเบราว์เซอร์หลุดล็อกอินจากบัญชี DHL)');
+      }
     } else {
       warnings.push('ไม่เจอช่องวิธีการจ่ายเงิน — DHL อาจใช้ค่าที่ผูกไว้กับบัญชีอยู่แล้ว');
+    }
+
+    // ติ๊ก "ใช้หมายเลข Account นี้ เพื่อชำระค่าขนส่ง"
+    const useAccount = page.locator(SEL.useAccountForFreight).filter({ visible: true }).first();
+    if (await waitVisible(useAccount, 8000)) {
+      if (!(await useAccount.isChecked().catch(() => false))) {
+        await setCheckbox(page, SEL.useAccountForFreight, true, { what: 'ใช้บัญชีนี้ชำระค่าขนส่ง' });
+      }
+    } else {
+      warnings.push('ไม่เจอช่องติ๊ก "ใช้หมายเลข Account นี้ เพื่อชำระค่าขนส่ง"'
+        + ' — เรทที่ได้อาจไม่ใช่เรทของบัญชี');
+    }
+
+    // ภาษี/อากรปลายทาง: DAP = ผู้รับจ่าย, DDP = ผู้ส่งจ่าย
+    const dutiesPayer = page.locator(SEL.dutiesPayerXpath).filter({ visible: true }).first();
+    if (await waitVisible(dutiesPayer, 8000)) {
+      const wanted = plan.dutiesPaidBy === 'shipper'
+        ? ['ผู้ส่งจ่าย', 'shipper']
+        : ['ผู้รับจ่าย', 'receiver'];
+      if (!(await pickOptionByAnyText(dutiesPayer, wanted))) {
+        warnings.push(`เลือกผู้จ่ายภาษี/อากร (${wanted[0]}) ไม่ได้`);
+      }
     }
 
     const incoterm = page.locator(SEL.incoterm).filter({ visible: true }).first();
