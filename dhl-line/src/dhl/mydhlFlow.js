@@ -801,7 +801,16 @@ async function dumpFields(page, file, { quiet = false, error = null } = {}) {
           };
         }),
       buttons: [...document.querySelectorAll('button, [role="tab"], a[role="button"]')]
-        .map((el) => el.innerText.trim().slice(0, 60)).filter(Boolean),
+        .map((el) => {
+          const rect = el.getBoundingClientRect();
+          const text = el.innerText.trim().slice(0, 60);
+          if (!text) return null;
+          const flags = [rect.width && rect.height ? null : 'ซ่อน', el.disabled ? 'กดไม่ได้' : null]
+            .filter(Boolean).join(',');
+          return flags ? `${text} [${flags}]` : text;
+        }).filter(Boolean),
+      // ข้อความทั้งหน้าแบบย่อ — ใช้หาข้อความ validation ที่ไม่ได้อยู่ใน element ที่มี class ว่า error
+      pageText: document.body.innerText.replace(/\n{2,}/g, '\n').trim().slice(0, 4000),
     }));
     // ใส่ข้อความ error ลงไฟล์ด้วย จะได้ดูไฟล์เดียวจบ ไม่ต้องไล่หาใน terminal
     fs.writeFileSync(file, JSON.stringify(error ? { error, ...data } : data, null, 2));
