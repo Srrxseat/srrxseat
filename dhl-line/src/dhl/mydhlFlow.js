@@ -114,7 +114,8 @@ const SEL = {
 
   // ---- 6. บริการ ----
   productCard: '[data-testid*="product"], .product-card, [class*="productOption"]',
-  productSelectButton: 'button:has-text("เลือก"), button:has-text("Select")',
+  // ต้องเทียบข้อความแบบตรงตัว ไม่งั้นไปโดน "ยืนยันที่เลือก" ของแบนเนอร์คุกกี้
+  productSelectButton: 'button:text-is("เลือก"), button:text-is("Select")',
 
   // ---- 7. บริการเสริม ----
   goGreenPlus: 'input[type="checkbox"][id*="goGreen"], label:has-text("GoGreen Plus") input[type="checkbox"]',
@@ -542,16 +543,22 @@ class MyDhlFlow {
   /** เลือกบริการที่ต้องการ (ดีฟอลต์ EXPRESS WORLDWIDE) วันส่ง = วันแรกที่เลือกไว้ให้แล้ว */
   async pickService(page, service) {
     const preferred = service?.preferred || 'EXPRESS WORLDWIDE';
-    const card = page.locator(SEL.productCard).filter({ hasText: preferred }).first();
-    if (await card.isVisible({ timeout: 20_000 }).catch(() => false)) {
-      await card.locator(SEL.productSelectButton).first().click();
+    // ห้ามใช้ has-text("เลือก") ลอย ๆ — มันไปโดนปุ่ม "ยืนยันที่เลือก" ของแบนเนอร์คุกกี้ที่ซ่อนอยู่
+    // ปุ่มจริงอยู่ท้ายแถวของบริการนั้น จึงไล่จากข้อความชื่อบริการลงไปหาปุ่มตัวถัดไป
+    const inRow = page.locator(
+      `xpath=//*[contains(text(), "${preferred}")]/following::button[normalize-space()="เลือก"][1]`,
+    ).filter({ visible: true }).first();
+    if (await waitVisible(inRow, 20_000)) {
+      await inRow.scrollIntoViewIfNeeded().catch(() => {});
+      await inRow.click({ timeout: 10_000 });
       return;
     }
+
     // ไม่เจอชื่อบริการที่ต้องการ -> เลือกใบที่ถูกที่สุด (รายการล่างสุดของตาราง)
-    const buttons = page.locator(SEL.productSelectButton);
+    const buttons = page.locator(SEL.productSelectButton).filter({ visible: true });
     const count = await buttons.count();
-    if (!count) throw new Error('ไม่พบตัวเลือกบริการขนส่งในขั้น shipment-products');
-    await buttons.nth(count - 1).click();
+    if (!count) throw new Error(`ไม่พบบริการ "${preferred}" และไม่พบปุ่มเลือกบริการอื่นในขั้น shipment-products`);
+    await buttons.nth(count - 1).click({ timeout: 10_000 });
   }
 
   async pickOptionalServices(page, services = {}) {
@@ -706,6 +713,9 @@ async function fillLocator(locator, value, opts = {}) {
     }
     if (digitsOnly) await locator.fill('');  // ช่อง mask ต้องล้างก่อน ไม่งั้นเลขใหม่ไปต่อท้ายเลขเดิม
     await locator.fill(String(value));
+    // ช่องตัวเลขของ DHL บางช่องมีค่า default อยู่ (เช่นวงเงินประกัน 2,000,000) และไม่ยอมให้เขียนทับ
+    // ค่าใหม่จะไปต่อท้ายกลายเป็น 2,000,280 — ต้องอ่านกลับมาเทียบทุกครั้ง ไม่ใช่พิมพ์แล้วเชื่อ
+    if (/^\d+(\.\d+)?$/.test(String(value))) await ensureNumber(locator, value, what);
     if (autocomplete && page) {
       // ช่องแบบ autocomplete ของ DHL ต้องเลือกจากรายการที่เด้งขึ้นมา ไม่ใช่แค่พิมพ์
       await page.waitForTimeout(600);
@@ -835,6 +845,8 @@ async function fill(page, selector, value, opts = {}) {
       return true;
     }
     await el.fill(String(value));
+    // ช่องตัวเลขที่มีค่า default อยู่แล้ว (วงเงินประกัน ฯลฯ) จะเอาค่าใหม่ไปต่อท้ายแทนที่จะเขียนทับ
+    if (!autocomplete && /^\d+(\.\d+)?$/.test(String(value))) await ensureNumber(el, value, name);
     if (autocomplete) {
       // ช่องแบบ autocomplete ของ DHL ต้องเลือกจากรายการที่เด้งขึ้นมา ไม่ใช่แค่พิมพ์
       await page.keyboard.press('ArrowDown').catch(() => {});
@@ -889,6 +901,24 @@ async function pickOptionByAnyText(select, candidates) {
     if (await selectedTextMatches(select, text.toLowerCase(), true)) return true;
   }
   return false;
+}
+
+/** อ่านค่าที่กรอกกลับมาเทียบ ถ้าไม่ตรงให้ล้างแล้วพิมพ์ใหม่ ไม่ตรงอีกถือว่าพัง */
+async function ensureNumber(locator, value, what) {
+  const wanted = Number(value);
+  const read = async () => Number((await locator.inputValue().catch(() => '')).replace(/[^\d.]/g, ''));
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if ((await read()) === wanted) return;
+    await locator.click().catch(() => {});
+    await locator.press('ControlOrMeta+a').catch(() => {});
+    await locator.press('Backspace').catch(() => {});
+    await locator.fill('').catch(() => {});
+    await locator.pressSequentially(String(value), { delay: 30 }).catch(() => {});
+  }
+  const got = await locator.inputValue().catch(() => '');
+  if ((await read()) !== wanted) {
+    throw new Error(`กรอก ${what} แล้วได้ "${got}" ไม่ใช่ ${value} — ช่องนี้มีค่าเดิมอยู่และเขียนทับไม่ลง`);
+  }
 }
 
 /** พิมพ์ทีละตัวอักษร ให้ฟอร์มที่ฟัง event ของคีย์บอร์ดจริง ๆ รับค่าไปด้วย */
