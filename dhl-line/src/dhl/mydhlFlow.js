@@ -201,13 +201,13 @@ class MyDhlFlow {
     };
 
     try {
-      await page.goto(this.cfg.url, { waitUntil: 'domcontentloaded' });
+      await goto(page, this.cfg.url);
       await click(page, SEL.cookieAccept, { optional: true, timeout: 5000 });
       await this.login(page);
       await context.storageState({ path: this.sessionFile });
       await shot('login');
 
-      await page.goto(`${shipUrl(this.cfg.url)}#/address-details`, { waitUntil: 'domcontentloaded' });
+      await goto(page, `${shipUrl(this.cfg.url)}#/address-details`);
       await this.fillShipper(page);
       await this.fillReceiver(page, plan.receiver);
       await shot('address-details');
@@ -829,6 +829,27 @@ async function pickOptionByAnyText(select, candidates) {
     if (await selectedTextMatches(select, text.toLowerCase(), true)) return true;
   }
   return false;
+}
+
+/**
+ * เว็บ DHL หนักและช้าเป็นพัก ๆ — เปิดครั้งเดียวไม่ติดไม่ได้แปลว่าพัง ให้ลองใหม่ก่อน
+ * รอบสุดท้ายรอแค่ตอบกลับมา (commit) แล้วค่อยรอ DOM ทีหลัง จะได้ไม่ตายเพราะ asset ตัวเดียว
+ */
+async function goto(page, url, tries = 3) {
+  let last = null;
+  for (let i = 0; i < tries; i += 1) {
+    const waitUntil = i === tries - 1 ? 'commit' : 'domcontentloaded';
+    try {
+      await page.goto(url, { waitUntil, timeout: 60_000 });
+      await page.waitForLoadState('domcontentloaded', { timeout: 30_000 }).catch(() => {});
+      return;
+    } catch (err) {
+      last = err;
+      console.warn(`[dhl] เปิด ${url} ไม่สำเร็จ (ครั้งที่ ${i + 1}/${tries}) — ลองใหม่`);
+      await page.waitForTimeout(3000);
+    }
+  }
+  throw new Error(`เปิดหน้า ${url} ไม่ได้: ${last?.message.split('\n')[0]}`);
 }
 
 /** อยู่ขั้นนี้อยู่หรือเปล่า — ใช้ตอนที่หน้าถัดไปมีได้หลายแบบ */
