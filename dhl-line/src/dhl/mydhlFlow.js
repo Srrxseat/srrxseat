@@ -208,10 +208,24 @@ class MyDhlFlow {
       await goto(page, this.cfg.url);
       await click(page, SEL.cookieAccept, { optional: true, timeout: 5000 });
       await this.login(page);
+      // หลังกดล็อกอิน DHL ต้องเด้งกลับมาที่ mydhl เพื่อแลก token ให้เสร็จก่อน
+      // ถ้ารีบ goto ไปหน้าอื่นตอนนี้ การแลกจะถูกตัดกลางคัน แล้วกลายเป็นทำชิปเมนต์แบบ guest
+      await page.waitForURL(/mydhl\.express\.dhl/, { timeout: 60_000 }).catch(() => {});
+      await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
       await context.storageState({ path: this.sessionFile });
       await shot('login');
 
-      await goto(page, `${shipUrl(this.cfg.url)}#/address-details`);
+      // ถ้าหลุดล็อกอินต้องรู้ตั้งแต่ตรงนี้ ไม่ใช่ไปรู้ตอนหน้าจ่ายเงินว่ามีแต่บัตรเครดิต
+      let loggedIn = false;
+      for (let attempt = 1; attempt <= 2 && !loggedIn; attempt += 1) {
+        await goto(page, `${shipUrl(this.cfg.url)}#/address-details`);
+        loggedIn = await isLoggedIn(page);
+        if (!loggedIn) await page.waitForTimeout(3000);
+      }
+      if (!loggedIn) {
+        throw new Error('เปิดหน้าทำชิปเมนต์แล้วหลุดล็อกอิน — ถ้าทำต่อจะได้เรทหน้าร้านแทนเรทของบัญชี'
+          + ' (ลองลบ data/dhl-web-session.json แล้วรันใหม่ด้วย DHL_WEB_HEADLESS=false)');
+      }
       await this.fillShipper(page);
       await this.fillReceiver(page, plan.receiver);
       await shot('address-details');
