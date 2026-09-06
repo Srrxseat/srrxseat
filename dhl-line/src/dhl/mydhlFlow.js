@@ -59,7 +59,8 @@ const SEL = {
   // เกาะ attribute ไม่ได้เลยสักตัว: DHL ตั้ง value ผ่าน JS (เป็น property) และตัว PACKAGE
   // ยังมี name="" ว่างอีกด้วย จึงกวาด radio ทั้งหน้าแล้วเทียบ el.value / ข้อความ label แทน
   shipmentTypeRadios: 'input[type="radio"]',
-  purposeSelect: 'select[id*="purpose"], select[id*="Purpose"], select[name*="purpose"]',
+  // ชื่อจริงคือ shippingPurpose — โผล่มาหลังติ๊ก "บรรจุภัณฑ์" เท่านั้น (ตัวเลือกมี Commercial อยู่)
+  purposeSelect: 'select[name="shippingPurpose"], select[id*="purpose"], select[name*="urpose"]',
   itemDetailsManual: 'button:has-text("กรุณาบอกรายละเอียดสินค้า"), button:has-text("Tell us the item details")',
   itemDescription: 'input[id*="itemDescription"], input[name*="itemDescription"], textarea[id*="itemDescription"], textarea[name*="description" i], input[name*="description" i]',
   itemHsCode: 'input[id*="commodityCode"], input[id*="hsCode"], input[name*="commodityCode"]',
@@ -181,12 +182,16 @@ class MyDhlFlow {
       await click(page, SEL.next);
       await expectStep(page, 'shipment-type');
 
-      await this.fillShipmentType(page, plan, shot);
+      let customsFilled = await this.fillShipmentType(page, plan, shot);
       await shot('shipment-type');
       await click(page, SEL.next);
       await expectStep(page, 'customs-declaration');
 
-      await this.fillCustomsInvoice(page, plan);
+      customsFilled = await this.fillCustomsInvoice(page, plan, customsFilled);
+      if (!customsFilled) {
+        throw new Error('ไม่พบช่องกรอกรายการสินค้า/ศุลกากรทั้งขั้น shipment-type และ customs-declaration'
+          + ' — ต้องแก้ selector ก่อน ไม่งั้นชิปเมนต์จะไม่มีข้อมูลศุลกากร');
+      }
       await shot('customs-declaration');
       await click(page, SEL.next);
       await expectStep(page, 'package-details');
@@ -299,13 +304,30 @@ class MyDhlFlow {
     await page.waitForTimeout(2000);
     await probe('shipment-type-package'); // เก็บ DOM หลังเลือกบรรจุภัณฑ์ ไว้ใช้แก้ selector
 
-    await fill(page, SEL.purposeSelect, plan.purpose, { optional: true, select: true });
+    // วัตถุประสงค์ต้องเลือกให้ได้จริง ไม่งั้น DHL จะไม่ยอมไปขั้นถัดไป
+    await fill(page, SEL.purposeSelect, plan.purpose, { select: true, what: 'วัตถุประสงค์การจัดส่ง' });
+    await page.waitForTimeout(1500);
+    await probe('shipment-type-purpose'); // เก็บ DOM อีกครั้ง เผื่อช่องสินค้าโผล่ตรงนี้
+
+    // ช่องรายการศุลกากรอาจอยู่หน้านี้หรือไปโผล่ขั้น customs-declaration แล้วแต่บัญชี/ปลายทาง
+    // จึงลองกรอกทั้งสองที่ แล้วค่อยตรวจตอนท้ายว่ากรอกไปแล้วจริงหรือยัง
+    return this.fillCustomsLines(page, plan);
+  }
+
+  /**
+   * กรอกรายการสินค้า/ศุลกากร + ค่าขนส่ง + ประกัน เท่าที่หน้าปัจจุบันมีช่องให้กรอก
+   * @returns {Promise<boolean>} true ถ้ากรอกช่อง "รายละเอียดสินค้า" ได้อย่างน้อยหนึ่งรายการ
+   */
+  async fillCustomsLines(page, plan) {
     await click(page, SEL.itemDetailsManual, { optional: true });
+    let filled = false;
 
     for (const [index, line] of plan.customsLines.entries()) {
       if (index > 0) await click(page, SEL.addItemLine, { optional: true });
       const nth = index;
-      await fill(page, SEL.itemDescription, line.description, { nth });
+      const ok = await fill(page, SEL.itemDescription, line.description, { nth, optional: true });
+      if (!ok) break; // หน้านี้ไม่มีช่องสินค้า ไปกรอกที่ขั้นถัดไปแทน
+      filled = true;
       await fill(page, SEL.itemHsCode, line.hsCode, { nth, optional: true });
       await fill(page, SEL.itemQuantity, String(line.quantity), { nth, optional: true });
       await fill(page, SEL.itemUnit, line.unit, { nth, optional: true, select: true });
@@ -313,6 +335,7 @@ class MyDhlFlow {
       await fill(page, SEL.itemWeight, String(line.netWeightKg), { nth, optional: true });
       await fill(page, SEL.itemManufacturerCountry, line.manufacturerCountry, { nth, optional: true, autocomplete: true });
     }
+    if (!filled) return false;
 
     // ค่าขนส่งที่เก็บลูกค้า ใส่เป็น "ค่าใช้จ่ายเพิ่ม" เพื่อให้มูลค่าชิปเมนต์รวมถูกต้อง
     if (plan.freightCharge?.amount) {
@@ -324,12 +347,15 @@ class MyDhlFlow {
       await setCheckbox(page, SEL.insuranceCheckbox, true, { optional: true });
       await fill(page, SEL.insuranceValue, String(plan.insurance.value), { optional: true });
     }
+    return true;
   }
 
-  async fillCustomsInvoice(page, plan) {
+  async fillCustomsInvoice(page, plan, alreadyFilled = false) {
     await click(page, SEL.createInvoice, { optional: true });
     await fill(page, SEL.invoiceNumber, plan.invoiceNumber, { optional: true });
     if (plan.tradeAgreement === false) await click(page, SEL.tradeAgreementNo, { optional: true });
+    // ถ้าหน้า shipment-type ไม่มีช่องสินค้า ให้กรอกที่นี่แทน
+    return alreadyFilled || this.fillCustomsLines(page, plan);
   }
 
   async fillPackage(page, pkg) {
@@ -589,27 +615,27 @@ async function setCheckbox(page, selector, checked, { optional = false, timeout 
   }
 }
 
+/** @returns {Promise<boolean>} กรอกสำเร็จหรือไม่ — ใช้ตัดสินใจว่าหน้านี้มีช่องนั้นจริงไหม */
 async function fill(page, selector, value, opts = {}) {
   const {
     optional = false, select = false, autocomplete = false, contains = false,
-    nth = 0, timeout = 30_000, label = null, labelNth = 0,
+    nth = 0, timeout = 30_000, label = null, labelNth = 0, what = null,
   } = opts;
+  const name = what || selector;
   if (value === undefined || value === null || value === '' || value === 'null') {
-    if (optional) return;
-    throw new Error(`ไม่มีค่าที่จะกรอกลง ${selector}`);
+    if (optional) return false;
+    throw new Error(`ไม่มีค่าที่จะกรอกลง ${name}`);
   }
-  const el = await resolveField(page, selector, { nth, label, labelNth, timeout });
+  const el = await resolveField(page, selector, { nth, label, labelNth, timeout: optional ? 8000 : timeout });
   if (!el) {
-    if (optional) return;
-    throw new Error(`หาช่องไม่เจอ: ${selector}${label ? ` (label "${label}")` : ''}`);
+    if (optional) return false;
+    throw new Error(`หาช่องไม่เจอ: ${name}${label ? ` (label "${label}")` : ''}`);
   }
   try {
     const tag = await el.evaluate((node) => node.tagName.toLowerCase());
-    if (tag === 'select' || select) {
-      if (tag === 'select') {
-        await selectOptionSmart(el, String(value), contains);
-        return;
-      }
+    if (tag === 'select') {
+      await selectOptionSmart(el, String(value), contains);
+      return true;
     }
     await el.fill(String(value));
     if (autocomplete) {
@@ -617,8 +643,10 @@ async function fill(page, selector, value, opts = {}) {
       await page.keyboard.press('ArrowDown').catch(() => {});
       await page.keyboard.press('Enter').catch(() => {});
     }
+    return true;
   } catch (err) {
-    if (!optional) throw new Error(`กรอกช่อง ${selector} ไม่ได้: ${err.message}`);
+    if (!optional) throw new Error(`กรอกช่อง ${name} ไม่ได้: ${err.message.split('\n')[0]}`);
+    return false;
   }
 }
 
