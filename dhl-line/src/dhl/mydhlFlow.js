@@ -166,6 +166,16 @@ class MyDhlFlow {
       storageState: fs.existsSync(this.sessionFile) ? this.sessionFile : undefined,
     });
     const page = await context.newPage();
+    // เก็บ error ของหน้าเว็บไว้ด้วย — ปุ่มที่ "กดแล้วเงียบ" มักมาจาก JS พังตอน handler ทำงาน
+    const consoleLogs = [];
+    const note = (line) => {
+      consoleLogs.push(line.slice(0, 300));
+      if (consoleLogs.length > 40) consoleLogs.shift();
+    };
+    page.on('pageerror', (err) => note(`[pageerror] ${err.message}`));
+    page.on('console', (msg) => {
+      if (msg.type() === 'error' || msg.type() === 'warning') note(`[${msg.type()}] ${msg.text()}`);
+    });
     const steps = [];
     let stepNo = 0;
     // ทุกขั้นเก็บทั้งภาพหน้าจอและรายการช่องกรอก เพื่อแก้ selector ได้จากการรันซ้อมรอบเดียว
@@ -173,7 +183,7 @@ class MyDhlFlow {
       stepNo += 1;
       const prefix = path.join(stepDir, `${String(stepNo).padStart(2, '0')}-${name}`);
       await page.screenshot({ path: `${prefix}.png`, fullPage: true }).catch(() => {});
-      await dumpFields(page, `${prefix}.json`, { quiet: true, error });
+      await dumpFields(page, `${prefix}.json`, { quiet: true, error, consoleLogs });
       steps.push(`${prefix}.png`);
     };
 
@@ -194,7 +204,7 @@ class MyDhlFlow {
       let customsFilled = await this.fillShipmentType(page, plan, shot);
       await shot('shipment-type');
       await dismissModal(page);
-      await click(page, SEL.next, { what: 'ปุ่มถัดไป (หน้าสินค้า)' });
+      await clickNext(page, 'customs-declaration');
       await expectStep(page, 'customs-declaration');
 
       customsFilled = await this.fillCustomsInvoice(page, plan, customsFilled);
@@ -240,7 +250,7 @@ class MyDhlFlow {
     } catch (err) {
       if (!(err instanceof DryRunStop)) {
         await shot('error', err.message);
-        await dumpFields(page, path.join(stepDir, 'fields-on-error.json'), { error: err.message });
+        await dumpFields(page, path.join(stepDir, 'fields-on-error.json'), { error: err.message, consoleLogs });
       }
       err.message = `${err.message} (ภาพหน้าจอทุกขั้น: ${stepDir})`;
       throw err;
@@ -774,6 +784,37 @@ async function selectedTextMatches(select, wantedLower, contains) {
   return text === wantedLower || (contains && text.includes(wantedLower));
 }
 
+/**
+ * กด "ถัดไป" แล้วรอให้ hash เปลี่ยนจริง ถ้าไม่เปลี่ยนค่อยเปลี่ยนวิธีกด
+ * หน้านี้มีแถบ header ของ DHL ลอยติดขอบบน ทำให้ปุ่มที่เลื่อนไปชิดขอบถูกบังจนคลิกไม่โดน
+ */
+async function clickNext(page, expectedStep) {
+  const button = page.locator(SEL.next).filter({ visible: true }).last();
+  const strategies = [
+    async () => {
+      await button.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await page.waitForTimeout(400);
+      await button.click({ timeout: 8000 });
+    },
+    async () => { await button.focus(); await page.keyboard.press('Enter'); },
+    async () => { await button.evaluate((el) => el.click()); },
+    async () => { await button.click({ force: true, timeout: 8000 }); },
+  ];
+
+  for (const [index, attempt] of strategies.entries()) {
+    const before = await page.evaluate(() => location.hash);
+    await attempt().catch((err) => console.warn(`[dhl] กดถัดไปวิธีที่ ${index + 1} ไม่ผ่าน: ${err.message.split('\n')[0]}`));
+    const moved = await page.waitForFunction(
+      ([step, prev]) => location.hash.includes(step) || location.hash !== prev,
+      [expectedStep, before],
+      { timeout: 8000, polling: 300 },
+    ).then(() => true).catch(() => false);
+    if (moved) return;
+  }
+  // ไม่ throw ที่นี่ — ปล่อยให้ expectStep เป็นคนรายงาน พร้อมข้อความบนหน้าและ DOM ที่เก็บไว้
+  console.warn('[dhl] กดปุ่มถัดไปครบทุกวิธีแล้วหน้ายังไม่เปลี่ยน');
+}
+
 /** ปิด modal ที่เปิดค้าง (เช่น ตัวช่วยเขียนรายละเอียดสินค้า) ไม่ให้บังช่องอื่นบนหน้า */
 async function dismissModal(page) {
   if (!(await page.locator(SEL.itemDetailsModal).first().isVisible().catch(() => false))
@@ -785,7 +826,7 @@ async function dismissModal(page) {
 }
 
 /** เก็บรายการช่องกรอกของหน้าปัจจุบันไว้ตอนล้มเหลว เพื่อแก้ selector ได้โดยไม่ต้องรันซ้ำ */
-async function dumpFields(page, file, { quiet = false, error = null } = {}) {
+async function dumpFields(page, file, { quiet = false, error = null, consoleLogs = null } = {}) {
   try {
     const data = await page.evaluate(() => ({
       url: location.href,
@@ -829,7 +870,8 @@ async function dumpFields(page, file, { quiet = false, error = null } = {}) {
       pageText: document.body.innerText.replace(/\n{2,}/g, '\n').trim().slice(0, 4000),
     }));
     // ใส่ข้อความ error ลงไฟล์ด้วย จะได้ดูไฟล์เดียวจบ ไม่ต้องไล่หาใน terminal
-    fs.writeFileSync(file, JSON.stringify(error ? { error, ...data } : data, null, 2));
+    const payload = { ...(error ? { error } : {}), ...(consoleLogs?.length ? { consoleLogs } : {}), ...data };
+    fs.writeFileSync(file, JSON.stringify(payload, null, 2));
     if (!quiet) console.warn(`[dhl] เก็บรายการช่องของหน้าที่ค้างไว้ที่ ${file} — ส่งไฟล์นี้มาแก้ selector ได้เลย`);
   } catch {
     // ไม่ต้องทำอะไร ถ้าหน้าปิดไปแล้ว
