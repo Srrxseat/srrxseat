@@ -55,6 +55,8 @@ const config = {
       dryRun: bool(process.env.DHL_DRY_RUN, false),
       // ต้องจ่ายผ่านเลขบัญชี DHL ไม่ใช่บัตรเครดิต ไม่งั้นจะได้เรทหน้าร้านแทนเรทของบัญชี
       paymentAccount: process.env.DHL_PAYMENT_ACCOUNT || '',
+      // เวลาที่ของพร้อมให้คูเรียร์มารับ (ต้นช่วงของสไลเดอร์บนหน้านัดรับ)
+      pickupReadyTime: process.env.DHL_PICKUP_READY_TIME || '17:00',
     },
   },
 

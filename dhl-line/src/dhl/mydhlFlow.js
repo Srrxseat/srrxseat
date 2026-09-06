@@ -124,10 +124,13 @@ const SEL = {
   directSignature: 'input[type="checkbox"][id*="directSignature"], label:has-text("Direct Signature") input[type="checkbox"]',
 
   // ---- 8. นัดรับ + พิมพ์ ----
-  pickupYes: 'button:has-text("ใช่ แจ้งรับงาน"), button:has-text("Yes, schedule"), div[role="button"]:has-text("ใช่ แจ้งรับงาน")',
-  pickupNo: 'button:has-text("ไม่"), button:has-text("No")',
-  pickupLocation: 'select[id*="pickupLocation"], select[name*="pickupLocation"], input[id*="pickupLocation"]',
-  pickupWeight: 'input[id*="pickupWeight"], input[name*="pickupWeight"]',
+  // ตัวเลือกนัดรับเป็น radio ชื่อ needsPickup (pickup | dropoff | dropoffAtServicePoint)
+  pickupRadios: 'input[type="radio"][name="needsPickup"]',
+  pickupLocation: 'select[name="pickupLocation"], select[id*="pickupLocation"]',
+  pickupWeight: 'input[name="pickupTotalWeight"], input[id*="pickupWeight"]',
+  // สไลเดอร์ช่วงเวลาเข้ารับเก็บค่าเป็น "นาทีจากเที่ยงคืน" ในช่องซ่อนก่อนหน้า select ที่รับสินค้า
+  // เช่น "990;1080" = 16:30 ถึง 18:00 — ช่องนี้ไม่มีทั้ง name และ id จึงอ้างตำแหน่งจาก select
+  pickupWindowXpath: 'xpath=//select[@name="pickupLocation"]/preceding::input[1]',
   acceptAndPrint: 'button:has-text("ยอมรับและดำเนินการต่อ"), button:has-text("Accept and Continue"), button:has-text("ยืนยันและพิมพ์")',
   downloadDocuments: 'a:has-text("ดาวน์โหลดเอกสาร"), button:has-text("ดาวน์โหลดเอกสาร"), button:has-text("Download documents")',
   reprintDocuments: 'button:has-text("พิมพ์เอกสารอีกครั้ง"), a:has-text("พิมพ์เอกสารอีกครั้ง")',
@@ -609,19 +612,67 @@ class MyDhlFlow {
   }
 
   async fillPickup(page, pickup = {}) {
-    if (pickup.requested) {
-      await click(page, SEL.pickupYes, { optional: true });
-      await fill(page, SEL.pickupLocation, pickup.location || 'Loading Dock', { optional: true, select: true });
-      await fill(page, SEL.pickupWeight, String(pickup.weightKg), { optional: true });
-    } else {
-      await click(page, SEL.pickupNo, { optional: true });
+    if (!pickup.requested) {
+      await chooseRadioByValue(page, SEL.pickupRadios, 'dropoff', 'ไม่', 'การนัดรับ');
+      return;
     }
+
+    await chooseRadioByValue(page, SEL.pickupRadios, 'pickup', 'ใช่ แจ้งรับงาน', 'การนัดรับ');
+    await fill(page, SEL.pickupLocation, pickup.location || 'Loading Dock', { select: true, what: 'จุดที่ให้เข้ารับ' });
+    await fill(page, SEL.pickupWeight, String(pickup.weightKg), { what: 'น้ำหนักรวมการนัดรับ' });
+    await this.setPickupWindow(page);
   }
 
   /**
-   * กดยืนยันจนถึงหน้า complete แล้วเอาไฟล์เอกสาร (label + invoice) ออกมาเป็น PDF
-   * ใช้ปุ่มดาวน์โหลดของ DHL ก่อน ถ้าไม่มีค่อย print หน้าเป็น PDF เอง
+   * เลื่อนต้นช่วงเวลาเข้ารับให้เป็นเวลาที่ตั้งไว้ (DHL_PICKUP_READY_TIME)
+   * ปลายช่วงคงค่าที่ DHL ให้มา เพราะเป็นเวลาปิดรับของสาขา
    */
+  async setPickupWindow(page) {
+    const ready = minutesFromClock(this.cfg.pickupReadyTime);
+    if (ready === null) return;
+
+    const slider = page.locator(SEL.pickupWindowXpath).first();
+    if (!(await waitVisible(slider, 8000))) {
+      this.warnings?.push('ไม่เจอสไลเดอร์ช่วงเวลาเข้ารับ — ใช้ช่วงเวลาที่ DHL ตั้งมาให้');
+      return;
+    }
+
+    const current = await slider.inputValue().catch(() => '');
+    const [from, to] = current.split(';').map((part) => Number(part.trim()));
+    if (!Number.isFinite(to)) {
+      this.warnings?.push(`อ่านช่วงเวลาเข้ารับไม่ออก ("${current}") — ใช้ค่าที่ DHL ตั้งมาให้`);
+      return;
+    }
+    // เวลาที่ขอต้องอยู่ในช่วงที่สาขารับได้ ไม่งั้นปล่อยตามเดิม
+    if (ready >= to) {
+      this.warnings?.push(`เวลา ${this.cfg.pickupReadyTime} เลยเวลาปิดรับของสาขา (${clockFromMinutes(to)})`
+        + ' — ใช้ช่วงเวลาที่ DHL ตั้งมาให้');
+      return;
+    }
+    if (from === ready) return;
+
+    // ค่านี้ผูกกับสไลเดอร์ของ Angular ตั้งค่าเปล่า ๆ ไม่พอ ต้องยิง event ให้มันรู้ตัวด้วย
+    await slider.evaluate((el, value) => {
+      el.value = value;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      if (window.angular) {
+        const wrapped = window.angular.element(el);
+        wrapped.triggerHandler('input');
+        wrapped.triggerHandler('change');
+        wrapped.scope?.()?.$applyAsync?.();
+      }
+    }, `${ready};${to}`);
+    await page.waitForTimeout(800);
+
+    const after = await slider.inputValue().catch(() => '');
+    if (Number(after.split(';')[0]) !== ready) {
+      this.warnings?.push(`ตั้งเวลาพร้อมเข้ารับเป็น ${this.cfg.pickupReadyTime} ไม่ได้ (ค่าบนหน้าคือ "${after}")`);
+    } else {
+      console.log(`[dhl] ช่วงเวลาเข้ารับ: ${clockFromMinutes(ready)} - ${clockFromMinutes(to)}`);
+    }
+  }
+
   async acceptAndCollectLabel(page, stepDir, jobId) {
     const downloadPromise = page.waitForEvent('download', { timeout: 120_000 }).catch(() => null);
     await click(page, SEL.acceptAndPrint);
@@ -1021,6 +1072,18 @@ async function goto(page, url, tries = 3) {
     }
   }
   throw new Error(`เปิดหน้า ${url} ไม่ได้: ${last?.message.split('\n')[0]}`);
+}
+
+/** "17:00" -> 1020 (นาทีจากเที่ยงคืน ซึ่งเป็นหน่วยที่สไลเดอร์ของ DHL ใช้) */
+function minutesFromClock(clock) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(String(clock || '').trim());
+  if (!match) return null;
+  const [, hh, mm] = match;
+  return Number(hh) * 60 + Number(mm);
+}
+
+function clockFromMinutes(minutes) {
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 }
 
 /** ชื่อขั้นที่อยู่ตอนนี้ — URL จริงเป็นรูป shipment.html#/#<ขั้น> */
