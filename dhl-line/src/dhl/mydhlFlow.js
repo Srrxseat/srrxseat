@@ -309,8 +309,10 @@ class MyDhlFlow {
         throw new Error('เปิดฟอร์มล็อกอิน MyDHL+ ไม่ได้ — ดูภาพหน้าจอขั้น login');
       }
       const pass = page.locator(SEL.loginPass).filter({ visible: true }).first();
-      await user.fill(this.cfg.username);
-      await pass.fill(this.cfg.password);
+      // ฟอร์มนี้เป็น React — ยัดค่าเข้า DOM ตรง ๆ บางทีตัว state ไม่รับรู้ แล้วกดส่งไปแบบว่าง ๆ
+      // เคาะทีละตัวเหมือนคนพิมพ์จะปลอดภัยกว่า (ช้าขึ้นไม่กี่วินาที แต่ไม่พลาด)
+      await typeLikeHuman(user, this.cfg.username);
+      await typeLikeHuman(pass, this.cfg.password);
       await page.waitForTimeout(1000);
       const typed = (await user.inputValue().catch(() => '')).trim();
       if (typed !== this.cfg.username.trim()) {
@@ -866,6 +868,13 @@ async function pickOptionByAnyText(select, candidates) {
     if (await selectedTextMatches(select, text.toLowerCase(), true)) return true;
   }
   return false;
+}
+
+/** พิมพ์ทีละตัวอักษร ให้ฟอร์มที่ฟัง event ของคีย์บอร์ดจริง ๆ รับค่าไปด้วย */
+async function typeLikeHuman(locator, value) {
+  await locator.click({ timeout: 10_000 }).catch(() => {});
+  await locator.fill('').catch(() => {});
+  await locator.pressSequentially(String(value), { delay: 40 });
 }
 
 /** ล็อกอินอยู่ไหม — ดูจากปุ่มออกจากระบบ ถ้าไม่มีก็ดูว่ายังมีลิงก์ "ล็อกอิน" ค้างอยู่หรือเปล่า */
