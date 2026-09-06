@@ -1,13 +1,14 @@
 /**
- * กรอกฟอร์ม MyDHL+ ให้ครบทั้ง 7 ขั้น ตาม flow ที่ทำมืออยู่ทุกวัน
+ * กรอกฟอร์ม MyDHL+ ให้ครบทุกขั้น ตาม flow ที่ทำมืออยู่ทุกวัน
  *
  *   1. #/address-details      ผู้ส่ง (ค่าเดิมในบัญชี) + ผู้รับจาก LINE
  *   2. #/shipment-type        บรรจุภัณฑ์ + Commercial + รายการศุลกากร + ค่าขนส่ง + ประกัน
  *   3. #/customs-declaration  สร้าง invoice + เลขรันของวัน (2569-09-04-01)
  *   4. #/package-details      เลือกบรรจุภัณฑ์ที่บันทึกไว้ + น้ำหนัก + ขนาดกล่อง
- *   5. #/shipment-products    วันส่ง + บริการ (EXPRESS WORLDWIDE)
- *   6. #/optional-services    GoGreen Plus + Direct Signature
- *   7. #/pickup -> #/print -> #/complete   นัดรับ + พิมพ์ + เก็บเลข Tracking
+ *   5. #/payment-details      วิธีจ่ายเงิน + customs terms of trade (incoterm)
+ *   6. #/shipment-products    วันส่ง + บริการ (EXPRESS WORLDWIDE)
+ *   7. #/optional-services    GoGreen Plus + Direct Signature
+ *   8. #/pickup -> #/print -> #/complete   นัดรับ + พิมพ์ + เก็บเลข Tracking
  *
  * UI ของ DHL เปลี่ยนได้ตลอด — selector ทั้งหมดรวมไว้ที่ SEL ด้านล่างที่เดียว
  * ทุกขั้นจะเซฟภาพหน้าจอไว้ที่ data/steps/<jobId>/<ลำดับ>-<ขั้น>.png ให้ตรวจย้อนหลังได้
@@ -98,15 +99,19 @@ const SEL = {
   packageWidth: 'input[name="width"]',
   packageHeight: 'input[name="height"]',
 
-  // ---- 5. บริการ ----
+  // ---- 5. การจ่ายเงิน (มาก่อนหน้าเลือกบริการ — DHL ต้องรู้ก่อนถึงจะคิดราคาให้) ----
+  paymentMethod: 'select[name="paymentMethod"]',
+  incoterm: 'select[name="incoterm"], select#incoterm',
+
+  // ---- 6. บริการ ----
   productCard: '[data-testid*="product"], .product-card, [class*="productOption"]',
   productSelectButton: 'button:has-text("เลือก"), button:has-text("Select")',
 
-  // ---- 6. บริการเสริม ----
+  // ---- 7. บริการเสริม ----
   goGreenPlus: 'input[type="checkbox"][id*="goGreen"], label:has-text("GoGreen Plus") input[type="checkbox"]',
   directSignature: 'input[type="checkbox"][id*="directSignature"], label:has-text("Direct Signature") input[type="checkbox"]',
 
-  // ---- 7. นัดรับ + พิมพ์ ----
+  // ---- 8. นัดรับ + พิมพ์ ----
   pickupYes: 'button:has-text("ใช่ แจ้งรับงาน"), button:has-text("Yes, schedule"), div[role="button"]:has-text("ใช่ แจ้งรับงาน")',
   pickupNo: 'button:has-text("ไม่"), button:has-text("No")',
   pickupLocation: 'select[id*="pickupLocation"], select[name*="pickupLocation"], input[id*="pickupLocation"]',
@@ -221,7 +226,13 @@ class MyDhlFlow {
 
       await this.fillPackage(page, plan.package);
       await shot('package-details');
-      await clickNext(page, 'shipment-products');
+      await clickNext(page, 'payment-details');
+      // ชิปเมนต์ที่ไม่ต้องผ่านศุลกากรอาจข้ามหน้าจ่ายเงินไปหน้าบริการเลย จึงต้องดูว่าอยู่หน้าไหน
+      if (await onStep(page, 'payment-details')) {
+        await this.fillPaymentDetails(page, plan, warnings);
+        await shot('payment-details');
+        await clickNext(page, 'shipment-products');
+      }
       await expectStep(page, 'shipment-products');
 
       await this.pickService(page, plan.service);
@@ -404,6 +415,28 @@ class MyDhlFlow {
     if (plan.tradeAgreement === false) await click(page, SEL.tradeAgreementNo, { optional: true });
     // ถ้าหน้า shipment-type ไม่มีช่องสินค้า ให้กรอกที่นี่แทน
     return alreadyFilled || this.fillCustomsLines(page, plan);
+  }
+
+  /**
+   * หน้า "คุณต้องการชำระอย่างไร?" — วิธีจ่ายเงินกับ customs terms of trade (incoterm)
+   * ปกติ DHL เติมค่าจากบัญชีมาให้แล้ว แต่ต้องยืนยันเองเพราะถ้าพลาดจะไปหน้าคิดราคาไม่ได้
+   */
+  async fillPaymentDetails(page, plan, warnings = []) {
+    const method = page.locator(SEL.paymentMethod).filter({ visible: true }).first();
+    if (await waitVisible(method, 20_000)) {
+      const picked = await pickOptionByAnyText(method, ['เครดิตการ์ด', 'credit card']);
+      if (!picked) throw new Error('เลือกวิธีการจ่ายเงิน (เครดิตการ์ด) ไม่ได้ — ดูตัวเลือกในไฟล์ dump');
+    } else {
+      warnings.push('ไม่เจอช่องวิธีการจ่ายเงิน — DHL อาจใช้ค่าที่ผูกไว้กับบัญชีอยู่แล้ว');
+    }
+
+    const incoterm = page.locator(SEL.incoterm).filter({ visible: true }).first();
+    if (await waitVisible(incoterm, 10_000)) {
+      // ตัวเลือกเขียนว่า "DAP - Delivered at Place" จึงเทียบแบบมีคำนี้อยู่ข้างใน
+      await fillLocator(incoterm, plan.incoterm, { what: 'customs terms of trade', contains: true });
+    } else if (plan.incoterm) {
+      warnings.push(`ไม่เจอช่อง customs terms of trade — ${plan.incoterm} อาจไม่ได้ถูกตั้ง`);
+    }
   }
 
   async fillPackage(page, pkg) {
@@ -753,6 +786,25 @@ async function resolveField(page, selector, { nth = 0, label = null, labelNth = 
  * เลือกตัวเลือกใน <select> โดยเทียบข้อความ แล้ว "ตรวจซ้ำ" ว่าค่าเปลี่ยนจริง
  * บางหน้าของ DHL ผูกกับ JS framework ที่ไม่ยอมรับค่าจนกว่าจะมี event change — จึงมีทางสำรองไว้
  */
+/** ป้ายกำกับตัวเลือกเปลี่ยนตามภาษาของหน้า จึงลองทีละคำจนกว่าจะเลือกติด */
+async function pickOptionByAnyText(select, candidates) {
+  for (const text of candidates) {
+    await selectOptionSmart(select, text, true).catch(() => {});
+    if (await selectedTextMatches(select, text.toLowerCase(), true)) return true;
+  }
+  return false;
+}
+
+/** อยู่ขั้นนี้อยู่หรือเปล่า — ใช้ตอนที่หน้าถัดไปมีได้หลายแบบ */
+async function onStep(page, step, timeout = 8000) {
+  try {
+    await page.waitForFunction((name) => location.hash.includes(name), step, { timeout, polling: 300 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function selectOptionSmart(select, value, contains) {
   const options = await select.locator('option').all();
   const wanted = value.toLowerCase();
