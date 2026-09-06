@@ -159,7 +159,9 @@ function buildShipmentPlan(parsed, opts = {}) {
         width: parsed.box?.width || null,
         height: parsed.box?.height || null,
       },
-      service: { preferred: 'EXPRESS WORLDWIDE', shipDate: 'today' },
+      // เลือกบริการที่ราคาถูกที่สุดในหน้าเสมอ ชื่อบริการเก็บไว้เป็นตัวสำรอง
+      // กรณีอ่านราคาบนหน้าไม่ได้เท่านั้น
+      service: { policy: 'cheapest', fallback: 'EXPRESS WORLDWIDE', shipDate: 'today' },
       optionalServices: { goGreenPlus: true, directSignature: true },
       pickup: { requested: true, location: 'Loading Dock', weightKg: grossWeightKg },
       source: {

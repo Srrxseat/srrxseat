@@ -50,7 +50,8 @@ test('plan ตรงกับที่กรอกมือในวิดีโ
   assert.equal(plan.tradeAgreement, false);
   assert.deepEqual(plan.optionalServices, { goGreenPlus: true, directSignature: true });
   assert.deepEqual(plan.pickup, { requested: true, location: 'Loading Dock', weightKg: 2 });
-  assert.equal(plan.service.preferred, 'EXPRESS WORLDWIDE');
+  assert.equal(plan.service.policy, 'cheapest');
+  assert.equal(plan.service.fallback, 'EXPRESS WORLDWIDE');
 });
 
 test('HS code เลือกตามหมวดสินค้าเมื่อ LINE ไม่ระบุ', () => {

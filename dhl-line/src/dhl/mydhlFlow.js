@@ -6,7 +6,7 @@
  *   3. #/customs-declaration  สร้าง invoice + เลขรันของวัน (2569-09-04-01)
  *   4. #/package-details      เลือกบรรจุภัณฑ์ที่บันทึกไว้ + น้ำหนัก + ขนาดกล่อง
  *   5. #/payment-details      วิธีจ่ายเงิน + customs terms of trade (incoterm)
- *   6. #/shipment-products    วันส่ง + บริการ (EXPRESS WORLDWIDE)
+ *   6. #/shipment-products    วันส่ง + บริการ (เลือกราคาถูกที่สุด)
  *   7. #/optional-services    GoGreen Plus + Direct Signature
  *   8. #/pickup -> #/print -> #/complete   นัดรับ + พิมพ์ + เก็บเลข Tracking
  *
@@ -540,25 +540,46 @@ class MyDhlFlow {
     await fill(page, SEL.packageHeight, String(pkg.height), { what: 'ความสูงกล่อง' });
   }
 
-  /** เลือกบริการที่ต้องการ (ดีฟอลต์ EXPRESS WORLDWIDE) วันส่ง = วันแรกที่เลือกไว้ให้แล้ว */
+  /**
+   * เลือกบริการที่ "ค่าใช้จ่ายโดยประมาณ" ต่ำที่สุดในตาราง
+   * (ห้ามใช้ has-text("เลือก") ลอย ๆ — มันไปโดนปุ่ม "ยืนยันที่เลือก" ของแบนเนอร์คุกกี้ที่ซ่อนอยู่)
+   */
   async pickService(page, service) {
-    const preferred = service?.preferred || 'EXPRESS WORLDWIDE';
-    // ห้ามใช้ has-text("เลือก") ลอย ๆ — มันไปโดนปุ่ม "ยืนยันที่เลือก" ของแบนเนอร์คุกกี้ที่ซ่อนอยู่
-    // ปุ่มจริงอยู่ท้ายแถวของบริการนั้น จึงไล่จากข้อความชื่อบริการลงไปหาปุ่มตัวถัดไป
-    const inRow = page.locator(
-      `xpath=//*[contains(text(), "${preferred}")]/following::button[normalize-space()="เลือก"][1]`,
-    ).filter({ visible: true }).first();
-    if (await waitVisible(inRow, 20_000)) {
-      await inRow.scrollIntoViewIfNeeded().catch(() => {});
-      await inRow.click({ timeout: 10_000 });
-      return;
+    const buttons = page.locator(SEL.productSelectButton).filter({ visible: true });
+    if (!(await waitVisible(buttons.first(), 30_000))) {
+      throw new Error('ไม่พบปุ่มเลือกบริการในขั้น shipment-products — ดูภาพหน้าจอขั้นนี้');
     }
 
-    // ไม่เจอชื่อบริการที่ต้องการ -> เลือกใบที่ถูกที่สุด (รายการล่างสุดของตาราง)
-    const buttons = page.locator(SEL.productSelectButton).filter({ visible: true });
     const count = await buttons.count();
-    if (!count) throw new Error(`ไม่พบบริการ "${preferred}" และไม่พบปุ่มเลือกบริการอื่นในขั้น shipment-products`);
-    await buttons.nth(count - 1).click({ timeout: 10_000 });
+    const rows = [];
+    for (let i = 0; i < count; i += 1) {
+      // ไล่ขึ้นไปหา element ที่ครอบทั้งแถว (ตัวที่มีทั้งชื่อบริการและราคา) แล้วอ่านข้อความมาแกะราคา
+      const text = await buttons.nth(i).evaluate((el) => {
+        let node = el;
+        for (let up = 0; up < 8 && node.parentElement; up += 1) {
+          node = node.parentElement;
+          if (/\d[\d,]*\.\d{2}/.test(node.innerText || '')) break;
+        }
+        return (node.innerText || '').replace(/\s+/g, ' ').trim();
+      }).catch(() => '');
+      rows.push({ index: i, text, price: priceInText(text) });
+    }
+
+    const priced = rows.filter((row) => row.price !== null);
+    let target;
+    if (priced.length) {
+      target = priced.reduce((cheapest, row) => (row.price < cheapest.price ? row : cheapest));
+      console.log(`[dhl] เลือกบริการที่ถูกที่สุด: ${target.price.toLocaleString()} — ${target.text.slice(0, 120)}`);
+    } else {
+      // อ่านราคาไม่ได้เลย -> ใช้ชื่อบริการสำรอง ถ้าไม่เจอก็เอาแถวล่างสุด
+      const fallback = service?.fallback || service?.preferred;
+      target = (fallback && rows.find((row) => row.text.includes(fallback))) || rows[rows.length - 1];
+      console.warn(`[dhl] อ่านราคาบนหน้าไม่ได้ — เลือก ${fallback || 'แถวล่างสุด'} แทน`);
+    }
+
+    const button = buttons.nth(target.index);
+    await button.scrollIntoViewIfNeeded().catch(() => {});
+    await button.click({ timeout: 10_000 });
   }
 
   async pickOptionalServices(page, services = {}) {
@@ -929,6 +950,14 @@ async function ensureNumber(locator, value, what) {
     throw new Error(`กรอก ${what} แล้วได้ "${got}" ไม่ใช่ ${wanted}`
       + ' — ช่องนี้มีค่าเดิมของบัญชีอยู่และเขียนทับไม่ลง');
   }
+}
+
+/** ราคาต่ำสุดที่อยู่ในข้อความแถวหนึ่ง — ราคา DHL เขียนทศนิยม 2 ตำแหน่งเสมอ (THB 1,234.56) */
+function priceInText(text) {
+  const numbers = (text.match(/\d[\d,]*\.\d{2}/g) || [])
+    .map((raw) => Number(raw.replace(/,/g, '')))
+    .filter((n) => Number.isFinite(n));
+  return numbers.length ? Math.min(...numbers) : null;
 }
 
 /** พิมพ์ทีละตัวอักษร ให้ฟอร์มที่ฟัง event ของคีย์บอร์ดจริง ๆ รับค่าไปด้วย */
