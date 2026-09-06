@@ -62,7 +62,10 @@ const SEL = {
   // ชื่อจริงคือ shippingPurpose — โผล่มาหลังติ๊ก "บรรจุภัณฑ์" เท่านั้น (ตัวเลือกมี Commercial อยู่)
   purposeSelect: 'select[name="shippingPurpose"], select[id*="purpose"], select[name*="urpose"]',
   // ---- ชื่อช่องจริงของแถวสินค้า (แถวที่ n ใช้ nth เดียวกันทุกช่อง; id ของช่องแรกคือ itemDescription0) ----
-  itemDetailsManual: 'button:has-text("สร้างรายละเอียดสินค้า"), button:has-text("กรุณาบอกรายละเอียดสินค้า")',
+  // ปุ่ม "สร้างรายละเอียดสินค้า" เปิด modal ช่วยแต่งคำบรรยาย — เรามีคำบรรยายจาก config อยู่แล้ว
+  // ห้ามกด เพราะ modal จะบังปุ่ม/ช่องอื่นทั้งหน้า (เคยทำให้ติ๊กประกันไม่ได้)
+  itemDetailsModal: 'button:has-text("ใช้รายละเอียดสินค้านี้")',
+  modalCancel: 'button:has-text("ยกเลิก"), button:has-text("Cancel")',
   itemDescription: 'input[name="description"]',
   itemHsCode: 'input[name="commodityCode"]',
   itemQuantity: 'input[name="quantity"]',
@@ -324,7 +327,6 @@ class MyDhlFlow {
    * @returns {Promise<boolean>} true ถ้ากรอกช่อง "รายละเอียดสินค้า" ได้อย่างน้อยหนึ่งรายการ
    */
   async fillCustomsLines(page, plan, probe = async () => {}) {
-    await click(page, SEL.itemDetailsManual, { optional: true });
     let filled = false;
 
     for (const [index, line] of plan.customsLines.entries()) {
@@ -357,10 +359,12 @@ class MyDhlFlow {
       if (!typed || !amount) {
         console.warn(`[dhl] ยังใส่ค่าขนส่ง ${plan.freightCharge.amount} ${plan.freightCharge.currency} ไม่ได้`
           + ' — มูลค่าชิปเมนต์รวมจะขาดส่วนนี้ ต้องแก้ selector ของ "ค่าใช้จ่ายอื่นๆ/เพิ่มค่าใช้จ่าย"');
+        await dismissModal(page); // ปิดแผงที่เปิดค้าง ไม่ให้บังช่องถัดไป
       }
     }
 
     if (plan.insurance?.enabled) {
+      await dismissModal(page);
       await setCheckbox(page, SEL.insuranceCheckbox, true, { what: 'ติ๊กเพิ่มการป้องกันชิปเมนต์' });
       await page.waitForTimeout(800);
       await fill(page, SEL.insuranceValue, String(plan.insurance.value), { what: 'มูลค่าที่เอาประกัน' });
@@ -719,7 +723,7 @@ async function selectOptionSmart(select, value, contains) {
   if (target) await select.selectOption({ label: target }).catch(() => {});
   else await select.selectOption(value).catch(() => {});
 
-  if (await selectHasValue(select)) return;
+  if (await selectedTextMatches(select, wanted, contains)) return;
 
   // ทางสำรอง: ตั้งค่าเองแล้วยิง event ให้หน้าเว็บรู้ตัว
   await select.evaluate((el, wantedText) => {
@@ -730,13 +734,32 @@ async function selectOptionSmart(select, value, contains) {
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }, wanted).catch(() => {});
 
-  if (!(await selectHasValue(select))) {
+  if (!(await selectedTextMatches(select, wanted, contains))) {
     throw new Error(`เลือก "${value}" ไม่สำเร็จ — ตัวเลือกที่มีคือ: ${texts.join(' | ')}`);
   }
 }
 
-async function selectHasValue(select) {
-  return select.evaluate((el) => Boolean(el.value) && el.selectedIndex > 0).catch(() => false);
+/**
+ * ตรวจจาก "ข้อความ" ของตัวเลือกที่ถูกเลือก ไม่ใช่ค่า value
+ * เพราะ DHL แจก value ใหม่ทุกครั้งที่ render (รอบหนึ่ง Boxes เป็น "8" อีกรอบเป็น "0")
+ */
+async function selectedTextMatches(select, wantedLower, contains) {
+  const text = await select.evaluate((el) => {
+    const option = el.options[el.selectedIndex];
+    return option ? option.text.trim().toLowerCase() : '';
+  }).catch(() => '');
+  if (!text) return false;
+  return text === wantedLower || (contains && text.includes(wantedLower));
+}
+
+/** ปิด modal ที่เปิดค้าง (เช่น ตัวช่วยเขียนรายละเอียดสินค้า) ไม่ให้บังช่องอื่นบนหน้า */
+async function dismissModal(page) {
+  if (!(await page.locator(SEL.itemDetailsModal).first().isVisible().catch(() => false))
+    && !(await page.locator(SEL.modalCancel).first().isVisible().catch(() => false))) return;
+  await page.keyboard.press('Escape').catch(() => {});
+  await page.waitForTimeout(500);
+  await click(page, SEL.modalCancel, { optional: true, timeout: 3000 });
+  await page.waitForTimeout(500);
 }
 
 /** เก็บรายการช่องกรอกของหน้าปัจจุบันไว้ตอนล้มเหลว เพื่อแก้ selector ได้โดยไม่ต้องรันซ้ำ */
