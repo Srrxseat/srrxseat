@@ -177,6 +177,9 @@ class MyDhlFlow {
       if (msg.type() === 'error' || msg.type() === 'warning') note(`[${msg.type()}] ${msg.text()}`);
     });
     const steps = [];
+    // ช่องที่ "ไม่บังคับ" แล้วหาไม่เจอจะเงียบหายไปเฉย ๆ — เก็บไว้เตือนท้ายงานแทน
+    const warnings = [];
+    this.warnings = warnings;
     let stepNo = 0;
     // ทุกขั้นเก็บทั้งภาพหน้าจอและรายการช่องกรอก เพื่อแก้ selector ได้จากการรันซ้อมรอบเดียว
     const shot = async (name, error = null) => {
@@ -255,6 +258,10 @@ class MyDhlFlow {
       err.message = `${err.message} (ภาพหน้าจอทุกขั้น: ${stepDir})`;
       throw err;
     } finally {
+      if (warnings.length) {
+        fs.writeFileSync(path.join(stepDir, 'warnings.json'), JSON.stringify(warnings, null, 2));
+        for (const w of warnings) console.warn(`[dhl] เตือน: ${w}`);
+      }
       await context.close().catch(() => {});
       await browser.close().catch(() => {});
     }
@@ -389,7 +396,11 @@ class MyDhlFlow {
 
   async fillCustomsInvoice(page, plan, alreadyFilled = false) {
     await click(page, SEL.createInvoice, { optional: true });
-    await fill(page, SEL.invoiceNumber, plan.invoiceNumber, { optional: true });
+    const invoiceFilled = await fill(page, SEL.invoiceNumber, plan.invoiceNumber, { optional: true });
+    if (plan.invoiceNumber && !invoiceFilled) {
+      this.warnings?.push(`กรอกเลขที่ invoice ${plan.invoiceNumber} ไม่ลง — DHL จะตั้งเลขเอง`
+        + ` (selector: ${SEL.invoiceNumber})`);
+    }
     if (plan.tradeAgreement === false) await click(page, SEL.tradeAgreementNo, { optional: true });
     // ถ้าหน้า shipment-type ไม่มีช่องสินค้า ให้กรอกที่นี่แทน
     return alreadyFilled || this.fillCustomsLines(page, plan);
