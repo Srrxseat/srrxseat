@@ -338,7 +338,9 @@ class MyDhlFlow {
       const ok = await fill(page, SEL.itemDescription, line.description, { nth, optional: true });
       if (!ok) break; // หน้านี้ไม่มีช่องสินค้า ไปกรอกที่ขั้นถัดไปแทน
       filled = true;
-      await fill(page, SEL.itemHsCode, line.hsCode, { nth, what: `HS code (${row})` });
+      // DHL เก็บรหัสเป็นตัวเลขล้วน (พิมพ์ 9401.99.90 ไปมันก็ตัดจุดออกเอง)
+      // ส่งแบบไม่มีจุดตั้งแต่แรก จะได้ไม่ไปสะดุดตัวตรวจรูปแบบของหน้าเว็บ
+      await fill(page, SEL.itemHsCode, String(line.hsCode).replace(/\D/g, ''), { nth, what: `HS code (${row})` });
       await fill(page, SEL.itemQuantity, String(line.quantity), { nth, what: `จำนวน (${row})` });
       await fill(page, SEL.itemUnit, line.unit, { nth, select: true, what: `หน่วย (${row})` });
       await fill(page, SEL.itemUnitValue, String(line.unitValue), { nth, what: `มูลค่าต่อชิ้น (${row})` });
