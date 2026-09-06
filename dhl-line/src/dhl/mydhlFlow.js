@@ -132,6 +132,10 @@ const SEL = {
   // เช่น "990;1080" = 16:30 ถึง 18:00 — ช่องนี้ไม่มีทั้ง name และ id จึงอ้างตำแหน่งจาก select
   pickupWindowXpath: 'xpath=//select[@name="pickupLocation"]/preceding::input[1]',
   acceptAndPrint: 'button:has-text("ยอมรับและดำเนินการต่อ"), button:has-text("Accept and Continue"), button:has-text("ยืนยันและพิมพ์")',
+  // กล่องเด้งหลังกดยืนยัน: "Digital Customs Invoice เสร็จสมบูรณ์ ... ส่งเอกสารให้ศุลกากรหรือไม่"
+  // ปุ่มในกล่องนี้ชื่อ Submit แม้หน้าเป็นภาษาไทย และต้องกดก่อนถึงจะไปหน้าพิมพ์
+  digitalInvoiceSubmit: 'button:text-is("Submit"), a:text-is("Submit"), [role="button"]:text-is("Submit"),'
+    + ' button:text-is("ส่ง"), input[type="submit"][value="Submit"]',
   downloadDocuments: 'a:has-text("ดาวน์โหลดเอกสาร"), button:has-text("ดาวน์โหลดเอกสาร"), button:has-text("Download documents")',
   reprintDocuments: 'button:has-text("พิมพ์เอกสารอีกครั้ง"), a:has-text("พิมพ์เอกสารอีกครั้ง")',
 
@@ -720,9 +724,25 @@ class MyDhlFlow {
     }
   }
 
+  /**
+   * หลังกดยืนยัน DHL เด้งกล่องถามว่าจะส่งใบขนสินค้าอิเล็กทรอนิกส์ให้ศุลกากรไหม
+   * ถ้าไม่กด Submit ในกล่องนี้ หน้าจะค้างอยู่ที่หน้าสรุป ไม่ไปหน้าพิมพ์
+   */
+  async submitDigitalInvoiceDialog(page) {
+    for (let round = 0; round < 2; round += 1) {
+      const submit = page.locator(SEL.digitalInvoiceSubmit).filter({ visible: true }).first();
+      if (!(await waitVisible(submit, round === 0 ? 30_000 : 5000))) return;
+      console.log('[dhl] กดส่งใบขนสินค้าอิเล็กทรอนิกส์ (Digital Customs Invoice)');
+      await submit.click({ timeout: 20_000 }).catch(() => {});
+      await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+      await page.waitForTimeout(1500);
+    }
+  }
+
   async acceptAndCollectLabel(page, stepDir, jobId) {
     const downloadPromise = page.waitForEvent('download', { timeout: 120_000 }).catch(() => null);
     await click(page, SEL.acceptAndPrint);
+    await this.submitDigitalInvoiceDialog(page);
     await page.waitForURL(/#\/(print|complete)/, { timeout: 120_000 }).catch(() => {});
 
     let download = await downloadPromise;
@@ -741,6 +761,12 @@ class MyDhlFlow {
       const file = path.join(stepDir, `${jobId}-label.pdf`);
       await download.saveAs(file);
       return { buffer: fs.readFileSync(file), ext: 'pdf' };
+    }
+
+    // ถ้ายังอยู่หน้าสรุป แปลว่ายังไม่ได้ชิปเมนต์จริง อย่าพิมพ์หน้าสรุปออกมาแล้วนับเป็นใบปิดผนึก
+    if (!/#\/(print|complete)/.test(page.url())) {
+      throw new Error('กดยืนยันแล้วแต่ไม่ไปหน้าพิมพ์ — ยังอยู่ที่หน้าสรุป'
+        + ' อาจมีกล่องเด้งที่ยังไม่ได้กด เช็ก "จัดการชิปเมนต์" บนเว็บก่อนรันซ้ำ กันได้ชิปเมนต์ซ้ำ');
     }
 
     // สำรอง: พิมพ์หน้าเอกสารเป็น PDF (ใช้ได้เฉพาะโหมด headless ของ chromium)
