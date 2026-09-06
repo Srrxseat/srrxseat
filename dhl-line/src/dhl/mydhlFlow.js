@@ -55,10 +55,10 @@ const SEL = {
   saveAddress: 'input[type="checkbox"][name*="saveAddress"], label:has-text("บันทึกที่อยู่") input[type="checkbox"]',
 
   // ---- 2. ประเภทชิปเมนต์ + สินค้า ----
-  // หน้านี้เป็น radio จริง ๆ (ไม่ใช่ปุ่ม): name=shipmentType ค่า DOCUMENT | PACKAGE
-  // ห้ามใช้ [value="PACKAGE"] ใน CSS เพราะ DHL ตั้ง value ผ่าน JS (เป็น property ไม่ใช่ attribute)
-  // จึงเลือกด้วย name แล้วไปเทียบ el.value เอาใน chooseRadioByValue()
-  shipmentTypeRadios: 'input[type="radio"][name="shipmentType"]',
+  // หน้านี้เป็น radio จริง ๆ (ไม่ใช่ปุ่ม) ค่า DOCUMENT | PACKAGE
+  // เกาะ attribute ไม่ได้เลยสักตัว: DHL ตั้ง value ผ่าน JS (เป็น property) และตัว PACKAGE
+  // ยังมี name="" ว่างอีกด้วย จึงกวาด radio ทั้งหน้าแล้วเทียบ el.value / ข้อความ label แทน
+  shipmentTypeRadios: 'input[type="radio"]',
   purposeSelect: 'select[id*="purpose"], select[id*="Purpose"], select[name*="purpose"]',
   itemDetailsManual: 'button:has-text("กรุณาบอกรายละเอียดสินค้า"), button:has-text("Tell us the item details")',
   itemDescription: 'input[id*="itemDescription"], input[name*="itemDescription"], textarea[id*="itemDescription"], textarea[name*="description" i], input[name*="description" i]',
@@ -544,12 +544,17 @@ async function chooseRadioByValue(page, groupSelector, value, labelText, what) {
   let radio = null;
   for (let i = 0; i < count; i += 1) {
     const candidate = group.nth(i);
-    const info = await candidate.evaluate((el) => ({
-      value: el.value,
-      label: (el.closest('label')?.innerText
-        || (el.id && document.querySelector(`label[for="${el.id}"]`)?.innerText)
-        || el.closest('div, li')?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 40),
-    })).catch(() => ({ value: null, label: '' }));
+    const info = await candidate.evaluate((el) => {
+      const rect = el.getBoundingClientRect();
+      return {
+        value: el.value,
+        visible: rect.width > 0 && rect.height > 0,
+        label: (el.closest('label')?.innerText
+          || (el.id && document.querySelector(`label[for="${el.id}"]`)?.innerText)
+          || el.closest('div, li')?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 40),
+      };
+    }).catch(() => ({ value: null, visible: false, label: '' }));
+    if (!info.visible) continue; // ข้าม radio ที่ซ่อนอยู่ (แบนเนอร์คุกกี้ ฯลฯ)
     seen.push(`${info.value}/${info.label}`);
     if (info.value === value || (labelText && info.label.includes(labelText))) { radio = candidate; break; }
   }
