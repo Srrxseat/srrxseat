@@ -13,7 +13,6 @@
       "key": "headrest",
       "keywords": ["headrest", "head rest"],
       "hsCode": "9401.99.90",
-      "hsCodeByCountry": { "AU": "9401.99.00" },
       "customsDescription": "REPLACEMENT SEAT HEADREST (NON-LEATHER) / SYNTHETIC FOAM / NON-WOVEN FABRIC",
       "packaging": "HEADREST",
       "manufacturerCountry": "Thailand"
@@ -22,7 +21,6 @@
       "key": "webbing-mat",
       "keywords": ["webbing mat", "webbing"],
       "hsCode": "9401.99.90",
-      "hsCodeByCountry": { "AU": "9401.99.00" },
       "customsDescription": "REPLACEMENT SEAT WEBBING MAT (NON-LEATHER) / STEEL SPRING / SYNTHETIC WEBBING",
       "packaging": "WEBBING MAT",
       "manufacturerCountry": "Thailand"
@@ -31,7 +29,6 @@
       "key": "seat-lx-ls",
       "keywords": ["lx seat", "ls seat", "lx,", "ls,", "lx/ls"],
       "hsCode": "9401.99.90",
-      "hsCodeByCountry": { "AU": "9401.99.00" },
       "customsDescription": "REPLACEMENT CAR SEAT (NON-LEATHER) / SYNTHETIC FOAM / STEEL FRAME",
       "packaging": "LX, LS seats",
       "manufacturerCountry": "Thailand"
@@ -40,7 +37,6 @@
       "key": "seat-sr",
       "keywords": ["sr seat", "sr-seat"],
       "hsCode": "9401.99.90",
-      "hsCodeByCountry": { "AU": "9401.99.00" },
       "customsDescription": "REPLACEMENT CAR SEAT (NON-LEATHER) / SYNTHETIC FOAM / STEEL FRAME",
       "packaging": "SR seats",
       "manufacturerCountry": "Thailand"
@@ -49,7 +45,6 @@
       "key": "seat",
       "keywords": ["seat", "seats"],
       "hsCode": "9401.99.90",
-      "hsCodeByCountry": { "AU": "9401.99.00" },
       "customsDescription": "REPLACEMENT CAR SEAT (NON-LEATHER) / SYNTHETIC FOAM / STEEL FRAME",
       "packaging": "LX, LS seats",
       "manufacturerCountry": "Thailand"
@@ -58,7 +53,6 @@
       "key": "car-accessory",
       "keywords": ["accessory", "accessories", "bracket", "rail", "slider", "knob", "belt"],
       "hsCode": "9401.99.90",
-      "hsCodeByCountry": { "AU": "9401.99.00" },
       "customsDescription": "CAR SEAT ACCESSORY PARTS (NON-LEATHER)",
       "packaging": "SEAT COVERS",
       "manufacturerCountry": "Thailand"

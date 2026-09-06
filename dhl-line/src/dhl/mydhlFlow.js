@@ -75,8 +75,6 @@ const SEL = {
   itemWeight: 'input[name="weight"]',               // ช่องบังคับ ถ้าเว้นไว้หน้าจะไม่ยอมไปต่อ
   itemManufacturerCountry: 'input[name="countryName"]',
   addItemLine: 'button:has-text("เพิ่มรายการ"), a:has-text("เพิ่มรายการ")',
-  // กล่องเตือนสีเหลืองใต้ช่อง HS code — ไม่มี class ว่า error จึงต้องจับจากข้อความ
-  hsCodeWarning: 'text=รหัสสินค้าโภคภัณฑ์ไม่ถูกต้อง',
 
   // แผงค่าใช้จ่ายเพิ่ม: select กับ input ไม่มีทั้ง name และ id — อ้างจากข้อความในตัวเลือกแทน
   extraChargeToggle: 'button:has-text("ค่าใช้จ่ายอื่นๆ/เพิ่มค่าใช้จ่าย")',
@@ -343,7 +341,6 @@ class MyDhlFlow {
       // DHL เก็บรหัสเป็นตัวเลขล้วน (พิมพ์ 9401.99.90 ไปมันก็ตัดจุดออกเอง)
       // ส่งแบบไม่มีจุดตั้งแต่แรก จะได้ไม่ไปสะดุดตัวตรวจรูปแบบของหน้าเว็บ
       await fill(page, SEL.itemHsCode, String(line.hsCode).replace(/\D/g, ''), { nth, what: `HS code (${row})` });
-      await assertHsCodeAccepted(page, line.hsCode, row);
       await fill(page, SEL.itemQuantity, String(line.quantity), { nth, what: `จำนวน (${row})` });
       await fill(page, SEL.itemUnit, line.unit, { nth, select: true, what: `หน่วย (${row})` });
       await fill(page, SEL.itemUnitValue, String(line.unitValue), { nth, what: `มูลค่าต่อชิ้น (${row})` });
@@ -777,19 +774,6 @@ async function selectedTextMatches(select, wantedLower, contains) {
   return text === wantedLower || (contains && text.includes(wantedLower));
 }
 
-/**
- * MyDHL+ ตรวจรหัส HS ตามประเทศปลายทาง ถ้าไม่ผ่านจะขึ้นกล่องเหลืองแล้ว "ไม่ยอมไปหน้าถัดไป"
- * โดยไม่มีข้อความ error ตรงปุ่ม — ต้องจับตรงนี้ ไม่งั้นจะไปตายตอนกดถัดไปแบบไม่รู้สาเหตุ
- */
-async function assertHsCodeAccepted(page, hsCode, row) {
-  await page.waitForTimeout(1500);
-  const warned = await page.locator(SEL.hsCodeWarning).first().isVisible().catch(() => false);
-  if (!warned) return;
-  throw new Error(`DHL ไม่รับรหัสสินค้า "${hsCode}" สำหรับปลายทางนี้ (${row})`
-    + ' — หน้าเว็บขึ้นว่า "ประเทศหรือสินค้าดังกล่าวอาจต้องใช้รหัสสินค้าแบบเต็ม"'
-    + ' ต้องแก้รหัสใน config/products.json ให้ตรงกับที่ปลายทางต้องการ');
-}
-
 /** ปิด modal ที่เปิดค้าง (เช่น ตัวช่วยเขียนรายละเอียดสินค้า) ไม่ให้บังช่องอื่นบนหน้า */
 async function dismissModal(page) {
   if (!(await page.locator(SEL.itemDetailsModal).first().isVisible().catch(() => false))
@@ -827,6 +811,20 @@ async function dumpFields(page, file, { quiet = false, error = null } = {}) {
             .filter(Boolean).join(',');
           return flags ? `${text} [${flags}]` : text;
         }).filter(Boolean),
+      // ช่องที่ตัวฟอร์มเองถือว่ายังไม่ผ่าน — ตัวนี้บอกได้ตรงที่สุดว่าทำไมหน้าไม่ยอมไปต่อ
+      invalidFields: [...document.querySelectorAll('.ng-invalid, [aria-invalid="true"], .is-invalid, .has-error')]
+        .filter((el) => {
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0 && el.tagName !== 'FORM';
+        })
+        .map((el) => ({
+          tag: el.tagName.toLowerCase(),
+          name: el.getAttribute('name'),
+          id: el.id || null,
+          className: (el.className || '').toString().slice(0, 120),
+          near: (el.closest('div, td, li')?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 80),
+        }))
+        .slice(0, 20),
       // ข้อความทั้งหน้าแบบย่อ — ใช้หาข้อความ validation ที่ไม่ได้อยู่ใน element ที่มี class ว่า error
       pageText: document.body.innerText.replace(/\n{2,}/g, '\n').trim().slice(0, 4000),
     }));

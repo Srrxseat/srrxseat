@@ -69,17 +69,10 @@ function buildShipmentPlan(parsed, opts = {}) {
   const primary = categorized[0]?.category || catalog.fallback;
 
   // HS code: ถ้า LINE ระบุมาให้ใช้ตามนั้น ไม่ระบุค่อยเลือกตามหมวดสินค้า
-  // บางปลายทางไม่รับรหัสชุดปกติ (ออสเตรเลียปฏิเสธ 9401.99.90) จึงมี hsCodeByCountry ไว้แทนเป็นราย ๆ
   const customsLines = categorized.map(({ item, category }, index) => {
-    const byCountry = category.hsCodeByCountry?.[r.countryCode];
-    // ใบงานส่วนใหญ่ใส่รหัสประจำหมวดมาอยู่แล้ว ถ้าเป็นรหัสนั้นและปลายทางมีรหัสเฉพาะ ให้ใช้ของปลายทาง
-    // แต่ถ้าคนคีย์รหัสอื่นมาเอง แปลว่าตั้งใจ — ยึดตามที่คีย์มาเสมอ
-    const lineCodeIsDefault = !parsed.hsCode || parsed.hsCode === category.hsCode;
-    const hsCode = (lineCodeIsDefault && byCountry) || parsed.hsCode || category.hsCode;
-    if (parsed.hsCode && !lineCodeIsDefault) {
+    const hsCode = parsed.hsCode || category.hsCode;
+    if (parsed.hsCode && parsed.hsCode !== category.hsCode) {
       warnings.push(`HS Code จาก LINE (${parsed.hsCode}) ไม่ตรงกับหมวด ${category.key} (${category.hsCode}) — ใช้ค่าจาก LINE`);
-    } else if (byCountry) {
-      warnings.push(`ใช้ HS Code ${byCountry} สำหรับปลายทาง ${r.countryCode} แทนรหัสปกติของหมวด ${category.key} (${category.hsCode})`);
     }
     // น้ำหนักในบรรทัดศุลกากร = น้ำหนักของ ไม่รวมกล่อง เกลี่ยตามจำนวนรายการ
     const lineNetWeight = netWeightKg ? round(netWeightKg / categorized.length, 3) : null;

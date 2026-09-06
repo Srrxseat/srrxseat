@@ -54,10 +54,8 @@ test('plan ตรงกับที่กรอกมือในวิดีโ
 });
 
 test('HS code เลือกตามหมวดสินค้าเมื่อ LINE ไม่ระบุ', () => {
-  // ใบงานตัวอย่างส่งไป AU ซึ่งมีรหัสเฉพาะ (DHL ไม่รับ 9401.99.90 ที่ปลายทางนี้)
   const noHs = AU.split('\n').filter((l) => !l.startsWith('HS Code')).join('\n');
-  assert.equal(planFor(noHs).plan.customsLines[0].hsCode, '9401.99.00');
-  assert.equal(planFor(noHs.replace('Australia', 'United States')).plan.customsLines[0].hsCode, '9401.99.90');
+  assert.equal(planFor(noHs).plan.customsLines[0].hsCode, '9401.99.90');
 
   const fabric = noHs.replace('x2 FISHNET HEADREST BLACK AVUS', 'x2 LE MAN CONFETTI FABRIC');
   const fabricPlan = planFor(fabric).plan;
@@ -65,15 +63,10 @@ test('HS code เลือกตามหมวดสินค้าเมื่
   assert.equal(fabricPlan.package.packaging, 'UPHOLSTERY KITS');
 });
 
-test('ปลายทางที่มีรหัสเฉพาะแทนรหัสประจำหมวด แต่ไม่แทนรหัสที่คนคีย์มาเอง', () => {
-  // ใบงานนี้ระบุ HS Code: 9401.99.90 ซึ่งเป็นรหัสประจำหมวดพอดี -> ให้รหัสของปลายทางชนะ
-  const auto = planFor(AU);
-  assert.equal(auto.plan.customsLines[0].hsCode, '9401.99.00');
-  assert.match(auto.warnings.join(' '), /9401\.99\.00 สำหรับปลายทาง AU/);
-
-  // คีย์รหัสอื่นมาเอง = ตั้งใจ ต้องไม่ถูกแทน
+test('รหัสที่คนคีย์มาเองต้องชนะรหัสประจำหมวดเสมอ', () => {
   const manual = planFor(AU.replace('HS Code: 9401.99.90', 'HS Code: 8708.99.99'));
   assert.equal(manual.plan.customsLines[0].hsCode, '8708.99.99');
+  assert.match(manual.warnings.join(' '), /ใช้ค่าจาก LINE/);
 });
 
 test('หมวดสินค้าจากชื่อ: เบาะ/ที่พักหัว/webbing = 9401.99.90, ผ้า/ชุดหุ้ม = 9401.99.1020', () => {
