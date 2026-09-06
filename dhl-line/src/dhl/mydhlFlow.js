@@ -364,8 +364,8 @@ class MyDhlFlow {
     await fillIfEmpty(page.locator(SEL.fromPostalXpath).first(), sp.postalCode, { optional: true, what: 'รหัสไปรษณีย์ผู้ส่ง' });
     await fillIfEmpty(first(SEL.fromCity), sp.city, { optional: true, what: 'เมืองผู้ส่ง' });
     await fillIfEmpty(first(SEL.fromEmail), sp.email, { what: 'อีเมลผู้ส่ง' });
-    await fillIfEmpty(first(SEL.fromPhoneCountryCode), stripPlus(sp.phoneCountryCode || dialCodeFor(sp.countryCode)), { optional: true, what: 'รหัสประเทศผู้ส่ง' });
-    await fillIfEmpty(first(SEL.fromPhone), sp.phoneNumber, { optional: true, what: 'เบอร์โทรผู้ส่ง' });
+    await fillIfEmpty(first(SEL.fromPhoneCountryCode), stripPlus(sp.phoneCountryCode || dialCodeFor(sp.countryCode)), { optional: true, digitsOnly: true, what: 'รหัสประเทศผู้ส่ง' });
+    await fillIfEmpty(first(SEL.fromPhone), sp.phoneNumber, { optional: true, digitsOnly: true, what: 'เบอร์โทรผู้ส่ง' });
     await fillIfEmpty(first(SEL.fromVatTax), sp.vatTaxId, { optional: true, what: 'VAT/Tax ID ผู้ส่ง' });
   }
 
@@ -389,8 +389,8 @@ class MyDhlFlow {
     await fillLocator(receiverInput(page, SEL.toCity), r.city, { optional: true, what: 'เมือง' });
     await fillLocator(page.locator(SEL.toStateXpath).first(), r.state, { optional: true, autocomplete: true, page, what: 'State' });
     await fillLocator(page.locator(SEL.toEmail).first(), r.email, { optional: true, what: 'อีเมลผู้รับ' });
-    await fillLocator(receiverInput(page, SEL.toPhoneCountryCode), r.phoneCountryCode, { optional: true, what: 'รหัสประเทศเบอร์โทร' });
-    await fillLocator(receiverInput(page, SEL.toPhone), r.phoneNumber, { optional: true, what: 'เบอร์โทรผู้รับ' });
+    await fillLocator(receiverInput(page, SEL.toPhoneCountryCode), r.phoneCountryCode, { optional: true, digitsOnly: true, what: 'รหัสประเทศเบอร์โทร' });
+    await fillLocator(receiverInput(page, SEL.toPhone), r.phoneNumber, { optional: true, digitsOnly: true, what: 'เบอร์โทรผู้รับ' });
     if (r.saveToAddressBook) await setCheckbox(page, SEL.saveAddress, true, { optional: true });
   }
 
@@ -622,8 +622,10 @@ async function fillIfEmpty(locator, value, opts = {}) {
   }
   try {
     await locator.waitFor({ state: 'visible', timeout: opts.optional ? 8000 : 20_000 });
-    const current = (await locator.inputValue().catch(() => '')).trim();
-    if (current && !current.includes('_')) return false; // มีค่าอยู่แล้ว (ยกเว้นช่องที่เป็น mask ว่าง)
+    // ช่องแบบ mask ("__ ___ _________") ที่มีค่าแล้วจะเหลือขีดล่างท้าย ๆ ติดมาด้วย
+    // ถ้าเทียบแค่ "มี _ ไหม" จะนับว่าว่างแล้วพิมพ์ทับ กลายเป็นเบอร์ต่อกันยาวเหยียด
+    const current = (await locator.inputValue().catch(() => '')).replace(/[_\s]/g, '');
+    if (current) return false; // มีค่าอยู่แล้ว
   } catch (err) {
     if (opts.optional) return false;
     throw new Error(`หาช่อง ${opts.what || ''} ไม่เจอ: ${err.message.split('\n')[0]}`);
@@ -686,7 +688,11 @@ function receiverInput(page, selector) {
 
 /** กรอกค่าลง locator ที่หามาแล้ว (รู้จัก select / ช่อง autocomplete / ช่องที่ไม่บังคับ) */
 async function fillLocator(locator, value, opts = {}) {
-  const { optional = false, autocomplete = false, page = null, what = 'ช่อง', timeout = 30_000, contains = false } = opts;
+  const {
+    optional = false, autocomplete = false, page = null, what = 'ช่อง',
+    timeout = 30_000, contains = false, digitsOnly = false,
+  } = opts;
+  if (digitsOnly && value !== undefined && value !== null) value = String(value).replace(/\D/g, '');
   if (value === undefined || value === null || value === '' || value === 'null') {
     if (optional) return false;
     throw new Error(`ไม่มีค่าที่จะกรอกลง ${what}`);
@@ -698,6 +704,7 @@ async function fillLocator(locator, value, opts = {}) {
       await selectOptionSmart(locator, String(value), contains);
       return true;
     }
+    if (digitsOnly) await locator.fill('');  // ช่อง mask ต้องล้างก่อน ไม่งั้นเลขใหม่ไปต่อท้ายเลขเดิม
     await locator.fill(String(value));
     if (autocomplete && page) {
       // ช่องแบบ autocomplete ของ DHL ต้องเลือกจากรายการที่เด้งขึ้นมา ไม่ใช่แค่พิมพ์
