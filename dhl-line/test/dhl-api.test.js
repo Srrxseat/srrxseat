@@ -64,7 +64,8 @@ test('ส่งข้ามประเทศต้องมี exportDeclaratio
   assert.equal(item.quantity.value, 1);
   assert.equal(item.quantity.unitOfMeasurement, 'BOX');
   assert.equal(item.price, 280);
-  assert.deepEqual(item.commodityCodes, [{ typeCode: 'outbound', value: '94019990' }]);
+  // ปลายทาง AU ใช้รหัสเฉพาะของประเทศ (9401.99.00) ไม่ใช่รหัสประจำหมวด
+  assert.deepEqual(item.commodityCodes, [{ typeCode: 'outbound', value: '94019900' }]);
   assert.equal(item.weight.netValue, 1);
   assert.equal(item.weight.grossValue, 2);
   assert.equal(item.manufacturerCountry, 'TH');
