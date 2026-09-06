@@ -903,21 +903,31 @@ async function pickOptionByAnyText(select, candidates) {
   return false;
 }
 
-/** อ่านค่าที่กรอกกลับมาเทียบ ถ้าไม่ตรงให้ล้างแล้วพิมพ์ใหม่ ไม่ตรงอีกถือว่าพัง */
+/**
+ * อ่านค่าที่กรอกกลับมาเทียบ ถ้าไม่ตรงให้ล้างแล้วพิมพ์ใหม่ ไม่ตรงอีกถือว่าพัง
+ * DHL จัดรูปค่าที่พิมพ์ไปเอง — "280" กลายเป็น "280.00", "94019990" กลายเป็น "9401.99.90"
+ * จึงเทียบเป็นตัวเลขก่อน (กันเรื่อง comma กับทศนิยม) ถ้าอ่านเป็นตัวเลขไม่ได้ค่อยเทียบเฉพาะตัวเลขล้วน
+ */
 async function ensureNumber(locator, value, what) {
-  const wanted = Number(value);
-  const read = async () => Number((await locator.inputValue().catch(() => '')).replace(/[^\d.]/g, ''));
+  const wanted = String(value);
+  const matches = async () => {
+    const raw = (await locator.inputValue().catch(() => '')).replace(/[^\d.]/g, '');
+    const asNumber = Number(raw);
+    if (Number.isFinite(asNumber) && raw !== '') return asNumber === Number(wanted);
+    return raw.replace(/\D/g, '') === wanted.replace(/\D/g, '');
+  };
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    if ((await read()) === wanted) return;
+    if (await matches()) return;
     await locator.click().catch(() => {});
     await locator.press('ControlOrMeta+a').catch(() => {});
     await locator.press('Backspace').catch(() => {});
     await locator.fill('').catch(() => {});
-    await locator.pressSequentially(String(value), { delay: 30 }).catch(() => {});
+    await locator.pressSequentially(wanted, { delay: 30 }).catch(() => {});
   }
-  const got = await locator.inputValue().catch(() => '');
-  if ((await read()) !== wanted) {
-    throw new Error(`กรอก ${what} แล้วได้ "${got}" ไม่ใช่ ${value} — ช่องนี้มีค่าเดิมอยู่และเขียนทับไม่ลง`);
+  if (!(await matches())) {
+    const got = await locator.inputValue().catch(() => '');
+    throw new Error(`กรอก ${what} แล้วได้ "${got}" ไม่ใช่ ${wanted}`
+      + ' — ช่องนี้มีค่าเดิมของบัญชีอยู่และเขียนทับไม่ลง');
   }
 }
 
