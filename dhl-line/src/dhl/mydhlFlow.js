@@ -18,10 +18,13 @@ const path = require('path');
 
 const SEL = {
   cookieAccept: '#onetrust-accept-btn-handler, button:has-text("Accept All"), button:has-text("ยอมรับทั้งหมด")',
-  loginUser: 'input#loginUsername, input[name="username"], input[type="email"]',
-  loginPass: 'input#loginPassword, input[name="password"], input[type="password"]',
-  loginSubmit: 'button#loginSubmitButton, button[type="submit"]:has-text("Log in"), button:has-text("เข้าสู่ระบบ")',
-  loggedInMarker: 'a:has-text("การส่งชิปเมนต์"), a:has-text("Ship")',
+  // ฟอร์มล็อกอินอยู่ในป๊อปอัป ต้องกดลิงก์ "ล็อกอิน" บนหัวเว็บก่อนถึงจะโผล่มา
+  loginLink: 'a:has-text("ล็อกอิน"), a:has-text("Log in"), button:has-text("ล็อกอิน")',
+  loginUser: 'input#popup_form_username, input#loginUsername, input[name="username"], input[type="email"]',
+  loginPass: 'input#popup_form_password, input#loginPassword, input[name="password"], input[type="password"]',
+  loginSubmit: 'button#loginSubmitButton, button[type="submit"]:has-text("Log in"), button:has-text("เข้าสู่ระบบ"), button:has-text("ล็อกอิน")',
+  // "การส่งชิปเมนต์" อยู่บนเมนูตลอดแม้ยังไม่ล็อกอิน ใช้เช็กไม่ได้ — ต้องดูปุ่มออกจากระบบแทน
+  logoutMarker: 'a:has-text("ออกจากระบบ"), a:has-text("Log out"), a:has-text("Logout"), button:has-text("ออกจากระบบ")',
 
   // ---- 1a. ที่อยู่ผู้ส่ง (ฝั่ง "ส่งจาก") = ช่อง name เดียวกันตัวแรกใน DOM ----
   fromName: 'input[name="fullName"]',
@@ -283,16 +286,29 @@ class MyDhlFlow {
     }
   }
 
+  /**
+   * ต้องล็อกอินให้ได้จริง ไม่ใช่แค่ "พยายามแล้ว" — ถ้าทำชิปเมนต์แบบไม่ล็อกอิน
+   * หน้าจ่ายเงินจะมีให้เลือกแค่บัตรเครดิต แปลว่าได้เรทหน้าร้าน ไม่ใช่เรทของบัญชี
+   */
   async login(page) {
-    const user = page.locator(SEL.loginUser).first();
-    if (!(await user.isVisible({ timeout: 5000 }).catch(() => false))) return; // มี session อยู่แล้ว
+    if (await isLoggedIn(page)) return;
+
+    await click(page, SEL.loginLink, { optional: true, timeout: 10_000, what: 'ลิงก์ล็อกอิน' });
+    const user = page.locator(SEL.loginUser).filter({ visible: true }).first();
+    if (!(await waitVisible(user, 20_000))) {
+      throw new Error('เปิดฟอร์มล็อกอิน MyDHL+ ไม่ได้ — ดูภาพหน้าจอขั้น login');
+    }
     await user.fill(this.cfg.username);
-    await page.locator(SEL.loginPass).first().fill(this.cfg.password);
-    await click(page, SEL.loginSubmit);
+    await page.locator(SEL.loginPass).filter({ visible: true }).first().fill(this.cfg.password);
+    await click(page, SEL.loginSubmit, { what: 'ปุ่มเข้าสู่ระบบ' });
+
     // ถ้ามี OTP และเปิดหน้าจออยู่ ให้ผู้ใช้กรอกเอง (รอได้ถึง 3 นาที)
-    await page.locator(SEL.loggedInMarker).first()
-      .waitFor({ state: 'visible', timeout: this.cfg.headless ? 60_000 : 180_000 })
-      .catch(() => {});
+    const deadline = Date.now() + (this.cfg.headless ? 60_000 : 180_000);
+    while (Date.now() < deadline) {
+      if (await isLoggedIn(page, 2000)) return;
+    }
+    throw new Error('ล็อกอิน MyDHL+ ไม่สำเร็จ — ถ้าติด OTP ให้รันครั้งแรกด้วย DHL_WEB_HEADLESS=false'
+      + ' เพื่อกรอกเอง (session จะถูกเก็บไว้ใช้ครั้งต่อไป)');
   }
 
   /**
@@ -829,6 +845,20 @@ async function pickOptionByAnyText(select, candidates) {
     if (await selectedTextMatches(select, text.toLowerCase(), true)) return true;
   }
   return false;
+}
+
+/** ล็อกอินอยู่ไหม — ดูจากปุ่มออกจากระบบ ถ้าไม่มีก็ดูว่ายังมีลิงก์ "ล็อกอิน" ค้างอยู่หรือเปล่า */
+async function isLoggedIn(page, timeout = 15_000) {
+  const logout = page.locator(SEL.logoutMarker).filter({ visible: true }).first();
+  const loginLink = page.locator(SEL.loginLink).filter({ visible: true }).first();
+  const deadline = Date.now() + timeout;
+  do {
+    if (await logout.isVisible().catch(() => false)) return true;
+    if (await loginLink.isVisible().catch(() => false)) return false;
+    await page.waitForTimeout(500);
+  } while (Date.now() < deadline);
+  // ไม่มีทั้งปุ่มออกจากระบบและลิงก์ล็อกอิน = หัวเว็บแบบผู้ใช้ที่ล็อกอินแล้ว (เมนูซ่อนอยู่ใน dropdown)
+  return true;
 }
 
 /**
