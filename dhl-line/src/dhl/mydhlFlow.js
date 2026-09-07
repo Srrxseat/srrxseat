@@ -136,7 +136,11 @@ const SEL = {
   // ปุ่มในกล่องนี้ชื่อ Submit แม้หน้าเป็นภาษาไทย และต้องกดก่อนถึงจะไปหน้าพิมพ์
   digitalInvoiceSubmit: 'button:text-is("Submit"), a:text-is("Submit"), [role="button"]:text-is("Submit"),'
     + ' button:text-is("ส่ง"), input[type="submit"][value="Submit"]',
-  downloadDocuments: 'a:has-text("ดาวน์โหลดเอกสาร"), button:has-text("ดาวน์โหลดเอกสาร"), button:has-text("Download documents")',
+  // หน้าพิมพ์: ติ๊กเอกสารที่ต้องการ แล้วกดปุ่มเขียว ซึ่งเรียก window.print() ของเบราว์เซอร์
+  printDocuments: 'button:has-text("โปรดเลือกเอกสารในการสั่งพิมพ์"), button:has-text("เลือกเอกสารในการสั่งพิมพ์"),'
+    + ' button:has-text("Print selected documents"), button:has-text("Please select documents")',
+  waybillCheckbox: 'xpath=//input[@type="checkbox"][ancestor::label[contains(., "Waybill")]'
+    + ' or @id=//label[contains(., "Waybill")]/@for]',
   reprintDocuments: 'button:has-text("พิมพ์เอกสารอีกครั้ง"), a:has-text("พิมพ์เอกสารอีกครั้ง")',
 
   next: 'button:has-text("ถัดไป"), button:has-text("Next")',
@@ -154,6 +158,9 @@ class DryRunStop extends Error {
 
 const TRACKING_RE = /\b\d{10}\b/;
 const PICKUP_CONFIRM_RE = /\b[A-Z]{3}\d{12}\b/;
+// หน้าพิมพ์เขียนเลขไว้ใต้หัวข้อ จับแบบมีหัวข้อนำก่อน แล้วค่อยถอยไปหาเลขลอย ๆ
+const TRACKING_LABELLED_RE = /หมายเลข\s*Tracking\s*:?\s*(\d{10})|Waybill\s*(?:number|No\.?)\s*:?\s*(\d{10})/i;
+const PICKUP_LABELLED_RE = /นัดรับสินค้า\s*:?\s*([A-Z]{3}\d{12})|Pickup\s*confirmation\s*(?:number)?\s*:?\s*([A-Z]{3}\d{12})/i;
 
 class MyDhlFlow {
   constructor(config) {
@@ -204,6 +211,7 @@ class MyDhlFlow {
     // ช่องที่ "ไม่บังคับ" แล้วหาไม่เจอจะเงียบหายไปเฉย ๆ — เก็บไว้เตือนท้ายงานแทน
     const warnings = [];
     this.warnings = warnings;
+    this.ids = null;
     let stepNo = 0;
     // ทุกขั้นเก็บทั้งภาพหน้าจอและรายการช่องกรอก เพื่อแก้ selector ได้จากการรันซ้อมรอบเดียว
     const shot = async (name, error = null) => {
@@ -313,10 +321,9 @@ class MyDhlFlow {
       const label = await this.acceptAndCollectLabel(page, stepDir, jobId);
       await shot('complete');
 
-      const body = await page.locator('body').innerText().catch(() => '');
       return {
-        trackingNumber: body.match(TRACKING_RE)?.[0] || null,
-        pickupConfirmation: body.match(PICKUP_CONFIRM_RE)?.[0] || null,
+        trackingNumber: this.ids?.trackingNumber || null,
+        pickupConfirmation: this.ids?.pickupConfirmation || null,
         label,
         steps,
       };
@@ -740,28 +747,10 @@ class MyDhlFlow {
   }
 
   async acceptAndCollectLabel(page, stepDir, jobId) {
-    const downloadPromise = page.waitForEvent('download', { timeout: 120_000 }).catch(() => null);
     await click(page, SEL.acceptAndPrint);
     await this.submitDigitalInvoiceDialog(page);
     await page.waitForURL(/#\/(print|complete)/, { timeout: 120_000 }).catch(() => {});
-
-    let download = await downloadPromise;
-    if (!download) {
-      const trigger = page.locator(SEL.downloadDocuments).first();
-      if (await trigger.isVisible({ timeout: 20_000 }).catch(() => false)) {
-        const [dl] = await Promise.all([
-          page.waitForEvent('download', { timeout: 120_000 }),
-          trigger.click(),
-        ]);
-        download = dl;
-      }
-    }
-
-    if (download) {
-      const file = path.join(stepDir, `${jobId}-label.pdf`);
-      await download.saveAs(file);
-      return { buffer: fs.readFileSync(file), ext: 'pdf' };
-    }
+    await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
 
     // ถ้ายังอยู่หน้าสรุป แปลว่ายังไม่ได้ชิปเมนต์จริง อย่าพิมพ์หน้าสรุปออกมาแล้วนับเป็นใบปิดผนึก
     if (!/#\/(print|complete)/.test(page.url())) {
@@ -769,9 +758,61 @@ class MyDhlFlow {
         + ' อาจมีกล่องเด้งที่ยังไม่ได้กด เช็ก "จัดการชิปเมนต์" บนเว็บก่อนรันซ้ำ กันได้ชิปเมนต์ซ้ำ');
     }
 
-    // สำรอง: พิมพ์หน้าเอกสารเป็น PDF (ใช้ได้เฉพาะโหมด headless ของ chromium)
-    const file = path.join(stepDir, `${jobId}-label-print.pdf`);
-    await page.pdf({ path: file, format: 'A4', printBackground: true });
+    // เลขอยู่บนหน้าพิมพ์ ต้องอ่านก่อนกดพิมพ์ เพราะหน้าจะเปลี่ยนไปเป็นตัวเอกสาร
+    this.ids = await this.readShipmentIds(page);
+    return this.saveWaybill(page, stepDir, jobId);
+  }
+
+  /** อ่านเลข Tracking กับเลขยืนยันการนัดรับจากกล่องขวาของหน้าพิมพ์ */
+  async readShipmentIds(page) {
+    const text = await page.locator('body').innerText().catch(() => '');
+    const labelled = text.match(TRACKING_LABELLED_RE);
+    const trackingNumber = labelled?.[1] || labelled?.[2] || text.match(TRACKING_RE)?.[0] || null;
+    const pickup = text.match(PICKUP_LABELLED_RE);
+    const pickupConfirmation = pickup?.[1] || pickup?.[2] || text.match(PICKUP_CONFIRM_RE)?.[0] || null;
+
+    if (trackingNumber) console.log(`[dhl] เลข Tracking: ${trackingNumber}`);
+    else this.warnings?.push('อ่านเลข Tracking จากหน้าพิมพ์ไม่ได้');
+    if (pickupConfirmation) console.log(`[dhl] เลขยืนยันการนัดรับ: ${pickupConfirmation}`);
+
+    return { trackingNumber, pickupConfirmation };
+  }
+
+  /**
+   * ปุ่มเขียวบนหน้าพิมพ์ไม่ได้ให้ไฟล์มา มันเรียก window.print() แล้วคนกด "Save as PDF" เอง
+   * (ตามคลิปที่ได้มา) ตัวหุ่นกด print dialog ไม่ได้ จึงปิด window.print ทิ้งก่อนกดปุ่ม
+   * เพื่อให้หน้าเปลี่ยนเป็นตัวเอกสาร แล้วดึงเป็น PDF ด้วย page.pdf() ซึ่งใช้ CSS ตอนพิมพ์
+   * ได้ผลเหมือนที่ dialog จะพิมพ์ออกมา
+   */
+  async saveWaybill(page, stepDir, jobId) {
+    const waybill = page.locator(SEL.waybillCheckbox).filter({ visible: true }).first();
+    if (await waitVisible(waybill, 5000)) {
+      await waybill.check({ timeout: 10_000 }).catch(() => {});
+    }
+
+    await page.evaluate(() => { window.print = () => {}; }).catch(() => {});
+    const downloadPromise = page.waitForEvent('download', { timeout: 20_000 }).catch(() => null);
+    await click(page, SEL.printDocuments, { timeout: 30_000, what: 'ปุ่มพิมพ์เอกสาร' });
+    await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+    await page.waitForTimeout(2500);
+
+    // เผื่อบางบัญชีตั้งค่าให้ดาวน์โหลดไฟล์ตรง ๆ แทนการเรียก print
+    const download = await downloadPromise;
+    if (download) {
+      const file = path.join(stepDir, `${jobId}-label.pdf`);
+      await download.saveAs(file);
+      return { buffer: fs.readFileSync(file), ext: 'pdf' };
+    }
+
+    const text = await page.locator('body').innerText().catch(() => '');
+    if (!/WAYBILL|EXPRESS WORLDWIDE/i.test(text)) {
+      throw new Error('กดปุ่มพิมพ์แล้วแต่หน้าไม่แสดงตัวใบ Waybill'
+        + ` — ชิปเมนต์สร้างแล้ว${this.ids?.trackingNumber ? ` (${this.ids.trackingNumber})` : ''}`
+        + ' โหลดใบปิดกล่องเองได้จาก "จัดการชิปเมนต์" อย่ารันซ้ำ');
+    }
+
+    const file = path.join(stepDir, `${jobId}-label.pdf`);
+    await page.pdf({ path: file, format: 'A4', printBackground: true, preferCSSPageSize: true });
     return { buffer: fs.readFileSync(file), ext: 'pdf' };
   }
 }
