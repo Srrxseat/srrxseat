@@ -23,6 +23,11 @@ class CupsPrinter {
 
   async print(filePath) {
     if (!this.available) throw new Error('ยังไม่ได้ตั้งค่า CUPS_PRINTER');
+    // กันกรณีก็อปตัวอย่างมาวางทั้งอย่างนั้น เช่น CUPS_PRINTER=<ชื่อคิวที่ได้>
+    if (/[<>]/.test(this.cfg.printer)) {
+      throw new Error(`CUPS_PRINTER ยังเป็นตัวอย่าง ("${this.cfg.printer}")`
+        + ' — ดูชื่อคิวจริงด้วย node src/cli.js printers แล้วใส่ชื่อนั้นใน .env');
+    }
 
     const args = [];
     if (this.cfg.host) args.push('-h', this.cfg.host);

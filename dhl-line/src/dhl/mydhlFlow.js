@@ -141,6 +141,10 @@ const SEL = {
     + ' button:has-text("Print selected documents"), button:has-text("Please select documents")',
   waybillCheckbox: 'xpath=//input[@type="checkbox"][ancestor::label[contains(., "Waybill")]'
     + ' or @id=//label[contains(., "Waybill")]/@for]',
+  // หน้ายืนยันท้ายสุดมีลิงก์โหลดเอกสารเป็นไฟล์จริง ไม่ต้องผ่าน print dialog
+  downloadDocuments: 'a:has-text("ดาวน์โหลดเอกสาร"), button:has-text("ดาวน์โหลดเอกสาร"),'
+    + ' [role="button"]:has-text("ดาวน์โหลดเอกสาร"), a:has-text("Download documents"),'
+    + ' button:has-text("Download documents")',
   reprintDocuments: 'button:has-text("พิมพ์เอกสารอีกครั้ง"), a:has-text("พิมพ์เอกสารอีกครั้ง")',
 
   next: 'button:has-text("ถัดไป"), button:has-text("Next")',
@@ -779,41 +783,54 @@ class MyDhlFlow {
   }
 
   /**
-   * ปุ่มเขียวบนหน้าพิมพ์ไม่ได้ให้ไฟล์มา มันเรียก window.print() แล้วคนกด "Save as PDF" เอง
-   * (ตามคลิปที่ได้มา) ตัวหุ่นกด print dialog ไม่ได้ จึงปิด window.print ทิ้งก่อนกดปุ่ม
-   * เพื่อให้หน้าเปลี่ยนเป็นตัวเอกสาร แล้วดึงเป็น PDF ด้วย page.pdf() ซึ่งใช้ CSS ตอนพิมพ์
-   * ได้ผลเหมือนที่ dialog จะพิมพ์ออกมา
+   * ปุ่มเขียวบนหน้าพิมพ์เรียก window.print() ของเบราว์เซอร์ แล้วคนกด "Save as PDF" เอง
+   * (ตามคลิปที่ได้มา) ตัวหุ่นกด print dialog ไม่ได้ และตัวเอกสารก็ไม่ได้อยู่ใน DOM ของหน้า
+   * (page.pdf() ได้ไฟล์เปล่า) จึงใช้ลิงก์ "ดาวน์โหลดเอกสาร" บนหน้ายืนยันแทน ซึ่งให้ไฟล์จริงมา
    */
   async saveWaybill(page, stepDir, jobId) {
-    const waybill = page.locator(SEL.waybillCheckbox).filter({ visible: true }).first();
-    if (await waitVisible(waybill, 5000)) {
-      await waybill.check({ timeout: 10_000 }).catch(() => {});
+    if (/#\/print/.test(page.url())) {
+      const waybill = page.locator(SEL.waybillCheckbox).filter({ visible: true }).first();
+      if (await waitVisible(waybill, 5000)) {
+        await waybill.check({ timeout: 10_000 }).catch(() => {});
+      }
+      // print dialog ค้างจะทำให้ขั้นต่อไปกดอะไรไม่ได้ ปิด window.print ทิ้งก่อนกดปุ่ม
+      await page.evaluate(() => { window.print = () => {}; }).catch(() => {});
+      await click(page, SEL.printDocuments, { timeout: 30_000, what: 'ปุ่มพิมพ์เอกสาร' });
+      await page.waitForURL(/#\/complete/, { timeout: 60_000 }).catch(() => {});
+      await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+      await page.waitForTimeout(2000);
     }
 
-    await page.evaluate(() => { window.print = () => {}; }).catch(() => {});
-    const downloadPromise = page.waitForEvent('download', { timeout: 20_000 }).catch(() => null);
-    await click(page, SEL.printDocuments, { timeout: 30_000, what: 'ปุ่มพิมพ์เอกสาร' });
-    await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
-    await page.waitForTimeout(2500);
-
-    // เผื่อบางบัญชีตั้งค่าให้ดาวน์โหลดไฟล์ตรง ๆ แทนการเรียก print
-    const download = await downloadPromise;
-    if (download) {
-      const file = path.join(stepDir, `${jobId}-label.pdf`);
-      await download.saveAs(file);
-      return { buffer: fs.readFileSync(file), ext: 'pdf' };
-    }
-
-    const text = await page.locator('body').innerText().catch(() => '');
-    if (!/WAYBILL|EXPRESS WORLDWIDE/i.test(text)) {
-      throw new Error('กดปุ่มพิมพ์แล้วแต่หน้าไม่แสดงตัวใบ Waybill'
+    const trigger = page.locator(SEL.downloadDocuments).filter({ visible: true }).first();
+    if (!(await waitVisible(trigger, 30_000))) {
+      throw new Error('ไม่เจอปุ่ม "ดาวน์โหลดเอกสาร" บนหน้ายืนยัน'
         + ` — ชิปเมนต์สร้างแล้ว${this.ids?.trackingNumber ? ` (${this.ids.trackingNumber})` : ''}`
         + ' โหลดใบปิดกล่องเองได้จาก "จัดการชิปเมนต์" อย่ารันซ้ำ');
     }
 
-    const file = path.join(stepDir, `${jobId}-label.pdf`);
-    await page.pdf({ path: file, format: 'A4', printBackground: true, preferCSSPageSize: true });
-    return { buffer: fs.readFileSync(file), ext: 'pdf' };
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60_000 }).catch(() => null),
+      trigger.click({ timeout: 20_000 }),
+    ]);
+
+    if (!download) {
+      throw new Error('กด "ดาวน์โหลดเอกสาร" แล้วไม่มีไฟล์ออกมา'
+        + ` — ชิปเมนต์สร้างแล้ว${this.ids?.trackingNumber ? ` (${this.ids.trackingNumber})` : ''}`
+        + ' โหลดใบปิดกล่องเองได้จาก "จัดการชิปเมนต์" อย่ารันซ้ำ');
+    }
+
+    const name = download.suggestedFilename() || '';
+    console.log(`[dhl] ได้ไฟล์เอกสาร: ${name}`);
+    const ext = path.extname(name).replace('.', '') || 'pdf';
+    const file = path.join(stepDir, `${jobId}-label.${ext}`);
+    await download.saveAs(file);
+
+    const buffer = fs.readFileSync(file);
+    // ไฟล์เปล่า/เล็กผิดปกติ แปลว่าโหลดมาไม่ใช่ตัวเอกสาร อย่าส่งไปเข้าเครื่องพิมพ์
+    if (buffer.length < 10_000) {
+      throw new Error(`ไฟล์เอกสารที่โหลดมาเล็กผิดปกติ (${buffer.length} ไบต์) — ดูไฟล์ที่ ${file}`);
+    }
+    return { buffer, ext };
   }
 }
 
