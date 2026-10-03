@@ -73,6 +73,10 @@ class Bot:
         if target is None:
             return
         self.capture.refresh_window()
+        # The in-game cursor (a white glove) can look like a monster; park the
+        # mouse on the window's title bar so it is not drawn over the game.
+        cap = self.capture
+        controls.move_mouse(cap.left + cap.width // 2, cap.top + 5)
         self.running = True
         self._thread = threading.Thread(target=self._run, args=(target,), daemon=True)
         self._thread.start()

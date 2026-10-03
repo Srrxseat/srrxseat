@@ -17,6 +17,9 @@ if sys.platform == "win32":
 
     def _up(key):
         pydirectinput.keyUp(key)
+
+    def move_mouse(x, y):
+        pydirectinput.moveTo(int(x), int(y))
 else:
     from pynput.keyboard import Controller, Key, KeyCode
 
@@ -33,6 +36,11 @@ else:
 
     def _up(key):
         _kb.release(_resolve(key))
+
+    def move_mouse(x, y):
+        from pynput.mouse import Controller as Mouse
+
+        Mouse().position = (int(x), int(y))
 
 _held = set()
 

@@ -79,7 +79,7 @@ class Templates:
             ]
         return self._scaled[scale]
 
-    def find(self, frame, threshold, max_width=960):
+    def find(self, frame, threshold, max_width=960, max_color_diff=45):
         scale = min(1.0, max_width / frame.shape[1])
         small = cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA) \
             if scale < 1 else frame
@@ -89,11 +89,16 @@ class Templates:
             if th < 4 or tw < 4 or th > small.shape[0] or tw > small.shape[1]:
                 continue
             result = cv2.matchTemplate(small, t, cv2.TM_CCOEFF_NORMED)
+            t_color = t.reshape(-1, 3).mean(axis=0)
             while True:
                 _, score, _, (x, y) = cv2.minMaxLoc(result)
                 if score < threshold:
                     break
-                hits.append(((x + tw / 2) / scale, (y + th / 2) / scale, float(score)))
+                # Shape matching ignores overall colour, so e.g. the white glove
+                # cursor can match a green slime; reject clearly different colours.
+                patch_color = small[y:y + th, x:x + tw].reshape(-1, 3).mean(axis=0)
+                if np.linalg.norm(patch_color - t_color) <= max_color_diff:
+                    hits.append(((x + tw / 2) / scale, (y + th / 2) / scale, float(score)))
                 # Blank out this match so the next loop finds a different one.
                 cv2.rectangle(result, (x - tw // 2, y - th // 2), (x + tw // 2, y + th // 2), -1, -1)
         return _dedupe(hits, frame.shape[1] * 0.02)
