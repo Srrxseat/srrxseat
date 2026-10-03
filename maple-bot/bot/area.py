@@ -60,6 +60,7 @@ class AreaFarmer:
         self._last_x = None
         self._stuck = 0
         self._climb_dir = "right"
+        self.hop_on_level = False
         self._last_player = None
         self._target = None          # last attacked (dx, dy)
         self._target_rounds = 0      # ticks spent on it without it moving/dying
@@ -209,8 +210,10 @@ class AreaFarmer:
             # progress; then jump while walking to get over it.
             blocked = self._last_x is not None and abs(pos[0] - self._last_x) < 0.005
             self._last_x = pos[0]
+            hop = getattr(self, "hop_on_level", False) and abs(dy) <= self.level_tol \
+                and abs(dx) > 0.03
             controls.hold(toward)
-            if blocked:
+            if blocked or hop:
                 controls.press(self.keys["jump"], delay=0.4)
             else:
                 time.sleep(0.3)

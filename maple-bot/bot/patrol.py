@@ -37,6 +37,9 @@ class PatrolFarmer(AreaFarmer):
         self._point_since = time.time()
         self._path_tries = 0
         self._fails = {}  # point index -> times it timed out in a row
+        # Walking along a level: hop while moving so small gaps between
+        # platforms are jumped over instead of falling through.
+        self.hop_on_level = True
 
     def describe(self):
         mobs = len(self.monster_tpl.images) // 2
@@ -54,7 +57,12 @@ class PatrolFarmer(AreaFarmer):
         mobs = self._monsters(frame, *player) if self.monster_tpl and player else []
         mobs = self._drop_ignored(mobs, pos)
         same_level = [m for m in mobs if abs(m[1]) <= self.cfg["vertical_range"]]
-        near = [m for m in same_level if abs(m[0]) <= self.pcfg["chase_range"]]
+        # Knocked down below the route (often where monsters gather): clear
+        # every monster on this floor before climbing back.
+        chase = self.pcfg["chase_range"]
+        if pos is not None and self._below_route(pos):
+            chase = max(chase, self.pcfg.get("fallen_chase_range", 0.5))
+        near = [m for m in same_level if abs(m[0]) <= chase]
         self._log(len(mobs), len(near), tag_found, False)
 
         target = self.points[self.idx]
@@ -133,10 +141,12 @@ class PatrolFarmer(AreaFarmer):
 
         prev = self.points[(self.idx - 1) % n]
         path = self.paths[self.idx]
-        # Same platform: just walk. Recorded keys are only worth replaying for
-        # jumps/drops between platforms.
+        # Replay the recorded keys when the leg changes level or you jumped on
+        # the way (a gap between platforms that look level on the minimap);
+        # a plain walk along one platform is simpler to just walk.
+        jumped = bool(path) and any(e[2] == self.keys["jump"] for e in path)
         changes_level = abs(target[1] - prev[1]) > self.level_tol
-        if path and changes_level and self._path_tries < 2:
+        if path and (changes_level or jumped) and self._path_tries < 2:
             d_prev = math.dist(pos, prev)
             if d_prev <= self.reach:
                 # Replay the leg; if it didn't get there, come back and try once more.
@@ -148,6 +158,12 @@ class PatrolFarmer(AreaFarmer):
                 self._step_towards(pos, prev)
                 return
         self._step_towards(pos, target)
+
+    def _below_route(self, pos):
+        """Clearly lower than both the point we came from and the one we head for."""
+        n = len(self.points)
+        lowest = max(self.points[self.idx][1], self.points[(self.idx - 1) % n][1])
+        return pos[1] > lowest + 2 * self.level_tol
 
     def _step_towards(self, pos, goal):
         # One short step (jump up / drop down / walk), shared with area mode.
