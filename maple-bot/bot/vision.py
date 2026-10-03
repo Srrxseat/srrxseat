@@ -48,3 +48,61 @@ def bar_ratio(bar, bar_hsv):
         return 0.0
     # Bars fill from the left, so the rightmost coloured column marks the level.
     return (filled_cols[-1] + 1) / bar.shape[1]
+
+
+class Templates:
+    """Small images (player name tag, monsters) to find on screen.
+
+    Matching runs on a downscaled frame for speed; results are returned in
+    full-frame pixel coordinates as (center_x, center_y, score).
+    """
+
+    def __init__(self, paths, flip=False):
+        self.images = []
+        for p in paths:
+            img = cv2.imread(str(p))
+            if img is None:
+                continue
+            self.images.append(img)
+            if flip:
+                self.images.append(cv2.flip(img, 1))
+        self._scaled = {}
+
+    def __bool__(self):
+        return bool(self.images)
+
+    def _at_scale(self, scale):
+        if scale not in self._scaled:
+            self._scaled[scale] = [
+                cv2.resize(t, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+                for t in self.images
+            ]
+        return self._scaled[scale]
+
+    def find(self, frame, threshold, max_width=960):
+        scale = min(1.0, max_width / frame.shape[1])
+        small = cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA) \
+            if scale < 1 else frame
+        hits = []
+        for t in self._at_scale(scale):
+            th, tw = t.shape[:2]
+            if th < 4 or tw < 4 or th > small.shape[0] or tw > small.shape[1]:
+                continue
+            result = cv2.matchTemplate(small, t, cv2.TM_CCOEFF_NORMED)
+            while True:
+                _, score, _, (x, y) = cv2.minMaxLoc(result)
+                if score < threshold:
+                    break
+                hits.append(((x + tw / 2) / scale, (y + th / 2) / scale, float(score)))
+                # Blank out this match so the next loop finds a different one.
+                cv2.rectangle(result, (x - tw // 2, y - th // 2), (x + tw // 2, y + th // 2), -1, -1)
+        return _dedupe(hits, frame.shape[1] * 0.02)
+
+
+def _dedupe(hits, radius):
+    """Merge matches closer than `radius` (same monster found by several templates)."""
+    kept = []
+    for h in sorted(hits, key=lambda h: -h[2]):
+        if all(abs(h[0] - k[0]) > radius or abs(h[1] - k[1]) > radius for k in kept):
+            kept.append(h)
+    return kept

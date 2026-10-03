@@ -8,6 +8,7 @@ import threading
 
 from pynput import keyboard
 
+from bot.area import save_area_center
 from bot.bot import Bot
 from bot.config import append_routine_step, clear_routine, load_config
 
@@ -26,6 +27,11 @@ def main():
         pos = bot.position()
         if pos is None:
             print("[record] หาตัวละครบนมินิแมพไม่เจอ - ลองรัน tools/calibrate.py")
+            return
+        if bot.area_mode():
+            save_area_center(pos)
+            print(f"[record] ตั้งศูนย์กลางพื้นที่ฟาร์มที่ [{pos[0]:.3f}, {pos[1]:.3f}] "
+                  f"รัศมี {config['area']['radius']} - กด F9 เพื่อเริ่ม")
             return
         n = append_routine_step(config["routine"], pos)
         print(f"[record] บันทึกจุดที่ {n}: [{pos[0]:.3f}, {pos[1]:.3f}] ลง {config['routine']}")
@@ -47,8 +53,13 @@ def main():
             # Don't block the listener thread (stopping the bot can take a moment).
             threading.Thread(target=actions[action]).start()
 
-    print(f"พร้อม: {hk['record'].upper()}=บันทึกจุด  {hk['clear'].upper()}=ลบจุดทั้งหมด  "
-          f"{hk['toggle'].upper()}=เริ่ม/หยุด  {hk['quit'].upper()}=ออก")
+    if bot.area_mode():
+        print(f"โหมดพื้นที่ (area): {hk['record'].upper()}=ตั้งศูนย์กลางพื้นที่ตรงที่ยืน  "
+              f"{hk['toggle'].upper()}=เริ่ม/หยุด  {hk['quit'].upper()}=ออก")
+    else:
+        print(f"โหมดเดินตามจุด (route): {hk['record'].upper()}=บันทึกจุด  "
+              f"{hk['clear'].upper()}=ลบจุดทั้งหมด  {hk['toggle'].upper()}=เริ่ม/หยุด  "
+              f"{hk['quit'].upper()}=ออก")
     try:
         with keyboard.Listener(on_press=on_press) as listener:
             listener.join()

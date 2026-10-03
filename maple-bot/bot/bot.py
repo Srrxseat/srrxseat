@@ -1,8 +1,9 @@
-"""Main bot loop: run the routine, keep buffs up, drink potions."""
+"""Main bot loop: farm (area or route mode), keep buffs up, drink potions."""
 import threading
 import time
 
 from . import controls, vision
+from .area import AreaFarmer
 from .capture import Capture
 from .config import RoutineError, load_routine
 from .thief import Thief
@@ -59,24 +60,44 @@ class Bot:
         else:
             self.start()
 
+    def area_mode(self):
+        return self.config.get("mode", "route") == "area"
+
     def start(self):
         if self.running:
             return
+        if self.area_mode():
+            target = self._prepare_area()
+        else:
+            target = self._prepare_route()
+        if target is None:
+            return
+        self.capture.refresh_window()
+        self.running = True
+        self._thread = threading.Thread(target=self._run, args=(target,), daemon=True)
+        self._thread.start()
+        print("[bot] เริ่มทำงาน")
+
+    def _prepare_area(self):
+        farmer = AreaFarmer(self)
+        if farmer.center is None:
+            print("[bot] ยังไม่ได้ตั้งพื้นที่ - ยืนกลางพื้นที่ที่จะฟาร์มแล้วกด F8 ก่อน")
+            return None
+        print(f"[area] {farmer.describe()}")
+        return farmer.tick
+
+    def _prepare_route(self):
         # Reload every start so points just recorded with F8 are picked up.
         try:
             self.routine = load_routine(self.config["routine"])
         except RoutineError as e:
             print(f"[bot] {e} - กด F7 เพื่อล้างไฟล์ แล้วบันทึกจุดใหม่ด้วย F8")
-            return
+            return None
         if not self.routine.get("steps"):
             print("[bot] ยังไม่มีจุดใน routine - ไปยืนตรงจุดที่จะฟาร์มแล้วกด F8 ก่อน")
-            return
+            return None
         self._step = 0
-        self.capture.refresh_window()
-        self.running = True
-        self._thread = threading.Thread(target=self._loop, daemon=True)
-        self._thread.start()
-        print("[bot] เริ่มทำงาน")
+        return self._route_step
 
     def stop(self):
         self.running = False
@@ -85,27 +106,31 @@ class Bot:
         controls.release_all()
         print("[bot] หยุด")
 
-    def _loop(self):
-        steps = self.routine["steps"]
+    def _run(self, tick):
         try:
             while self.running:
                 self.check_buffs()
                 self.check_health()
-                step = steps[self._step]
-                if not self.cmd.move_to(step["point"]):
-                    print(f"[bot] ไปไม่ถึงจุด {self._step} {step['point']} - ข้าม")
-                for action in step.get("actions", []):
-                    if not self.running:
-                        break
-                    self.cmd.run_action(action)
-
-                self._step += 1
-                if self._step >= len(steps):
-                    if not self.routine.get("loop", True):
-                        self.running = False
-                    self._step = 0
+                if self.running:
+                    tick()
         except Exception as e:  # keep the hotkey thread alive and keys released
             print(f"[bot] error: {e}")
             self.running = False
         finally:
             controls.release_all()
+
+    def _route_step(self):
+        steps = self.routine["steps"]
+        step = steps[self._step]
+        if not self.cmd.move_to(step["point"]):
+            print(f"[bot] ไปไม่ถึงจุด {self._step} {step['point']} - ข้าม")
+        for action in step.get("actions", []):
+            if not self.running:
+                break
+            self.cmd.run_action(action)
+
+        self._step += 1
+        if self._step >= len(steps):
+            if not self.routine.get("loop", True):
+                self.running = False
+            self._step = 0

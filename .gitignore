@@ -3,3 +3,7 @@ node_modules/
 __pycache__/
 .venv/
 *.png
+# maple-bot: per-player data created while using the bot
+maple-bot/templates/
+maple-bot/routines/area.yaml
+maple-bot/routines/my_route*.yaml

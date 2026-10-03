@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from bot import vision  # noqa: E402
+from bot.area import load_area_center, load_templates  # noqa: E402
 from bot.capture import Capture  # noqa: E402
 from bot.config import load_config  # noqa: E402
 
@@ -41,7 +42,7 @@ def main():
     regions = config["regions"]
     pos = vision.player_position(Capture.crop(frame, regions["minimap"]), config["player_dot_hsv"])
     if pos is None:
-        print("✗ หาจุดตัวละครบนมินิแมพไม่เจอ - รัน python tools/calibrate.py ก่อน")
+        print("✗ หาจุดตัวละครบนมินิแมพไม่เจอ - รัน bash run.sh tools/calibrate.py ก่อน")
     else:
         print(f"✓ ตำแหน่งตัวละครบนมินิแมพ: x={pos[0]:.3f} y={pos[1]:.3f}")
 
@@ -52,6 +53,38 @@ def main():
             continue
         ratio = vision.bar_ratio(Capture.crop(frame, region), config[f"{bar}_bar_hsv"])
         print(f"✓ {bar.upper()} เหลือประมาณ {ratio * 100:.0f}% (เทียบกับตัวเลขในเกมดูว่าใกล้กันไหม)")
+
+    if config.get("mode") == "area":
+        check_area(config, frame, out)
+
+
+def check_area(config, frame, out):
+    center = load_area_center()
+    print(f"{'✓' if center else '-'} ศูนย์กลางพื้นที่ฟาร์ม: "
+          f"{center if center else 'ยังไม่ได้ตั้ง (รัน bash run.sh แล้วกด F8 ตรงกลางพื้นที่)'}")
+
+    player, monsters = load_templates()
+    marked = frame.copy()
+    if player:
+        tags = player.find(frame, config["area"]["player_threshold"])
+        if tags:
+            x, y, s = tags[0]
+            cv2.circle(marked, (int(x), int(y)), 30, (255, 0, 255), 3)
+            print(f"✓ เจอป้ายชื่อตัวละครบนจอ (ความเหมือน {s:.2f}) - วงสีม่วงใน check.png")
+        else:
+            print("✗ หาป้ายชื่อตัวละครไม่เจอ - จับภาพป้ายชื่อใหม่: bash run.sh tools/templates.py")
+    else:
+        print("- ยังไม่มีภาพป้ายชื่อ (บอทจะถือว่าตัวละครอยู่กลางจอ)")
+
+    if monsters:
+        mobs = monsters.find(frame, config["area"]["monster_threshold"])
+        for x, y, _ in mobs:
+            cv2.circle(marked, (int(x), int(y)), 25, (0, 0, 255), 3)
+        print(f"✓ เจอมอน {len(mobs)} ตัวบนจอ - วงสีแดงใน check.png "
+              f"(ถ้าวงผิดที่เยอะ เพิ่ม monster_threshold / ถ้าไม่เจอ ลดค่าลง)")
+    else:
+        print("- ยังไม่มีภาพมอน (บอทจะตีสลับซ้าย/ขวา) - จับภาพ: bash run.sh tools/templates.py")
+    cv2.imwrite(str(out), marked)
 
 
 def test_keys():
