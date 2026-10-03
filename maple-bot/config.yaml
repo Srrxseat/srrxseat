@@ -15,13 +15,12 @@ hotkeys:
 # ปุ่มในเกม (ตั้งให้ตรงกับ key config ในเกม)
 # ชื่อพิเศษ: alt (= Option บน Mac), ctrl, shift, delete, end, home, page_up, space ...
 # ตัวอักษร/ตัวเลขใส่ตรงๆ เช่น z, "0"
-# Old School Maple: Ctrl = ATTACK (ตีธรรมดา) ตาม quickslot มุมขวาล่าง
 # ถ้าได้ Lucky Seven แล้ว ลากสกิลไปใส่ quickslot แล้วเปลี่ยน attack เป็นปุ่มนั้น
 # ยา: ลากยาแดง/ฟ้าไปใส่ช่อง Del / End ใน quickslot
 keys:
-  jump: alt
-  attack: ctrl
-  loot: z
+  jump: space         # Space bar
+  attack: z
+  loot: x
   hp_potion: delete
   mp_potion: end
 
