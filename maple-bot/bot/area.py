@@ -1,7 +1,8 @@
 """Area farming: stay inside a circle on the minimap and attack nearby monsters.
 
 Each tick:
-  1. If knocked back outside the circle, walk back to its centre.
+  1. If outside the circle (knocked back, fell), step back towards its centre
+     a little each tick, still hitting monsters on the way.
   2. Find the player (name tag) and monsters (templates) on screen.
   3. Face the nearest monster on the same level and attack; if it is a bit
      further away, step towards it (only while well inside the circle).
@@ -51,6 +52,10 @@ class AreaFarmer:
         self._facing = "right"
         self._last_loot = 0.0
         self._last_log = 0.0
+        self.mv = bot.config["movement"]
+        self._last_y = None
+        self._stuck = 0
+        self._climb_dir = "right"
 
     def describe(self):
         mobs = len(self.monster_tpl.images) // 2
@@ -60,38 +65,80 @@ class AreaFarmer:
 
     # ---- one iteration ------------------------------------------------------
     def tick(self):
-        if self._outside_area():
-            print("[area] ออกนอกพื้นที่ - เดินกลับ")
-            self.cmd.move_to(self.center)
-            return
+        pos = self.bot.position()
+        outside = pos is not None and self._dist(pos) > self.cfg["radius"]
 
         frame = self.bot.capture.frame()
         (px, py), tag_found = self._player_on_screen(frame)
         mobs = self._monsters(frame, px, py) if self.monster_tpl else []
         same_level = [m for m in mobs if abs(m[1]) <= self.cfg["vertical_range"]]
-        self._log(len(mobs), len(same_level), tag_found)
+        self._log(len(mobs), len(same_level), tag_found, outside)
 
         if same_level:
+            # Always hit a monster on our own platform, even on the way back.
             self._engage(*min(same_level, key=lambda m: abs(m[0])))
-        elif mobs and self.cfg.get("chase_levels", True) and self._well_inside():
-            self._change_level(*min(mobs, key=lambda m: math.hypot(*m)))
+        elif outside:
+            self._step_back(pos)
         else:
-            self._attack_blind()
+            reachable = self._chaseable(mobs, pos)
+            if reachable and self.cfg.get("chase_levels", True) and self._well_inside():
+                self._change_level(*min(reachable, key=lambda m: math.hypot(*m)))
+            else:
+                self._attack_blind()
 
         if time.time() - self._last_loot > self.cfg["loot_every"]:
             self.cmd.loot(times=2)
             self._last_loot = time.time()
 
     # ---- helpers --------------------------------------------------------------
-    def _distance_from_center(self):
-        pos = self.bot.position()
-        if pos is None:
-            return None
+    def _dist(self, pos):
         return math.hypot(pos[0] - self.center[0], pos[1] - self.center[1])
 
-    def _outside_area(self):
-        d = self._distance_from_center()
-        return d is not None and d > self.cfg["radius"]
+    def _distance_from_center(self):
+        pos = self.bot.position()
+        return None if pos is None else self._dist(pos)
+
+    def _chaseable(self, mobs, pos):
+        """Monsters worth changing level for: don't climb further up when
+        already in the upper half of the area, or drop further down when
+        already in the lower half, so chasing never leads out of the circle."""
+        if pos is None:
+            return mobs
+        half = self.cfg["radius"] * 0.5
+        too_high = pos[1] < self.center[1] - half
+        too_low = pos[1] > self.center[1] + half
+        return [m for m in mobs if not (m[1] < 0 and too_high) and not (m[1] > 0 and too_low)]
+
+    def _step_back(self, pos):
+        """One short move towards the centre (called every tick while outside).
+
+        No up-arrow (portals). When the centre is above, jump towards it; if two
+        jumps in a row gain no height there is no platform overhead, so try the
+        other side."""
+        dx, dy = self.center[0] - pos[0], self.center[1] - pos[1]
+        toward = "right" if dx > 0 else "left"
+        if dy < -self.mv["tolerance_y"]:  # centre is above
+            if self._last_y is not None and pos[1] >= self._last_y - 0.005:
+                self._stuck += 1
+            else:
+                self._stuck = 0
+            self._last_y = pos[1]
+            if self._stuck >= 2:
+                self._climb_dir = "left" if self._climb_dir == "right" else "right"
+                self._stuck = 0
+            direction = toward if abs(dx) > 0.1 else self._climb_dir
+            controls.hold(direction)
+            controls.press(self.keys["jump"], delay=0.55)
+            controls.release(direction)
+        elif dy > self.mv["tolerance_y"] and abs(dx) <= 0.1:  # centre is below us
+            controls.hold("down")
+            controls.press(self.keys["jump"], delay=0.45)
+            controls.release("down")
+        else:  # mostly sideways (or below and off to the side: walk off the edge)
+            controls.hold(toward)
+            time.sleep(0.3)
+            controls.release(toward)
+        self._facing = toward
 
     def _well_inside(self):
         d = self._distance_from_center()
@@ -118,12 +165,13 @@ class AreaFarmer:
             out.append(((mx - px) / w, (my - py) / h))
         return out
 
-    def _log(self, n_mobs, n_same, tag_found):
+    def _log(self, n_mobs, n_same, tag_found, outside):
         if time.time() - self._last_log < 3:
             return
         self._last_log = time.time()
         tag = "เจอ" if tag_found else "ไม่เจอ (ใช้กลางจอแทน)"
-        print(f"[area] เห็นมอน {n_mobs} ตัว (ระดับเดียวกัน {n_same}) | ป้ายชื่อตัวละคร: {tag}")
+        where = " | ออกนอกพื้นที่ - กำลังกลับ" if outside else ""
+        print(f"[area] เห็นมอน {n_mobs} ตัว (ระดับเดียวกัน {n_same}) | ป้ายชื่อตัวละคร: {tag}{where}")
 
     def _engage(self, dx, _dy):
         direction = "right" if dx > 0 else "left"
