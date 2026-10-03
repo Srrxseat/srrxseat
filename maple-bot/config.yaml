@@ -1,0 +1,59 @@
+# ตั้งค่าบอท MapleStory Worlds - Classic World (Thief)
+
+# ชื่อหน้าต่างเกม (ใช้หาตำแหน่งหน้าต่าง) - เช็คชื่อจริงจาก title bar
+window_title: "MapleStory Worlds"
+
+# ปุ่มควบคุม (บอทเริ่ม/หยุด/ออก)
+hotkeys:
+  toggle: f9      # เริ่ม/หยุดบอท
+  quit: f10       # ปิดโปรแกรม
+  record: f8      # พิมพ์ตำแหน่งตัวละครปัจจุบันบนมินิแมพ (ไว้เขียน routine)
+
+# ปุ่มในเกม (ตั้งให้ตรงกับ key config ในเกม)
+keys:
+  jump: alt
+  attack: ctrl        # สกิลโจมตีหลัก เช่น Lucky Seven / Savage Blow
+  loot: z
+  hp_potion: delete
+  mp_potion: end
+
+# บัฟที่กดซ้ำตามเวลา (วินาที)
+buffs:
+  - name: haste
+    key: shift
+    interval: 190
+  - name: dark_sight
+    key: "0"
+    interval: 0       # 0 = ไม่ใช้
+
+# พื้นที่บนหน้าจอ (พิกัดเทียบกับมุมซ้ายบนของหน้าต่างเกม: [x, y, w, h])
+# ใช้ tools/calibrate.py ลากเลือกแล้วระบบจะบันทึกให้อัตโนมัติ
+regions:
+  minimap: [10, 30, 200, 120]
+  hp_bar: [0, 0, 0, 0]
+  mp_bar: [0, 0, 0, 0]
+
+# สีจุดตัวละครบนมินิแมพ (HSV, OpenCV: H 0-179) - ค่าเริ่มต้นคือสีเหลือง
+player_dot_hsv:
+  lower: [20, 120, 180]
+  upper: [35, 255, 255]
+
+# สีหลอด HP/MP (HSV) ใช้คำนวณ % ที่เหลือ
+hp_bar_hsv:
+  lower: [0, 120, 120]
+  upper: [10, 255, 255]
+mp_bar_hsv:
+  lower: [100, 120, 120]
+  upper: [125, 255, 255]
+
+# ใช้ยาเมื่อเหลือต่ำกว่า (0.0 - 1.0)
+hp_threshold: 0.5
+mp_threshold: 0.3
+
+# การเคลื่อนที่ (หน่วยเป็นสัดส่วนของมินิแมพ 0.0 - 1.0)
+movement:
+  tolerance_x: 0.02     # ใกล้เป้าหมายแค่ไหนถือว่าถึง
+  tolerance_y: 0.04
+  timeout: 8.0          # วินาที ถ้าเดินไม่ถึงให้ข้ามจุดนี้
+
+routine: routines/example.yaml

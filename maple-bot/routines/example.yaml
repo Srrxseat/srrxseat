@@ -1,0 +1,27 @@
+# Routine: รายการจุดบนมินิแมพ (x, y เป็นสัดส่วน 0.0-1.0) และสิ่งที่ทำเมื่อถึงจุด
+# หาค่าพิกัดได้โดยกด F8 ตอนยืนอยู่ตรงจุดที่ต้องการ
+#
+# actions ที่ใช้ได้:
+#   attack: {times: N, direction: left|right}   กดสกิลโจมตี N ครั้ง
+#   loot:   {times: N}                          กดเก็บของ
+#   wait:   {seconds: S}
+#   key:    {key: ชื่อปุ่ม, times: N}            กดปุ่มอะไรก็ได้
+
+loop: true
+steps:
+  - point: [0.25, 0.70]
+    actions:
+      - attack: {times: 6, direction: right}
+      - loot: {times: 3}
+  - point: [0.55, 0.70]
+    actions:
+      - attack: {times: 6, direction: right}
+      - loot: {times: 3}
+  - point: [0.80, 0.70]
+    actions:
+      - attack: {times: 6, direction: left}
+      - loot: {times: 3}
+  - point: [0.55, 0.70]
+    actions:
+      - attack: {times: 6, direction: left}
+      - loot: {times: 3}
