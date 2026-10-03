@@ -113,10 +113,32 @@ class Bot:
         controls.move_mouse(cap.left + cap.width // 2, cap.top + 5)
         cap.activate()
         time.sleep(0.5)
+        self._report_setup()
         self.running = True
         self._thread = threading.Thread(target=self._run, args=(target,), daemon=True)
         self._thread.start()
         print("[bot] เริ่มทำงาน")
+
+    def _report_setup(self):
+        """Say up front whether potions and the attack skill can work."""
+        regions = self.config["regions"]
+        for bar, name, key in (("hp", "HP", "hp_potion"), ("mp", "MP", "mp_potion")):
+            region = regions.get(f"{bar}_bar")
+            if not region or region[2] == 0:
+                print(f"[bot] คำเตือน: ยังไม่ได้ตั้งกรอบหลอด {name} - บอทจะไม่กินยา {name} "
+                      "(รัน bash run.sh tools/calibrate.py แล้วลากกรอบหลอด)")
+                continue
+            ratio = vision.bar_ratio(Capture.crop(self.capture.frame(), region),
+                                     self.config[f"{bar}_bar_hsv"])
+            pct = "อ่านไม่ได้" if ratio is None else f"{ratio * 100:.0f}%"
+            print(f"[bot] {name} ตอนนี้ {pct} - กินยา (ปุ่ม {self.config['keys'].get(key)}) "
+                  f"เมื่อต่ำกว่า {self.config[f'{bar}_threshold'] * 100:.0f}% "
+                  "(ถ้าตัวเลขไม่ตรงกับในเกม ให้ calibrate หลอดใหม่)")
+        skill = self.config["keys"].get("skill")
+        if skill:
+            print(f"[bot] สกิลโจมตี: ปุ่ม {skill} (ใช้ตอนมอนอยู่ชิดตัว)")
+        else:
+            print("[bot] ไม่ได้ตั้งสกิลโจมตี (keys: skill ใน config.yaml) - ตีด้วยปุ่มธรรมดาอย่างเดียว")
 
     def _prepare_area(self):
         farmer = AreaFarmer(self)

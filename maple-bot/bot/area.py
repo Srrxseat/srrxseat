@@ -211,11 +211,17 @@ class AreaFarmer:
                 self._stuck = 0
             if abs(dx) <= 0.03 and self.mv.get("use_ropes", True) and self._rope_tries < 2:
                 self._rope_tries += 1
-                # Straight above: most likely a rope/ladder. Jump holding up
-                # to grab it, then keep climbing.
+                # Straight above: most likely a rope/ladder. Press up only
+                # while in the air (standing on a portal + up = warp away),
+                # and keep holding it only if we are really climbing.
+                controls.press(self.keys["jump"], delay=0.12)
                 controls.hold("up")
-                controls.press(self.keys["jump"], delay=0.1)
-                time.sleep(1.5)
+                time.sleep(0.15)
+                y1 = self.bot.position()
+                time.sleep(0.15)
+                y2 = self.bot.position()
+                if y1 and y2 and y2[1] < y1[1] - 0.003:
+                    time.sleep(1.5)  # on the rope: climb
                 controls.release("up")
                 return
             direction = toward if abs(dx) > 0.1 else self._climb_dir
@@ -281,7 +287,10 @@ class AreaFarmer:
         self._last_log = time.time()
         tag = "เจอ" if tag_found else "ไม่เจอ (จับภาพป้ายชื่อใหม่: bash run.sh tools/templates.py)"
         where = " | ออกนอกพื้นที่ - กำลังกลับ" if outside else ""
-        print(f"[area] เห็นมอน {n_mobs} ตัว (ระดับเดียวกัน {n_same}) | ป้ายชื่อตัวละคร: {tag}{where}")
+        hp, mp = self.bot.hp, self.bot.mp
+        bars = "" if hp is None and mp is None else \
+            f" | HP {'?' if hp is None else f'{hp * 100:.0f}%'} MP {'?' if mp is None else f'{mp * 100:.0f}%'}"
+        print(f"[area] เห็นมอน {n_mobs} ตัว (ระดับเดียวกัน {n_same}) | ป้ายชื่อตัวละคร: {tag}{bars}{where}")
 
     def _drop_ignored(self, mobs, pos):
         """Filter out monsters standing on a spot ignored earlier (see
