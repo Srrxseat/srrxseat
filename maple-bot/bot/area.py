@@ -14,6 +14,7 @@ import math
 import time
 from pathlib import Path
 
+import cv2
 import yaml
 
 from . import controls
@@ -21,6 +22,7 @@ from .config import ROOT
 from .vision import Templates
 
 AREA_FILE = ROOT / "routines" / "area.yaml"
+DEBUG_DIR = ROOT / "debug"
 TEMPLATE_DIR = ROOT / "templates"
 
 
@@ -63,6 +65,53 @@ class AreaFarmer:
         self._ignored = []           # (dx, dy, since) spots that never die
         self._ignored_at = None      # minimap position when they were ignored
         self._ignored_pos = None
+        self._last_snap = 0.0
+        self._snap_n = 0
+
+    # ---- debug snapshots ----------------------------------------------------------
+    def _snapshot(self, frame, player, mobs, chosen, text, points=(), target=None):
+        """Every second save what the bot saw and decided to debug/NNN.jpg
+        (last 120 kept): purple = character, red = monster, green = monster on
+        our platform, yellow = the one acted on; points drawn on the minimap."""
+        if not self.bot.config.get("debug_snapshots", True):
+            return
+        now = time.time()
+        if now - self._last_snap < 1.0:
+            return
+        self._last_snap = now
+        img = frame.copy()
+        h, w = img.shape[:2]
+        th = max(1, w // 800)
+        if player:
+            px, py = player
+            cv2.circle(img, (int(px), int(py)), 18 * th, (255, 0, 255), 2 * th)
+            for dx, dy in mobs:
+                same = abs(dy) <= self.cfg["vertical_range"]
+                cv2.circle(img, (int(px + dx * w), int(py + dy * h)), 14 * th,
+                           (0, 200, 0) if same else (0, 0, 255), 2 * th)
+            if chosen:
+                cx, cy = int(px + chosen[0] * w), int(py + chosen[1] * h)
+                cv2.rectangle(img, (cx - 22 * th, cy - 22 * th), (cx + 22 * th, cy + 22 * th),
+                              (0, 255, 255), 3 * th)
+        mx, my, mw, mh = self.bot.config["regions"]["minimap"]
+        top = self.bot.atlas.last_top / mh if mh else 0
+        for i, (ax, ay) in enumerate(points):
+            vx, vy = int(mx + ax * mw), int(my + (ay - top) * mh)
+            if my <= vy <= my + mh:
+                big = target is not None and (ax, ay) == tuple(target)
+                cv2.circle(img, (vx, vy), (6 if big else 3) * th,
+                           (0, 255, 255) if big else (255, 255, 0), -1 if big else 1)
+                cv2.putText(img, str(i + 1), (vx + 4 * th, vy), cv2.FONT_HERSHEY_SIMPLEX,
+                            0.35 * th, (255, 255, 255), 1)
+        cv2.rectangle(img, (0, h - 34 * th), (w, h), (0, 0, 0), -1)
+        cv2.putText(img, text, (8, h - 10 * th), cv2.FONT_HERSHEY_SIMPLEX, 0.6 * th,
+                    (255, 255, 255), th)
+        if w > 1600:
+            img = cv2.resize(img, (1600, int(h * 1600 / w)), interpolation=cv2.INTER_AREA)
+        DEBUG_DIR.mkdir(exist_ok=True)
+        cv2.imwrite(str(DEBUG_DIR / f"{self._snap_n % 120:03d}.jpg"), img,
+                    [cv2.IMWRITE_JPEG_QUALITY, 70])
+        self._snap_n += 1
 
     def describe(self):
         mobs = len(self.monster_tpl.images) // 2
@@ -72,10 +121,10 @@ class AreaFarmer:
 
     # ---- one iteration ------------------------------------------------------
     def tick(self):
-        pos = self.bot.position()
+        frame = self.bot.capture.frame()
+        pos = self.bot.position(frame)
         outside = pos is not None and self._dist(pos) > self.cfg["radius"]
 
-        frame = self.bot.capture.frame()
         player, tag_found = self._player_on_screen(frame)
         # Without knowing where the character is on screen we can't tell which
         # monsters are on its platform, so just swing both ways.

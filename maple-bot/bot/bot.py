@@ -26,8 +26,10 @@ class Bot:
         self.atlas = MinimapAtlas()
 
     # ---- state -------------------------------------------------------------
-    def position(self):
-        return locate_player(self.capture.frame(), self.config, self.atlas)
+    def position(self, frame=None):
+        if frame is None:
+            frame = self.capture.frame()
+        return locate_player(frame, self.config, self.atlas)
 
     def check_health(self):
         regions = self.config["regions"]

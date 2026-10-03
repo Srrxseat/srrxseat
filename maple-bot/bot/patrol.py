@@ -31,8 +31,9 @@ class PatrolFarmer(AreaFarmer):
         return f"เดินวน {len(self.points)} จุด | {how} | {tag}"
 
     def tick(self):
-        pos = self.bot.position()
+        # One screenshot per tick so position and monsters describe the same moment.
         frame = self.bot.capture.frame()
+        pos = self.bot.position(frame)
         player, tag_found = self._player_on_screen(frame)
         mobs = self._monsters(frame, *player) if self.monster_tpl and player else []
         mobs = self._drop_ignored(mobs, pos)
@@ -40,9 +41,17 @@ class PatrolFarmer(AreaFarmer):
         near = [m for m in same_level if abs(m[0]) <= self.pcfg["chase_range"]]
         self._log(len(mobs), len(near), tag_found, False)
 
+        target = self.points[self.idx]
+        where = f"pos=({pos[0]:.3f},{pos[1]:.3f})" if pos else "pos=?"
         if near:
-            self._melee(*min(near, key=lambda m: abs(m[0])))
+            chosen = min(near, key=lambda m: abs(m[0]))
+            text = f"{where} FIGHT dx={chosen[0]:+.3f} | point {self.idx + 1}/{len(self.points)}"
+            self._snapshot(frame, player, mobs, chosen, text, self.points, target)
+            self._melee(*chosen)
         else:
+            text = (f"{where} -> point {self.idx + 1}/{len(self.points)} "
+                    f"({target[0]:.3f},{target[1]:.3f}) mobs={len(mobs)}")
+            self._snapshot(frame, player, mobs, None, text, self.points, target)
             self._follow_points(pos)
 
         if time.time() - self._last_loot > self.cfg["loot_every"]:
