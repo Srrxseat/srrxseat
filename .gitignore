@@ -9,3 +9,4 @@ maple-bot/routines/area.yaml
 maple-bot/routines/my_route*.yaml
 maple-bot/routines/minimap_atlas.*
 maple-bot/check*.png
+maple-bot/routines/macro.yaml

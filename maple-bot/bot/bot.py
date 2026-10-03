@@ -5,6 +5,7 @@ import time
 from . import controls, vision
 from .area import AreaFarmer
 from .patrol import PatrolFarmer
+from .macro import MacroPlayer, load_macro
 from .capture import Capture
 from .config import RoutineError, load_routine
 from .minimap import MinimapAtlas, locate_player
@@ -75,6 +76,9 @@ class Bot:
     def patrol_mode(self):
         return self.config.get("mode", "route") == "patrol"
 
+    def replay_mode(self):
+        return self.config.get("mode", "route") == "replay"
+
     def start(self):
         if self.running:
             return
@@ -82,6 +86,8 @@ class Bot:
             target = self._prepare_area()
         elif self.patrol_mode():
             target = self._prepare_patrol()
+        elif self.replay_mode():
+            target = self._prepare_replay()
         else:
             target = self._prepare_route()
         if target is None:
@@ -126,6 +132,15 @@ class Bot:
         farmer = PatrolFarmer(self, points)
         print(f"[patrol] {farmer.describe()}")
         return farmer.tick
+
+    def _prepare_replay(self):
+        macro = load_macro()
+        if macro is None:
+            print("[bot] ยังไม่มีการอัดปุ่ม - กด F6 แล้วเล่นตามปกติ แล้วกด F6 อีกครั้งเพื่อหยุดอัด")
+            return None
+        player = MacroPlayer(self, macro)
+        print(f"[replay] {player.describe()}")
+        return player.tick
 
     def _prepare_route(self):
         # Reload every start so points just recorded with F8 are picked up.

@@ -12,6 +12,7 @@ from pynput import keyboard
 from bot.area import save_area_center
 from bot.bot import Bot
 from bot.config import append_routine_step, clear_routine, load_config
+from bot.macro import MacroRecorder, key_name
 
 
 def wait_for_game(config):
@@ -41,7 +42,8 @@ def main():
     print("เจอหน้าต่างเกมแล้ว")
     hk = config["hotkeys"]
     hotkeys = {getattr(keyboard.Key, hk[name]): name
-               for name in ("toggle", "record", "clear", "quit")}
+               for name in ("toggle", "record", "clear", "quit", "macro") if name in hk}
+    recorder = MacroRecorder()
 
     def record():
         if bot.running:
@@ -67,11 +69,26 @@ def main():
         bot.atlas.reset()  # new map / new start: rebuild the minimap picture
         print(f"[clear] ลบจุดทั้งหมดใน {config['routine']} แล้ว - เริ่มบันทึกใหม่ด้วย F8")
 
-    actions = {"toggle": bot.toggle, "record": record, "clear": clear}
+    def macro():
+        if bot.running:
+            print("[macro] กด F9 หยุดบอทก่อนอัด")
+            return
+        if not recorder.recording:
+            recorder.start(bot.position())
+            print(f"[macro] เริ่มอัดปุ่ม (จุดเริ่ม {recorder.start_pos}) - เล่นตามปกติ แล้วกด "
+                  f"{hk['macro'].upper()} อีกครั้งเพื่อหยุด")
+        else:
+            n, secs = recorder.stop()
+            print(f"[macro] บันทึกแล้ว {n} การกดปุ่ม ยาว {secs:.0f} วินาที "
+                  f"- ตั้ง mode: replay ใน config.yaml แล้วกด {hk['toggle'].upper()} เพื่อเล่นซ้ำ")
+
+    actions = {"toggle": bot.toggle, "record": record, "clear": clear, "macro": macro}
     last_press = {}
 
     def on_press(key):
         action = hotkeys.get(key)
+        if action is None:
+            recorder.add("down", key_name(key))
         if action == "quit":
             return False  # stops the listener
         # Holding a key repeats it; one press should do one thing.
@@ -86,6 +103,9 @@ def main():
     if bot.area_mode():
         print(f"โหมดพื้นที่ (area): {hk['record'].upper()}=ตั้งศูนย์กลางพื้นที่ตรงที่ยืน  "
               f"{hk['toggle'].upper()}=เริ่ม/หยุด  {hk['quit'].upper()}=ออก")
+    elif bot.replay_mode():
+        print(f"โหมดเล่นซ้ำ (replay): {hk.get('macro', 'f6').upper()}=เริ่ม/หยุดอัดปุ่ม  "
+              f"{hk['toggle'].upper()}=เริ่ม/หยุดเล่นซ้ำ  {hk['quit'].upper()}=ออก")
     elif bot.patrol_mode():
         print(f"โหมดเดินวนจุด (patrol): {hk['record'].upper()}=เพิ่มจุดตรงที่ยืน (6-10 จุดทั่วแมพ)  "
               f"{hk['clear'].upper()}=ลบจุดทั้งหมด  {hk['toggle'].upper()}=เริ่ม/หยุด  "
@@ -94,8 +114,14 @@ def main():
         print(f"โหมดเดินตามจุด (route): {hk['record'].upper()}=บันทึกจุด  "
               f"{hk['clear'].upper()}=ลบจุดทั้งหมด  {hk['toggle'].upper()}=เริ่ม/หยุด  "
               f"{hk['quit'].upper()}=ออก")
+    def on_release(key):
+        if hotkeys.get(key) is None:
+            recorder.add("up", key_name(key))
+
+    if "macro" in hk:
+        print(f"{hk['macro'].upper()} = อัดปุ่มที่คุณเล่น (โหมด replay จะเล่นซ้ำ)")
     try:
-        with keyboard.Listener(on_press=on_press) as listener:
+        with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
             listener.join()
     finally:
         bot.stop()
