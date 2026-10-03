@@ -4,6 +4,7 @@ import time
 
 from . import controls, vision
 from .area import AreaFarmer
+from .patrol import PatrolFarmer
 from .capture import Capture
 from .config import RoutineError, load_routine
 from .thief import Thief
@@ -71,11 +72,16 @@ class Bot:
     def area_mode(self):
         return self.config.get("mode", "route") == "area"
 
+    def patrol_mode(self):
+        return self.config.get("mode", "route") == "patrol"
+
     def start(self):
         if self.running:
             return
         if self.area_mode():
             target = self._prepare_area()
+        elif self.patrol_mode():
+            target = self._prepare_patrol()
         else:
             target = self._prepare_route()
         if target is None:
@@ -98,6 +104,19 @@ class Bot:
             print("[bot] ยังไม่ได้ตั้งพื้นที่ - ยืนกลางพื้นที่ที่จะฟาร์มแล้วกด F8 ก่อน")
             return None
         print(f"[area] {farmer.describe()}")
+        return farmer.tick
+
+    def _prepare_patrol(self):
+        try:
+            steps = load_routine(self.config["routine"])["steps"]
+        except RoutineError as e:
+            print(f"[bot] {e} - กด F7 เพื่อล้างไฟล์ แล้วบันทึกจุดใหม่ด้วย F8")
+            return None
+        if len(steps) < 2:
+            print("[bot] ต้องมีอย่างน้อย 2 จุด - เดินไปรอบแมพแล้วกด F8 ทีละจุด (แนะนำ 6-10 จุด)")
+            return None
+        farmer = PatrolFarmer(self, [s["point"] for s in steps])
+        print(f"[patrol] {farmer.describe()}")
         return farmer.tick
 
     def _prepare_route(self):

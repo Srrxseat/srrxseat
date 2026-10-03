@@ -75,6 +75,11 @@ class Thief:
     def face(self, direction):
         controls.press(direction, delay=0.05)
 
+    def walk(self, direction, seconds):
+        controls.hold(direction)
+        time.sleep(seconds)
+        controls.release(direction)
+
     def attack(self, times=1, direction=None):
         if direction:
             self.face(direction)

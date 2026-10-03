@@ -56,6 +56,10 @@ def main():
     if bot.area_mode():
         print(f"โหมดพื้นที่ (area): {hk['record'].upper()}=ตั้งศูนย์กลางพื้นที่ตรงที่ยืน  "
               f"{hk['toggle'].upper()}=เริ่ม/หยุด  {hk['quit'].upper()}=ออก")
+    elif bot.patrol_mode():
+        print(f"โหมดเดินวนจุด (patrol): {hk['record'].upper()}=เพิ่มจุดตรงที่ยืน (6-10 จุดทั่วแมพ)  "
+              f"{hk['clear'].upper()}=ลบจุดทั้งหมด  {hk['toggle'].upper()}=เริ่ม/หยุด  "
+              f"{hk['quit'].upper()}=ออก")
     else:
         print(f"โหมดเดินตามจุด (route): {hk['record'].upper()}=บันทึกจุด  "
               f"{hk['clear'].upper()}=ลบจุดทั้งหมด  {hk['toggle'].upper()}=เริ่ม/หยุด  "
