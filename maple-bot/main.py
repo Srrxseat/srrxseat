@@ -1,10 +1,12 @@
 """MapleStory Worlds Classic bot - entry point.
 
-Run as Administrator on Windows (needed for the game to receive key presses).
+Windows: run as Administrator so the game receives key presses.
+macOS:   allow your terminal app in System Settings > Privacy & Security under
+         Accessibility, Input Monitoring and Screen Recording.
 """
-import time
+import threading
 
-import keyboard
+from pynput import keyboard
 
 from bot.bot import Bot
 from bot.config import load_config
@@ -14,6 +16,7 @@ def main():
     config = load_config()
     bot = Bot(config)
     hk = config["hotkeys"]
+    hotkeys = {getattr(keyboard.Key, hk[name]): name for name in ("toggle", "record", "quit")}
 
     def record():
         pos = bot.position()
@@ -22,14 +25,19 @@ def main():
         else:
             print(f"[record] - point: [{pos[0]:.3f}, {pos[1]:.3f}]")
 
-    keyboard.add_hotkey(hk["toggle"], bot.toggle)
-    keyboard.add_hotkey(hk["record"], record)
+    def on_press(key):
+        action = hotkeys.get(key)
+        if action == "quit":
+            return False  # stops the listener
+        if action:
+            # Don't block the listener thread (stopping the bot can take a moment).
+            threading.Thread(target=bot.toggle if action == "toggle" else record).start()
+
     print(f"พร้อม: {hk['toggle'].upper()}=เริ่ม/หยุด  {hk['record'].upper()}=บันทึกตำแหน่ง  "
           f"{hk['quit'].upper()}=ออก")
-
     try:
-        while not keyboard.is_pressed(hk["quit"]):
-            time.sleep(0.1)
+        with keyboard.Listener(on_press=on_press) as listener:
+            listener.join()
     finally:
         bot.stop()
 

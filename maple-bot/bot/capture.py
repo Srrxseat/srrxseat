@@ -7,11 +7,35 @@ import numpy as np
 
 
 def find_window_rect(title):
-    """Return (left, top, width, height) of the client area of the window whose
-    title contains `title`. Windows only."""
-    if sys.platform != "win32":
-        raise RuntimeError("หาหน้าต่างเกมได้เฉพาะบน Windows")
+    """Return (left, top, width, height) of the game window whose title (or
+    app name) contains `title`. Coordinates are screen points."""
+    if sys.platform == "win32":
+        return _find_window_rect_windows(title)
+    if sys.platform == "darwin":
+        return _find_window_rect_macos(title)
+    raise RuntimeError("รองรับเฉพาะ Windows และ macOS")
 
+
+def _find_window_rect_macos(title):
+    import Quartz
+
+    options = Quartz.kCGWindowListOptionOnScreenOnly | Quartz.kCGWindowListExcludeDesktopElements
+    windows = Quartz.CGWindowListCopyWindowInfo(options, Quartz.kCGNullWindowID)
+    matches = []
+    for w in windows:
+        # Window names are only visible once Screen Recording is allowed;
+        # the owning app name always is.
+        names = f"{w.get('kCGWindowName') or ''} {w.get('kCGWindowOwnerName') or ''}"
+        if w.get("kCGWindowLayer") == 0 and title.lower() in names.lower():
+            b = w["kCGWindowBounds"]
+            matches.append((int(b["X"]), int(b["Y"]), int(b["Width"]), int(b["Height"])))
+    if not matches:
+        raise RuntimeError(f"ไม่พบหน้าต่างที่ชื่อมีคำว่า '{title}'")
+    # The app may own small helper windows; the game is the biggest one.
+    return max(matches, key=lambda r: r[2] * r[3])
+
+
+def _find_window_rect_windows(title):
     import ctypes.wintypes
 
     user32 = ctypes.windll.user32
@@ -52,7 +76,8 @@ class Capture:
         self.left, self.top, self.width, self.height = find_window_rect(self.window_title)
 
     def frame(self):
-        """Whole game window as a BGR numpy array."""
+        """Whole game window as a BGR numpy array. On Retina displays the
+        image is in physical pixels (e.g. 2x the window size in points)."""
         mon = {"left": self.left, "top": self.top, "width": self.width, "height": self.height}
         img = np.array(self.sct.grab(mon))
         return img[:, :, :3]

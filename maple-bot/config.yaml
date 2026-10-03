@@ -1,15 +1,19 @@
 # ตั้งค่าบอท MapleStory Worlds - Classic World (Thief)
 
-# ชื่อหน้าต่างเกม (ใช้หาตำแหน่งหน้าต่าง) - เช็คชื่อจริงจาก title bar
+# ชื่อหน้าต่างเกม หรือชื่อแอป (ใช้หาตำแหน่งหน้าต่าง) - เช็คชื่อจริงจาก title bar
+# macOS: ถ้าเล่นผ่าน Parallels/CrossOver ให้ใส่ชื่อแอปนั้นแทน เช่น "Parallels Desktop"
 window_title: "MapleStory Worlds"
 
-# ปุ่มควบคุม (บอทเริ่ม/หยุด/ออก)
+# ปุ่มควบคุม (บอทเริ่ม/หยุด/ออก) - ใช้ชื่อปุ่มของ pynput เช่น f8, f9, f10
+# macOS: ตั้ง "Use F1, F2, etc. keys as standard function keys" หรือกด fn ค้างไว้
 hotkeys:
   toggle: f9      # เริ่ม/หยุดบอท
   quit: f10       # ปิดโปรแกรม
   record: f8      # พิมพ์ตำแหน่งตัวละครปัจจุบันบนมินิแมพ (ไว้เขียน routine)
 
 # ปุ่มในเกม (ตั้งให้ตรงกับ key config ในเกม)
+# ชื่อพิเศษ: alt (= Option บน Mac), ctrl, shift, delete, end, home, page_up, space ...
+# ตัวอักษร/ตัวเลขใส่ตรงๆ เช่น z, "0"
 keys:
   jump: alt
   attack: ctrl        # สกิลโจมตีหลัก เช่น Lucky Seven / Savage Blow
@@ -26,7 +30,8 @@ buffs:
     key: "0"
     interval: 0       # 0 = ไม่ใช้
 
-# พื้นที่บนหน้าจอ (พิกัดเทียบกับมุมซ้ายบนของหน้าต่างเกม: [x, y, w, h])
+# พื้นที่บนหน้าจอ (พิกัด pixel ในภาพที่จับได้ เทียบกับมุมซ้ายบนของหน้าต่างเกม: [x, y, w, h])
+# จอ Retina ภาพจะเป็น 2 เท่าของขนาดหน้าต่าง - ให้ calibrate.py ตั้งค่าให้ จะถูกเสมอ
 # ใช้ tools/calibrate.py ลากเลือกแล้วระบบจะบันทึกให้อัตโนมัติ
 regions:
   minimap: [10, 30, 200, 120]

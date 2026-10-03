@@ -1,5 +1,7 @@
 # maple-bot — บอท MapleStory Worlds: Classic World (Thief)
 
+รองรับ **macOS** และ Windows (Python 3.10+)
+
 โครงบอทเริ่มต้นที่ได้แนวคิดจาก [auto-maple](https://github.com/tanjeffreyz/auto-maple):
 อ่านหน้าจอเพื่อหาตำแหน่งตัวละครบนมินิแมพ แล้วเดินตาม routine + กดสกิล/เก็บของ/กินยา/บัฟ
 
@@ -14,28 +16,45 @@ config.yaml          ปุ่มในเกม, บัฟ, พื้นที�
 routines/*.yaml      เส้นทางฟาร์ม (จุดบนมินิแมพ + action ที่ทำ)
 bot/capture.py       หาหน้าต่างเกมและจับภาพ (mss)
 bot/vision.py        หาจุดตัวละครบนมินิแมพ (สี HSV) และอ่าน % HP/MP
-bot/controls.py      ส่งปุ่มด้วย DirectInput (pydirectinput)
+bot/controls.py      ส่งปุ่ม: macOS ใช้ pynput (Quartz), Windows ใช้ pydirectinput
 bot/thief.py         command book ของ Thief: เดิน/ปีนเชือก/ลงพื้น/โจมตี/เก็บของ
 bot/bot.py           ลูปหลัก: routine + บัฟตามเวลา + กินยา
 tools/calibrate.py   ลากเลือกพื้นที่มินิแมพ/หลอด HP/MP และดูผลการจับตำแหน่ง
 ```
 
-## วิธีใช้ (Windows)
+## วิธีใช้บน macOS
 
-1. ติดตั้ง Python 3.10+ แล้ว
+1. ติดตั้ง
    ```
    cd maple-bot
+   python3 -m venv .venv && source .venv/bin/activate
    pip install -r requirements.txt
    ```
-2. เปิดเกมแบบ **windowed** แก้ `window_title` ใน `config.yaml` ให้ตรงกับชื่อหน้าต่างเกม
-3. แก้ `keys` ให้ตรงกับปุ่มในเกม (โจมตี, กระโดด, เก็บของ, ยา) และ `buffs` (Haste ฯลฯ)
-4. รัน `python tools/calibrate.py` (เปิด cmd แบบ **Run as administrator**)
-   - ลากกรอบมินิแมพ → Enter, หลอด HP → Enter, หลอด MP → Enter (กด `c` เพื่อข้าม)
-   - จะมีหน้าต่างพรีวิวขยายมินิแมพ ถ้าวงแดงตรงจุดเหลืองของตัวละครแปลว่าใช้ได้
-   - ถ้าจับไม่ได้ ให้ปรับ `player_dot_hsv` ใน config
-5. เขียน routine: ไปยืนตามจุดที่อยากหยุดตีมอน แล้วกด **F8** ในขณะที่ `main.py` รันอยู่
-   จะได้พิกัดไปใส่ใน `routines/example.yaml`
-6. รัน `python main.py` (administrator) แล้วกด **F9** เพื่อเริ่ม/หยุด, **F10** เพื่อออก
+2. **ให้สิทธิ์แอป Terminal** (หรือ iTerm / VS Code ที่ใช้รัน) ใน
+   System Settings → Privacy & Security:
+   - **Screen Recording** — ไม่งั้นจับภาพได้แต่จอดำ/หาชื่อหน้าต่างไม่เจอ
+   - **Accessibility** — ไม่งั้นส่งปุ่มเข้าเกมไม่ได้
+   - **Input Monitoring** — ไม่งั้น hotkey F8/F9/F10 ไม่ทำงาน
+
+   ให้สิทธิ์แล้วต้องปิด-เปิด Terminal ใหม่
+3. ปุ่ม F: เปิด System Settings → Keyboard → "Use F1, F2, etc. keys as standard
+   function keys" หรือกด `fn`+F9 แทน
+4. **ระวัง Ctrl+ลูกศร**: macOS ใช้สลับ Desktop (Mission Control)
+   ถ้าตั้งโจมตีเป็น ctrl ให้ปิด shortcut นี้ใน Keyboard → Keyboard Shortcuts → Mission Control
+   หรือเปลี่ยนปุ่มโจมตีในเกมเป็นปุ่มอื่น
+5. เปิดเกมแบบ **windowed** แก้ `window_title` ใน `config.yaml` ให้ตรงกับชื่อหน้าต่างหรือชื่อแอป
+   (ถ้าเล่นผ่าน Parallels/CrossOver ใส่ชื่อแอปนั้น) แล้วแก้ `keys` / `buffs` ให้ตรงกับในเกม
+6. `python tools/calibrate.py` → ลากกรอบมินิแมพ → Enter, หลอด HP → Enter, หลอด MP → Enter
+   (กด `c` เพื่อข้าม) แล้วดูพรีวิวว่าวงแดงตรงจุดเหลืองของตัวละคร
+   ถ้าจับไม่ได้ให้ปรับ `player_dot_hsv` ใน config
+7. `python main.py` → ยืนตามจุดที่จะตีมอนแล้วกด **F8** เอาพิกัดไปใส่ `routines/example.yaml`
+8. คลิกหน้าต่างเกมให้ active แล้วกด **F9** เริ่ม/หยุด, **F10** ออก
+
+> หน้าต่างเกมต้อง active (อยู่หน้าสุด) ตอนบอทกดปุ่ม เพราะปุ่มจะถูกส่งไปที่แอปที่ focus อยู่
+
+## วิธีใช้บน Windows
+
+เหมือนข้างบน แต่ไม่ต้องตั้งสิทธิ์ macOS ให้เปิด cmd แบบ **Run as administrator** แทน
 
 ## ขยายต่อ
 
