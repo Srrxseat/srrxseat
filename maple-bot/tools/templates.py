@@ -27,15 +27,36 @@ def select(frame, title):
     return frame[int(y):int(y + h), int(x):int(x + w)].copy()
 
 
+def tighten_tag(img):
+    """Crop a loosely selected name tag down to the tag itself.
+
+    The tag is a dark box with white text; anything around it (platforms,
+    background) changes as the character moves and would stop it matching."""
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    dark = (hsv[:, :, 2] < 110) & (hsv[:, :, 1] < 120)
+    white = (hsv[:, :, 2] > 190) & (hsv[:, :, 1] < 60)
+    mask = ((dark | white) * 255).astype("uint8")
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 3)))
+    n, _, stats, _ = cv2.connectedComponentsWithStats(mask)
+    if n <= 1:
+        return img
+    best = max(range(1, n), key=lambda i: stats[i, cv2.CC_STAT_AREA])
+    x, y, w, h = stats[best, :4]
+    if w < img.shape[1] * 0.3 or h < 4:
+        return img  # didn't find a convincing box; keep the user's selection
+    return img[y:y + h, x:x + w]
+
+
 def main():
     config = load_config()
     frame = Capture(config["window_title"]).frame()
     folder = template_dir()
 
-    print("1) ลากกรอบรอบ 'ป้ายชื่อ' ตัวละครให้พอดีตัวหนังสือ แล้วกด Enter (c = ข้าม)")
+    print("1) ลากกรอบรอบ 'ป้ายชื่อ' ใต้ตัวละคร (ป้ายดำตัวหนังสือขาว ไม่ใช่ชื่อในหน้าต่างปาร์ตี้)")
+    print("   ให้พอดีป้าย แล้วกด Enter (c = ข้าม)")
     tag = select(frame, "Name tag")
     if tag is not None:
-        cv2.imwrite(str(folder / "player.png"), tag)
+        cv2.imwrite(str(folder / "player.png"), tighten_tag(tag))
         print("   บันทึก templates/player.png แล้ว")
 
     mob_dir = folder / "monsters"

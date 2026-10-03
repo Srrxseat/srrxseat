@@ -56,11 +56,12 @@ class AreaFarmer:
         self._last_y = None
         self._stuck = 0
         self._climb_dir = "right"
+        self._last_player = None
 
     def describe(self):
         mobs = len(self.monster_tpl.images) // 2
         how = f"หามอนจากภาพ {mobs} ภาพ" if mobs else "ไม่มีภาพมอน - ตีสลับซ้าย/ขวา"
-        tag = "เจอภาพป้ายชื่อ" if self.player_tpl else "ไม่มีภาพป้ายชื่อ - ถือว่าตัวละครอยู่กลางจอ"
+        tag = "เจอภาพป้ายชื่อ" if self.player_tpl else "ไม่มีภาพป้ายชื่อ - ตีสลับซ้าย/ขวาอย่างเดียว"
         return f"ศูนย์กลาง {self.center} รัศมี {self.cfg['radius']} | {how} | {tag}"
 
     # ---- one iteration ------------------------------------------------------
@@ -69,8 +70,10 @@ class AreaFarmer:
         outside = pos is not None and self._dist(pos) > self.cfg["radius"]
 
         frame = self.bot.capture.frame()
-        (px, py), tag_found = self._player_on_screen(frame)
-        mobs = self._monsters(frame, px, py) if self.monster_tpl else []
+        player, tag_found = self._player_on_screen(frame)
+        # Without knowing where the character is on screen we can't tell which
+        # monsters are on its platform, so just swing both ways.
+        mobs = self._monsters(frame, *player) if self.monster_tpl and player else []
         same_level = [m for m in mobs if abs(m[1]) <= self.cfg["vertical_range"]]
         self._log(len(mobs), len(same_level), tag_found, outside)
 
@@ -145,15 +148,22 @@ class AreaFarmer:
         return d is not None and d < self.cfg["radius"] * 0.8
 
     def _player_on_screen(self, frame):
-        """((x, y) of the character's body in frame pixels, name tag found?)"""
+        """((x, y) of the character's body in frame pixels or None, tag found now?)
+
+        Falls back to where the tag was last seen (up to 3 s ago)."""
         h, w = frame.shape[:2]
         if self.player_tpl:
-            tags = self.player_tpl.find(frame, self.cfg["player_threshold"])
+            # Name tags are grey/white, so skip the colour check used for monsters.
+            tags = self.player_tpl.find(frame, self.cfg["player_threshold"],
+                                        max_width=1600, max_color_diff=999)
             if tags:
                 x, y, _ = tags[0]
                 # The name tag sits under the character's feet; aim at the body.
-                return (x, y - h * 0.05), True
-        return (w / 2, h * 0.6), False
+                self._last_player = ((x, y - h * 0.05), time.time())
+                return self._last_player[0], True
+        if self._last_player and time.time() - self._last_player[1] < 3:
+            return self._last_player[0], False
+        return None, False
 
     def _monsters(self, frame, px, py):
         """Visible monsters as (dx, dy) from the player, in fractions of the screen."""
@@ -169,7 +179,7 @@ class AreaFarmer:
         if time.time() - self._last_log < 3:
             return
         self._last_log = time.time()
-        tag = "เจอ" if tag_found else "ไม่เจอ (ใช้กลางจอแทน)"
+        tag = "เจอ" if tag_found else "ไม่เจอ (จับภาพป้ายชื่อใหม่: bash run.sh tools/templates.py)"
         where = " | ออกนอกพื้นที่ - กำลังกลับ" if outside else ""
         print(f"[area] เห็นมอน {n_mobs} ตัว (ระดับเดียวกัน {n_same}) | ป้ายชื่อตัวละคร: {tag}{where}")
 

@@ -77,6 +77,8 @@ class Bot:
         # mouse on the window's title bar so it is not drawn over the game.
         cap = self.capture
         controls.move_mouse(cap.left + cap.width // 2, cap.top + 5)
+        cap.activate()
+        time.sleep(0.5)
         self.running = True
         self._thread = threading.Thread(target=self._run, args=(target,), daemon=True)
         self._thread.start()
@@ -111,8 +113,18 @@ class Bot:
         print("[bot] หยุด")
 
     def _run(self, tick):
+        last_warn = 0.0
         try:
             while self.running:
+                if not self.capture.is_foreground():
+                    # Keys would go to another app (e.g. typing zzz into the
+                    # Terminal) and that window may cover the HP bar; wait.
+                    controls.release_all()
+                    if time.time() - last_warn > 5:
+                        print("[bot] เกมไม่ได้อยู่หน้าสุด - พักไว้ก่อน (คลิกหน้าต่างเกมเพื่อทำต่อ)")
+                        last_warn = time.time()
+                    time.sleep(0.3)
+                    continue
                 self.check_buffs()
                 self.check_health()
                 if self.running:

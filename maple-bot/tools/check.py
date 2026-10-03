@@ -66,7 +66,8 @@ def check_area(config, frame, out):
     player, monsters = load_templates()
     marked = frame.copy()
     if player:
-        tags = player.find(frame, config["area"]["player_threshold"])
+        tags = player.find(frame, config["area"]["player_threshold"],
+                           max_width=1600, max_color_diff=999)
         if tags:
             x, y, s = tags[0]
             cv2.circle(marked, (int(x), int(y)), 30, (255, 0, 255), 3)

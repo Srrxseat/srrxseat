@@ -6,8 +6,9 @@ import numpy as np
 
 
 def find_window_rect(title):
-    """Return (left, top, width, height) of the game window whose title (or
-    app name) contains `title`. Coordinates are screen points."""
+    """Return (left, top, width, height, owner) of the game window whose title
+    (or app name) contains `title`. Coordinates are screen points; owner is the
+    app's process id on macOS and the window handle on Windows."""
     if sys.platform == "win32":
         return _find_window_rect_windows(title)
     if sys.platform == "darwin":
@@ -27,7 +28,8 @@ def _find_window_rect_macos(title):
         names = f"{w.get('kCGWindowName') or ''} {w.get('kCGWindowOwnerName') or ''}"
         if w.get("kCGWindowLayer") == 0 and title.lower() in names.lower():
             b = w["kCGWindowBounds"]
-            matches.append((int(b["X"]), int(b["Y"]), int(b["Width"]), int(b["Height"])))
+            matches.append((int(b["X"]), int(b["Y"]), int(b["Width"]), int(b["Height"]),
+                            int(w["kCGWindowOwnerPID"])))
     if not matches:
         raise RuntimeError(f"ไม่พบหน้าต่างที่ชื่อมีคำว่า '{title}'")
     # The app may own small helper windows; the game is the biggest one.
@@ -62,7 +64,7 @@ def _find_window_rect_windows(title):
     user32.GetClientRect(hwnd, ctypes.byref(rect))
     pt = ctypes.wintypes.POINT(0, 0)
     user32.ClientToScreen(hwnd, ctypes.byref(pt))
-    return pt.x, pt.y, rect.right - rect.left, rect.bottom - rect.top
+    return pt.x, pt.y, rect.right - rect.left, rect.bottom - rect.top, hwnd
 
 
 class Capture:
@@ -72,7 +74,41 @@ class Capture:
         self.refresh_window()
 
     def refresh_window(self):
-        self.left, self.top, self.width, self.height = find_window_rect(self.window_title)
+        self.left, self.top, self.width, self.height, self.owner = \
+            find_window_rect(self.window_title)
+
+    def activate(self):
+        """Bring the game window to the front so key presses reach it."""
+        if sys.platform == "darwin":
+            from AppKit import NSApplicationActivateIgnoringOtherApps, NSRunningApplication
+
+            app = NSRunningApplication.runningApplicationWithProcessIdentifier_(self.owner)
+            if app is not None:
+                app.activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
+        elif sys.platform == "win32":
+            import ctypes
+
+            ctypes.windll.user32.SetForegroundWindow(self.owner)
+
+    def is_foreground(self):
+        """True when the game is the front window (keys would go to it and
+        nothing covers the minimap / HP bar)."""
+        if sys.platform == "darwin":
+            import Quartz
+
+            # The list is ordered front to back; the first normal window is
+            # the one the user is looking at.
+            options = Quartz.kCGWindowListOptionOnScreenOnly | \
+                Quartz.kCGWindowListExcludeDesktopElements
+            for w in Quartz.CGWindowListCopyWindowInfo(options, Quartz.kCGNullWindowID):
+                if w.get("kCGWindowLayer") == 0:
+                    return int(w["kCGWindowOwnerPID"]) == self.owner
+            return False
+        if sys.platform == "win32":
+            import ctypes
+
+            return ctypes.windll.user32.GetForegroundWindow() == self.owner
+        return True
 
     def frame(self):
         """Whole game window as a BGR numpy array. On Retina displays the
