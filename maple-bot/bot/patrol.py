@@ -17,6 +17,7 @@ Each tick:
 import math
 import time
 
+from . import controls
 from .area import AreaFarmer
 from .macro import play_events
 
@@ -36,6 +37,7 @@ class PatrolFarmer(AreaFarmer):
         self.idx = 0
         self._point_since = time.time()
         self._path_tries = 0
+        self._align_taps = 0
         self._fails = {}  # point index -> times it timed out in a row
         # Walking along a level: hop while moving so small gaps between
         # platforms are jumped over instead of falling through.
@@ -123,7 +125,10 @@ class PatrolFarmer(AreaFarmer):
             self._fails.pop(self.idx, None)
             if self.idx == 0:
                 self._fails.clear()  # new lap: give skipped points another chance
-            self._next_point((self.idx + 1) % n)
+            nxt = (self.idx + 1) % n
+            while self._fails.get(nxt, 0) >= 2 and nxt != self.idx:
+                nxt = (nxt + 1) % n  # failed twice this lap: skip it
+            self._next_point(nxt)
             return
         if time.time() - self._point_since > self.pcfg["point_timeout"]:
             # Lost (knocked down, fell): continue from the nearest point, i.e.
@@ -152,7 +157,20 @@ class PatrolFarmer(AreaFarmer):
         if path and (changes_level or jumped) and self._path_tries < 2:
             d_prev = math.dist(pos, prev)
             if d_prev <= self.reach:
+                # Recorded jumps only land when started where you started:
+                # line up on the exact spot with short taps first.
+                off = prev[0] - pos[0]
+                if abs(off) > self.pcfg.get("align_tolerance", 0.01) and \
+                        abs(pos[1] - prev[1]) <= self.level_tol and self._align_taps < 8:
+                    self._align_taps += 1
+                    side = "right" if off > 0 else "left"
+                    controls.hold(side)
+                    time.sleep(min(0.15, 0.04 + abs(off) * 2))
+                    controls.release(side)
+                    time.sleep(0.15)  # let the minimap dot settle
+                    return
                 # Replay the leg; if it didn't get there, come back and try once more.
+                self._align_taps = 0
                 self._path_tries += 1
                 play_events(self.bot, path)
                 return
@@ -177,6 +195,7 @@ class PatrolFarmer(AreaFarmer):
         self.idx = idx
         self._point_since = time.time()
         self._path_tries = 0
+        self._align_taps = 0
         self._stuck = 0
         self._last_y = None
         self._last_x = None
