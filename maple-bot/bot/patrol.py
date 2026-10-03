@@ -106,8 +106,10 @@ class PatrolFarmer(AreaFarmer):
             if abs(dx) <= self.cfg["attack_range"] * 2:
                 self.cmd.attack(times=1)
             return
+        # Right next to it: use the attack skill (e.g. Double Stab) - saving
+        # MP for when it can actually hit.
         self._face(direction)
-        self.cmd.attack(times=self.cfg["attacks_per_tick"])
+        self.cmd.attack(times=self.cfg["attacks_per_tick"], skill=True)
 
     # ---- moving between points --------------------------------------------------
     def _follow_points(self, pos):

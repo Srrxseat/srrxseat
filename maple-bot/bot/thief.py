@@ -80,13 +80,20 @@ class Thief:
         time.sleep(seconds)
         controls.release(direction)
 
-    def attack(self, times=1, direction=None):
+    def attack(self, times=1, direction=None, skill=False):
+        """skill=True: use the attack skill (keys.skill, e.g. Double Stab) while
+        MP lasts, otherwise the normal attack key."""
         if direction:
             self.face(direction)
+        sk = self.bot.config.get("skill", {})
         for _ in range(times):
             if not self.bot.running:
                 return
-            controls.press(self.keys["attack"], delay=0.35)
+            mp = self.bot.mp
+            if skill and self.keys.get("skill") and (mp is None or mp >= sk.get("min_mp", 0.15)):
+                controls.press(self.keys["skill"], delay=sk.get("delay", 0.6))
+            else:
+                controls.press(self.keys["attack"], delay=0.35)
             self.bot.check_health()
 
     def loot(self, times=1):

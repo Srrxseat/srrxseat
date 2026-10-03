@@ -23,6 +23,9 @@ class Bot:
         self._last_buff = {}
         self._step = 0
         self._hp_zero = 0
+        self.hp = None   # last read HP / MP (0..1, None = bar not set up)
+        self.mp = None
+        self._last_potion = {}
         self.atlas = MinimapAtlas()
 
     # ---- state -------------------------------------------------------------
@@ -42,6 +45,7 @@ class Bot:
             if not region or region[2] == 0:
                 continue
             ratio = vision.bar_ratio(Capture.crop(frame, region), self.config[f"{bar}_bar_hsv"])
+            setattr(self, bar, ratio)
             if bar == "hp" and ratio is not None and ratio < 0.02:
                 # A single bad frame (window switching, a flash) can read as 0;
                 # only stop when it stays empty.
@@ -53,8 +57,12 @@ class Bot:
                 continue
             if bar == "hp":
                 self._hp_zero = 0
-            if ratio is not None and ratio < threshold:
+            # One potion takes a moment to show on the bar: don't drink a
+            # second one for the same drop.
+            if ratio is not None and ratio < threshold and \
+                    time.time() - self._last_potion.get(bar, 0) > 0.5:
                 controls.press(self.config["keys"][key])
+                self._last_potion[bar] = time.time()
 
     def check_buffs(self):
         now = time.time()

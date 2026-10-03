@@ -371,7 +371,8 @@ class AreaFarmer:
                 controls.release(direction)
                 return
         self._face(direction)
-        self.cmd.attack(times=self.cfg["attacks_per_tick"])
+        self.cmd.attack(times=self.cfg["attacks_per_tick"],
+                        skill=abs(dx) <= self.cfg["attack_range"])
 
     def _change_level(self, dx, dy):
         """Every visible monster is on another platform: jump up or drop down to it."""

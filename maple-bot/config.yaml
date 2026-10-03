@@ -22,8 +22,14 @@ keys:
   jump: space         # Space bar
   attack: z
   loot: x
+  skill: ""           # สกิลโจมตี เช่น Double Stab: ลากสกิลไปใส่ quickslot แล้วใส่ปุ่มนั้น เช่น a, "1", ctrl ("" = ไม่ใช้)
   hp_potion: delete
   mp_potion: end
+
+# สกิลโจมตี (keys.skill) - ใช้เฉพาะตอนมอนอยู่ชิดตัว (ระยะ attack_range) เพื่อประหยัด MP
+skill:
+  min_mp: 0.15        # MP ต่ำกว่านี้ (สัดส่วน) = ตีธรรมดาแทน รอยา MP
+  delay: 0.6          # วินาทีต่อการใช้สกิล 1 ครั้ง (ท่าตีของสกิล)
 
 # บัฟที่กดซ้ำตามเวลา (วินาที)
 buffs:
