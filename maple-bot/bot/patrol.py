@@ -97,9 +97,12 @@ class PatrolFarmer(AreaFarmer):
             return
         direction = "right" if dx > 0 else "left"
         if abs(dx) > self.cfg["attack_range"]:
-            # Close the distance first (daggers only reach right next to us).
+            # Close the distance first (daggers only reach right next to us),
+            # and swing once when nearly there so we hit it as it comes in.
             self.cmd.walk(direction, 0.15)
             self._facing = direction
+            if abs(dx) <= self.cfg["attack_range"] * 2:
+                self.cmd.attack(times=1)
             return
         self._face(direction)
         self.cmd.attack(times=self.cfg["attacks_per_tick"])

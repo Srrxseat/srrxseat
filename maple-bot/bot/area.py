@@ -64,6 +64,7 @@ class AreaFarmer:
         self._last_player = None
         self._target = None          # last attacked (dx, dy)
         self._target_rounds = 0      # ticks spent on it without it moving/dying
+        self._target_since = 0.0     # when we started on it
         # Spots that never die (a background detail or drop that looks like a
         # monster), kept as map positions so they stay ignored after we move:
         # (map_x, map_y_of_player, dy, since)
@@ -303,12 +304,24 @@ class AreaFarmer:
         """A real monster dies or moves while being hit. Something that stays
         put for several rounds of attacks (a dropped item, a background detail
         that looks like a monster) gets ignored so the bot moves on."""
+        # Compare by map position: walking towards a target shifts it on
+        # screen, which used to look like a moving (live) monster forever.
+        pos = self._ignored_pos
+        here = (pos[0] + dx / self._scale, pos[1], dy) if pos is not None else (dx, 0.0, dy)
         last = self._target
-        if last and abs(dx - last[0]) < 0.02 and abs(dy - last[1]) < 0.02:
-            self._target_rounds += 1
+        same = last is not None and abs(here[0] - last[0]) < 0.03 and \
+            abs(here[1] - last[1]) < 0.03 and abs(here[2] - last[2]) < 0.04
+        now = time.time()
+        if same:
+            # Rounds count only swings that should have hit it.
+            if abs(dx) <= self.cfg["attack_range"]:
+                self._target_rounds += 1
         else:
             self._target_rounds = 0
-        self._target = (dx, dy)
+            self._target_since = now
+        self._target = here
+        if now - self._target_since > self.cfg.get("give_up_seconds", 8):
+            self._target_rounds = self.cfg.get("give_up_rounds", 5)
         if self._target_rounds >= self.cfg.get("give_up_rounds", 5):
             print("[area] ตีเป้าเดิมนานแล้วไม่ตาย - น่าจะเป็นของดรอป: เดินไปเก็บแล้วข้ามไป")
             # Most often it is a drop that looks like a small monster: walk
@@ -317,7 +330,6 @@ class AreaFarmer:
             self.cmd.walk(direction, min(0.8, abs(dx) * 4 + 0.1))
             self.cmd.loot(times=3)
             self._facing = direction
-            pos = self._ignored_pos
             if pos is not None:
                 self._ignored.append((pos[0] + dx / self._scale, pos[1], dy, time.time()))
             self._target, self._target_rounds = None, 0
