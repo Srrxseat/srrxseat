@@ -37,9 +37,18 @@ def save_area_center(pos):
     AREA_FILE.write_text(f"center: [{pos[0]:.3f}, {pos[1]:.3f}]\n", encoding="utf-8")
 
 
+def hud_boxes(config):
+    """Screen parts that are never monsters: the minimap window (it shows
+    the map's own drawings of platforms and monsters)."""
+    x, y, w, h = config["regions"]["minimap"]
+    pad = max(10, h // 3)  # its title bar sits above the map picture
+    return [(x - pad, y - pad, w + 2 * pad, h + 2 * pad)]
+
+
 def load_templates():
     player = Templates(sorted(TEMPLATE_DIR.glob("player*.png")))
-    monsters = Templates(sorted((TEMPLATE_DIR / "monsters").glob("*.png")), flip=True)
+    monsters = Templates(sorted((TEMPLATE_DIR / "monsters").glob("*.png")), flip=True,
+                         masked=True)
     return player, monsters
 
 
@@ -61,6 +70,7 @@ class AreaFarmer:
         self._stuck = 0
         self._climb_dir = "right"
         self.hop_on_level = False
+        self._rope_tries = 0  # rope grabs in a row that gained no height
         self._last_player = None
         self._target = None          # last attacked (dx, dy)
         self._target_rounds = 0      # ticks spent on it without it moving/dying
@@ -184,9 +194,9 @@ class AreaFarmer:
     def _step_back(self, pos):
         """One short move towards the centre (called every tick while outside).
 
-        No up-arrow (portals). When the centre is above, jump towards it; if two
-        jumps in a row gain no height there is no platform overhead, so try the
-        other side."""
+        When the centre is straight above, try grabbing a rope (jump + up,
+        movement.use_ropes); otherwise jump towards it, and if two jumps in a
+        row gain no height there is no platform overhead, so try the other side."""
         dx, dy = self.center[0] - pos[0], self.center[1] - pos[1]
         toward = "right" if dx > 0 else "left"
         if dy < -self.level_tol:  # centre is above
@@ -194,10 +204,20 @@ class AreaFarmer:
                 self._stuck += 1
             else:
                 self._stuck = 0
+                self._rope_tries = 0
             self._last_y = pos[1]
             if self._stuck >= 2:
                 self._climb_dir = "left" if self._climb_dir == "right" else "right"
                 self._stuck = 0
+            if abs(dx) <= 0.03 and self.mv.get("use_ropes", True) and self._rope_tries < 2:
+                self._rope_tries += 1
+                # Straight above: most likely a rope/ladder. Jump holding up
+                # to grab it, then keep climbing.
+                controls.hold("up")
+                controls.press(self.keys["jump"], delay=0.1)
+                time.sleep(1.5)
+                controls.release("up")
+                return
             direction = toward if abs(dx) > 0.1 else self._climb_dir
             controls.hold(direction)
             controls.press(self.keys["jump"], delay=0.55)
@@ -247,7 +267,9 @@ class AreaFarmer:
         """Visible monsters as (dx, dy) from the player, in fractions of the screen."""
         h, w = frame.shape[:2]
         out = []
-        for mx, my, _ in self.monster_tpl.find(frame, self.cfg["monster_threshold"]):
+        for mx, my, _ in self.monster_tpl.find(frame, self.cfg["monster_threshold"],
+                                                exclude=hud_boxes(self.bot.config),
+                                                max_width=640):
             if my > h * 0.88:  # bottom HUD (HP/MP/quickslots)
                 continue
             out.append(((mx - px) / w, (my - py) / h))

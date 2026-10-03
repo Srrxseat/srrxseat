@@ -55,17 +55,27 @@ class Templates:
 
     Matching runs on a downscaled frame for speed; results are returned in
     full-frame pixel coordinates as (center_x, center_y, score).
+
+    masked=True (monsters): the background around the monster in each
+    captured image (grass, rock, platform) is cut away automatically, so a
+    patch of the same background elsewhere is not mistaken for a monster,
+    and every match must look like the monster pixel by pixel.
     """
 
-    def __init__(self, paths, flip=False):
+    def __init__(self, paths, flip=False, masked=False):
         self.images = []
+        self.masks = []
+        self.masked = masked
         for p in paths:
             img = cv2.imread(str(p))
             if img is None:
                 continue
+            mask = _object_mask(img) if masked else None
             self.images.append(img)
+            self.masks.append(mask)
             if flip:
                 self.images.append(cv2.flip(img, 1))
+                self.masks.append(cv2.flip(mask, 1) if mask is not None else None)
         self._scaled = {}
 
     def __bool__(self):
@@ -73,57 +83,75 @@ class Templates:
 
     def _at_scale(self, scale):
         if scale not in self._scaled:
-            self._scaled[scale] = [
-                cv2.resize(t, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
-                for t in self.images
-            ]
+            out = []
+            for t, m in zip(self.images, self.masks):
+                ts = cv2.resize(t, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+                ms = None if m is None else cv2.resize(
+                    m, (ts.shape[1], ts.shape[0]), interpolation=cv2.INTER_NEAREST)
+                out.append((ts, ms))
+            self._scaled[scale] = out
         return self._scaled[scale]
 
-    @staticmethod
-    def _body_mask(img, hue):
-        """Pixels in the monster's own colour (e.g. a slime's bright green)."""
-        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-        dh = np.abs(hsv[:, :, 0].astype(int) - hue)
-        dh = np.minimum(dh, 180 - dh)
-        return (dh <= 12) & (hsv[:, :, 1] > 90) & (hsv[:, :, 2] > 90)
-
-    @staticmethod
-    def _main_hue(img):
-        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-        vivid = hsv[(hsv[:, :, 1] > 90) & (hsv[:, :, 2] > 90)]
-        return int(np.median(vivid[:, 0])) if len(vivid) else None
-
-    def find(self, frame, threshold, max_width=960, max_color_diff=45, min_body=0.6):
+    def find(self, frame, threshold, max_width=960, max_color_diff=45, max_pixel_diff=50,
+             exclude=()):
+        """exclude: (x, y, w, h) frame rectangles to ignore (e.g. the minimap)."""
         scale = min(1.0, max_width / frame.shape[1])
         small = cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA) \
             if scale < 1 else frame
         hits = []
-        for t in self._at_scale(scale):
+        for t, m in self._at_scale(scale):
             th, tw = t.shape[:2]
             if th < 4 or tw < 4 or th > small.shape[0] or tw > small.shape[1]:
                 continue
-            result = cv2.matchTemplate(small, t, cv2.TM_CCOEFF_NORMED)
-            t_color = t.reshape(-1, 3).mean(axis=0)
-            hue = self._main_hue(t) if min_body else None
-            t_body = self._body_mask(t, hue).sum() if hue is not None else 0
-            while True:
+            if m is not None:
+                result = cv2.matchTemplate(small, t, cv2.TM_CCOEFF_NORMED, mask=m)
+                result = np.nan_to_num(result, nan=-1.0, posinf=-1.0, neginf=-1.0)
+            else:
+                result = cv2.matchTemplate(small, t, cv2.TM_CCOEFF_NORMED)
+            sel = m > 0 if m is not None else np.ones((th, tw), bool)
+            t_color = t[sel].mean(axis=0)
+            t_int = t.astype(np.int16)
+            for _ in range(200):
                 _, score, _, (x, y) = cv2.minMaxLoc(result)
                 if score < threshold:
                     break
-                # Shape matching ignores overall colour, so e.g. the white glove
-                # cursor can match a green slime; reject clearly different colours.
-                patch = small[y:y + th, x:x + tw]
-                patch_color = patch.reshape(-1, 3).mean(axis=0)
-                # Drops (e.g. small green blobs a slime leaves behind) match
-                # the shape loosely but are much smaller: require roughly as
-                # much monster-coloured body as the template has.
-                big_enough = not t_body or \
-                    self._body_mask(patch, hue).sum() >= min_body * t_body
-                if np.linalg.norm(patch_color - t_color) <= max_color_diff and big_enough:
-                    hits.append(((x + tw / 2) / scale, (y + th / 2) / scale, float(score)))
                 # Blank out this match so the next loop finds a different one.
                 cv2.rectangle(result, (x - tw // 2, y - th // 2), (x + tw // 2, y + th // 2), -1, -1)
+                cx, cy = (x + tw / 2) / scale, (y + th / 2) / scale
+                if any(ex <= cx <= ex + ew and ey <= cy <= ey + eh for ex, ey, ew, eh in exclude):
+                    continue
+                patch = small[y:y + th, x:x + tw]
+                # Shape matching ignores overall colour, so e.g. the white glove
+                # cursor can match a green slime; reject clearly different colours.
+                if np.linalg.norm(patch[sel].mean(axis=0) - t_color) > max_color_diff:
+                    continue
+                if self.masked:
+                    # A real monster matches nearly pixel for pixel; background
+                    # that merely has a similar shape (rock, grass) does not.
+                    diff = np.linalg.norm(patch.astype(np.int16) - t_int, axis=2)[sel]
+                    if np.median(diff) > max_pixel_diff:
+                        continue
+                hits.append((cx, cy, float(score)))
         return _dedupe(hits, frame.shape[1] * 0.02)
+
+
+def _object_mask(img):
+    """255 where the monster is, 0 for the background around it (GrabCut,
+    assuming the capture box touches background on its edges). Falls back to
+    the whole image when the cut looks wrong."""
+    h, w = img.shape[:2]
+    if h < 12 or w < 12:
+        return None
+    mask = np.zeros((h, w), np.uint8)
+    bg, fg = np.zeros((1, 65), np.float64), np.zeros((1, 65), np.float64)
+    try:
+        cv2.grabCut(img, mask, (2, 2, w - 4, h - 4), bg, fg, 5, cv2.GC_INIT_WITH_RECT)
+    except cv2.error:
+        return None
+    obj = np.where((mask == cv2.GC_FGD) | (mask == cv2.GC_PR_FGD), 255, 0).astype(np.uint8)
+    if not 0.25 <= (obj > 0).mean() <= 0.95:
+        return None
+    return obj
 
 
 def _dedupe(hits, radius):

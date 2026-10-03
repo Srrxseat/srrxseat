@@ -196,6 +196,7 @@ class PatrolFarmer(AreaFarmer):
         self._point_since = time.time()
         self._path_tries = 0
         self._align_taps = 0
+        self._rope_tries = 0
         self._stuck = 0
         self._last_y = None
         self._last_x = None

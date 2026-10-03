@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from bot import vision  # noqa: E402
-from bot.area import load_area_center, load_templates  # noqa: E402
+from bot.area import hud_boxes, load_area_center, load_templates  # noqa: E402
 from bot.capture import Capture  # noqa: E402
 from bot.minimap import MinimapAtlas, locate_player  # noqa: E402
 from bot.config import RoutineError, load_config, load_routine  # noqa: E402
@@ -93,7 +93,8 @@ def check_area(config, frame, out):
         print("- ยังไม่มีภาพป้ายชื่อ (บอทจะตีสลับซ้าย/ขวาอย่างเดียว)")
 
     if monsters:
-        mobs = monsters.find(frame, config["area"]["monster_threshold"])
+        mobs = monsters.find(frame, config["area"]["monster_threshold"],
+                             exclude=hud_boxes(config), max_width=640)
         for x, y, _ in mobs:
             cv2.circle(marked, (int(x), int(y)), 25, (0, 0, 255), 3)
         print(f"✓ เจอมอน {len(mobs)} ตัวบนจอ - วงสีแดงใน check.png "
