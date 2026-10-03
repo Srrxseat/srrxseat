@@ -26,11 +26,11 @@ tools/check.py       ตรวจว่าหาหน้าต่าง/จั�
 
 ## วิธีใช้บน macOS
 
-1. ติดตั้ง
+1. ติดตั้ง + รัน: ไม่ต้องสร้าง .venv เอง ใช้ `run.sh` (สร้าง/ติดตั้งให้อัตโนมัติ ครั้งแรกรอสักครู่)
    ```
-   cd maple-bot
-   python3 -m venv .venv && source .venv/bin/activate
-   pip install -r requirements.txt
+   cd ~/Desktop/srrxseat/maple-bot
+   bash run.sh tools/check.py      # แทน python tools/check.py
+   bash run.sh                     # แทน python main.py
    ```
 2. **ให้สิทธิ์แอป Terminal** (หรือ iTerm / VS Code ที่ใช้รัน) ใน
    System Settings → Privacy & Security:
@@ -47,14 +47,14 @@ tools/check.py       ตรวจว่าหาหน้าต่าง/จั�
 5. เปิดแอป MapleStory Worlds แล้วเข้า Old School Maple (เปิดแบบหน้าต่างหรือขยายเต็มก็ได้ แต่อย่าใช้ fullscreen แบบแยก Space)
    `window_title: "MapleStory Worlds"` ตรงกับชื่อแอปอยู่แล้ว ไม่ต้องแก้
    แก้ `keys` / `buffs` ให้ตรงกับ key config ในเกม ถ้าได้ Flash Jump แล้วตั้ง `movement.flash_jump: true`
-6. เข้าแมพที่จะฟาร์มแล้วรัน `python tools/calibrate.py`
+6. เข้าแมพที่จะฟาร์มแล้วรัน `bash run.sh tools/calibrate.py`
    - ลากกรอบมินิแมพ → Enter, หลอด HP → Enter, หลอด MP → Enter (กด `c` เพื่อข้าม)
    - จะมีภาพขยายขึ้นมา **คลิกที่จุดตัวละครบนมินิแมพ** แล้วคลิกที่ส่วนที่มีสีของหลอด HP / MP
      โปรแกรมจะบันทึกสีลง `config.yaml` ให้เอง (UI ของ Old School Maple ไม่ใช่ของเกมจริง จึงต้องเลือกสีเอง)
    - ดูพรีวิวว่าวงแดงตามจุดตัวละครตอนเดินไหม กด `q` เพื่อปิด
-6.5 ตรวจระบบ: `python tools/check.py` (ต้องขึ้น ✓ ทุกบรรทัด) แล้ว `python tools/check.py keys`
+6.5 ตรวจระบบ: `bash run.sh tools/check.py` (ต้องขึ้น ✓ ทุกบรรทัด) แล้ว `bash run.sh tools/check.py keys`
    แล้วรีบคลิกหน้าต่างเกม — ตัวละครต้องเดินขวา/ซ้าย กระโดด และตี
-7. `python main.py` → ยืนตรงจุดที่จะตีมอนแล้วกด **F8** (บันทึกลง `routines/my_route.yaml` ให้เอง)
+7. `bash run.sh` → ยืนตรงจุดที่จะตีมอนแล้วกด **F8** (บันทึกลง `routines/my_route.yaml` ให้เอง)
    เดินไปจุดถัดไปแล้วกด F8 อีก — บันทึกผิดกด **F7** ลบทั้งหมดแล้วเริ่มใหม่
 8. คลิกหน้าต่างเกมให้ active แล้วกด **F9** เริ่ม/หยุด, **F10** ออก
 
