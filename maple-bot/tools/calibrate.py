@@ -54,7 +54,8 @@ def main():
     regions = dict(config["regions"])
 
     for name, label in (("minimap", "Minimap"), ("hp_bar", "HP bar"), ("mp_bar", "MP bar")):
-        print(f"ลากกรอบ {label} แล้วกด Enter (กด c เพื่อข้าม)")
+        hint = " (เลือกเฉพาะส่วนแผนที่ ไม่เอาขอบสีเทา)" if name == "minimap" else ""
+        print(f"ลากกรอบ {label}{hint} แล้วกด Enter (กด c เพื่อข้าม)")
         x, y, w, h = cv2.selectROI(f"Select {label}", frame, showCrosshair=False)
         cv2.destroyAllWindows()
         if w and h:

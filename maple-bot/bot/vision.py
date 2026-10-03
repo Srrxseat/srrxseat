@@ -21,6 +21,12 @@ def player_position(minimap, dot_hsv):
     if not contours:
         return None
     biggest = max(contours, key=cv2.contourArea)
+    # Yellowish specks on platforms are a pixel or two; the player dot is much
+    # bigger, so ignore anything tiny rather than mistaking it for the player.
+    x, y, w, h = cv2.boundingRect(biggest)
+    min_side = max(3, minimap.shape[1] // 90)
+    if w < min_side or h < min_side:
+        return None
     m = cv2.moments(biggest)
     if m["m00"] == 0:
         x, y, w, h = cv2.boundingRect(biggest)
