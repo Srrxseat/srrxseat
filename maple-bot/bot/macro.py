@@ -160,3 +160,53 @@ def play_events(bot, events):
                 last_check = time.time()
     finally:
         controls.release_all()
+
+
+def split_events(events, cuts):
+    """Split one recorded key sequence at the given times (seconds from its
+    start) into consecutive pieces, each starting at 0. Keys held across a cut
+    are released at the end of one piece and pressed again in the next."""
+    pieces, current, held, start = [], [], set(), 0.0
+    cuts = sorted(cuts)
+    ci = 0
+    for t, kind, name in events:
+        while ci < len(cuts) and t >= cuts[ci]:
+            cut = cuts[ci]
+            end = round(cut - start, 3)
+            pieces.append(current + [[end, "up", n] for n in sorted(held)])
+            current = [[0.0, "down", n] for n in sorted(held)]
+            start, ci = cut, ci + 1
+        if kind == "down":
+            held.add(name)
+        else:
+            held.discard(name)
+        current.append([round(t - start, 3), kind, name])
+    while ci < len(cuts):  # cuts after the last key: empty pieces
+        pieces.append(current + [[round(cuts[ci] - start, 3), "up", n] for n in sorted(held)])
+        current = [[0.0, "down", n] for n in sorted(held)]
+        start, ci = cuts[ci], ci + 1
+    pieces.append(current)
+    return pieces
+
+
+def waypoints_from_samples(samples, start_pos, end_pos, spacing=0.06):
+    """Pick in-between points from (time, pos) samples taken while walking a
+    leg: places where the character stood still on a platform (two samples
+    in a row at the same spot), at least `spacing` apart, and not too close
+    to the leg's end. Returns [(time, pos)]."""
+    import math
+
+    picks, last = [], start_pos
+    for (t0, p0), (t1, p1) in zip(samples, samples[1:]):
+        if p0 is None or p1 is None:
+            continue
+        still = abs(p1[1] - p0[1]) < 0.004 and abs(p1[0] - p0[0]) < 0.01
+        if not still:
+            continue
+        if last is not None and math.dist(p1, last) < spacing:
+            continue
+        if end_pos is not None and math.dist(p1, end_pos) < spacing * 0.6:
+            continue
+        picks.append((t1, p1))
+        last = p1
+    return picks

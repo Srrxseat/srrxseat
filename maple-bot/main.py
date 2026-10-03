@@ -9,13 +9,13 @@ import time
 
 from pynput import keyboard
 
-from bot.area import save_area_center
-from bot.bot import Bot
 import math
 
+from bot.area import save_area_center
+from bot.bot import Bot
 from bot.config import (append_routine_step, clear_routine, load_config, load_routine,
                         set_closing_path)
-from bot.macro import MacroRecorder, key_name
+from bot.macro import MacroRecorder, key_name, split_events, waypoints_from_samples
 
 
 def wait_for_game(config):
@@ -51,6 +51,21 @@ def main():
     # each leg the way you did.
     path_rec = MacroRecorder()
     path_rec.start(None)
+    # Where the character was while you walked (sampled 4x a second), used to
+    # add in-between points on long legs automatically.
+    samples = []
+
+    def sample_positions():
+        while True:
+            if bot.patrol_mode() and not bot.running:
+                try:
+                    samples.append((time.time(), bot.position()))
+                    del samples[:-2400]  # keep the last ~10 minutes
+                except Exception:
+                    pass
+            time.sleep(0.25)
+
+    threading.Thread(target=sample_positions, daemon=True).start()
 
     def record():
         if bot.running:
@@ -65,13 +80,27 @@ def main():
             print(f"[record] ตั้งศูนย์กลางพื้นที่ฟาร์มที่ [{pos[0]:.3f}, {pos[1]:.3f}] "
                   f"รัศมี {config['area']['radius']} - กด F9 เพื่อเริ่ม")
             return
+        leg_start = path_rec._t0
         keys = path_rec.cut()
         if bot.patrol_mode():
             steps = load_routine(config["routine"])["steps"]
             reach = config["patrol"].get("arrive_reach", 0.035)
-            if len(steps) >= 3 and math.dist(pos, steps[0]["point"]) <= reach * 1.5:
+            closing = len(steps) >= 3 and math.dist(pos, steps[0]["point"]) <= reach * 1.5
+            if steps:
+                # Long legs are hard to replay exactly; split them where you
+                # stood still on the way, roughly every one or two platforms.
+                leg = [(t - leg_start, p) for t, p in samples if t >= leg_start]
+                picks = waypoints_from_samples(leg, steps[-1]["point"], pos,
+                                               config["patrol"].get("auto_spacing", 0.06))
+                pieces = split_events(keys, [t for t, _ in picks])
+                for (_, p), piece in zip(picks, pieces):
+                    n = append_routine_step(config["routine"], p, keys=piece)
+                    print(f"[record]   + จุดย่อย {n}: [{p[0]:.3f}, {p[1]:.3f}] (ระหว่างทาง)")
+                keys = pieces[-1]
+            if closing:
                 set_closing_path(config["routine"], keys)
-                print(f"[record] กลับมาถึงจุดที่ 1 แล้ว - จำเส้นทางกลับไว้ ปิดวงครบ {len(steps)} จุด "
+                n = len(load_routine(config["routine"])["steps"])
+                print(f"[record] กลับมาถึงจุดที่ 1 แล้ว - จำเส้นทางกลับไว้ ปิดวงครบ {n} จุด "
                       f"กด {hk['toggle'].upper()} เพื่อเริ่ม")
                 return
             if not steps:

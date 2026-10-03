@@ -72,7 +72,7 @@ class AreaFarmer:
     # ---- debug snapshots ----------------------------------------------------------
     def _snapshot(self, frame, player, mobs, chosen, text, points=(), target=None):
         """Every second save what the bot saw and decided to debug/NNN.jpg
-        (last 120 kept): purple = character, red = monster, green = monster on
+        (last 300 kept, numbered in order): purple = character, red = monster, green = monster on
         our platform, yellow = the one acted on; points drawn on the minimap."""
         if not self.bot.config.get("debug_snapshots", True):
             return
@@ -110,9 +110,12 @@ class AreaFarmer:
         if w > 1600:
             img = cv2.resize(img, (1600, int(h * 1600 / w)), interpolation=cv2.INTER_AREA)
         DEBUG_DIR.mkdir(exist_ok=True)
-        cv2.imwrite(str(DEBUG_DIR / f"{self._snap_n % 120:03d}.jpg"), img,
+        cv2.imwrite(str(DEBUG_DIR / f"{self._snap_n:04d}.jpg"), img,
                     [cv2.IMWRITE_JPEG_QUALITY, 70])
         self._snap_n += 1
+        stale = DEBUG_DIR / f"{self._snap_n - 300:04d}.jpg"  # keep the last 300 (5 minutes)
+        if stale.exists():
+            stale.unlink()
 
     def describe(self):
         mobs = len(self.monster_tpl.images) // 2

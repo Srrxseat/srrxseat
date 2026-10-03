@@ -95,6 +95,10 @@ class Bot:
         if target is None:
             return
         self.capture.refresh_window()
+        # Fresh debug snapshots for this run only.
+        from .area import DEBUG_DIR
+        for old in DEBUG_DIR.glob("*.jpg") if DEBUG_DIR.exists() else []:
+            old.unlink()
         # The in-game cursor (a white glove) can look like a monster; park the
         # mouse on the window's title bar so it is not drawn over the game.
         cap = self.capture

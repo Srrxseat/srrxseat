@@ -35,7 +35,7 @@ class PatrolFarmer(AreaFarmer):
         self.level_tol = self.pcfg.get("level_tolerance", 0.015)
         self.idx = 0
         self._point_since = time.time()
-        self._path_tried = False
+        self._path_tries = 0
 
     def describe(self):
         mobs = len(self.monster_tpl.images) // 2
@@ -59,7 +59,13 @@ class PatrolFarmer(AreaFarmer):
         target = self.points[self.idx]
         where = f"pos=({pos[0]:.3f},{pos[1]:.3f})" if pos else "pos=?"
         if near:
-            chosen = min(near, key=lambda m: abs(m[0]))
+            # Finish the monster in front of us before turning to one behind:
+            # switching every tick (both sides in range) killed neither.
+            def cost(m):
+                side = "right" if m[0] > 0 else "left"
+                in_reach = abs(m[0]) <= self.cfg["attack_range"]
+                return abs(m[0]) - (0.1 if side == self._facing and in_reach else 0)
+            chosen = min(near, key=cost)
             text = f"{where} FIGHT dx={chosen[0]:+.3f} | point {self.idx + 1}/{len(self.points)}"
             self._snapshot(frame, player, mobs, chosen, text, self.points, target)
             self._melee(*chosen)
@@ -111,10 +117,11 @@ class PatrolFarmer(AreaFarmer):
 
         prev = self.points[(self.idx - 1) % n]
         path = self.paths[self.idx]
-        if path and not self._path_tried:
+        if path and self._path_tries < 2:
             d_prev = math.dist(pos, prev)
             if d_prev <= self.reach:
-                self._path_tried = True  # one replay per leg; then fall back to stepping
+                # Replay the leg; if it didn't get there, come back and try once more.
+                self._path_tries += 1
                 play_events(self.bot, path)
                 return
             if d_prev < math.dist(pos, target):
@@ -131,7 +138,7 @@ class PatrolFarmer(AreaFarmer):
     def _next_point(self, idx):
         self.idx = idx
         self._point_since = time.time()
-        self._path_tried = False
+        self._path_tries = 0
         self._stuck = 0
         self._last_y = None
         self._last_x = None
