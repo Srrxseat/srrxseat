@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT))
 from bot import vision  # noqa: E402
 from bot.area import load_area_center, load_templates  # noqa: E402
 from bot.capture import Capture  # noqa: E402
-from bot.config import load_config  # noqa: E402
+from bot.config import RoutineError, load_config, load_routine  # noqa: E402
 
 
 def main():
@@ -54,14 +54,23 @@ def main():
         ratio = vision.bar_ratio(Capture.crop(frame, region), config[f"{bar}_bar_hsv"])
         print(f"✓ {bar.upper()} เหลือประมาณ {ratio * 100:.0f}% (เทียบกับตัวเลขในเกมดูว่าใกล้กันไหม)")
 
-    if config.get("mode") == "area":
+    if config.get("mode") in ("area", "patrol"):
         check_area(config, frame, out)
 
 
 def check_area(config, frame, out):
-    center = load_area_center()
-    print(f"{'✓' if center else '-'} ศูนย์กลางพื้นที่ฟาร์ม: "
-          f"{center if center else 'ยังไม่ได้ตั้ง (รัน bash run.sh แล้วกด F8 ตรงกลางพื้นที่)'}")
+    if config.get("mode") == "patrol":
+        try:
+            n = len(load_routine(config["routine"])["steps"])
+        except RoutineError as e:
+            n = 0
+            print(f"✗ {e}")
+        print(f"{'✓' if n >= 2 else '-'} จุดเดินวน: {n} จุด"
+              f"{'' if n >= 2 else ' (รัน bash run.sh แล้วกด F8 ทีละจุด 6-10 จุด)'}")
+    else:
+        center = load_area_center()
+        print(f"{'✓' if center else '-'} ศูนย์กลางพื้นที่ฟาร์ม: "
+              f"{center if center else 'ยังไม่ได้ตั้ง (รัน bash run.sh แล้วกด F8 ตรงกลางพื้นที่)'}")
 
     player, monsters = load_templates()
     marked = frame.copy()
@@ -75,7 +84,7 @@ def check_area(config, frame, out):
         else:
             print("✗ หาป้ายชื่อตัวละครไม่เจอ - จับภาพป้ายชื่อใหม่: bash run.sh tools/templates.py")
     else:
-        print("- ยังไม่มีภาพป้ายชื่อ (บอทจะถือว่าตัวละครอยู่กลางจอ)")
+        print("- ยังไม่มีภาพป้ายชื่อ (บอทจะตีสลับซ้าย/ขวาอย่างเดียว)")
 
     if monsters:
         mobs = monsters.find(frame, config["area"]["monster_threshold"])

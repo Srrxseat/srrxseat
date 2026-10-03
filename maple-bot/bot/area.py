@@ -54,6 +54,7 @@ class AreaFarmer:
         self._last_log = 0.0
         self.mv = bot.config["movement"]
         self._last_y = None
+        self._last_x = None
         self._stuck = 0
         self._climb_dir = "right"
         self._last_player = None
@@ -144,8 +145,15 @@ class AreaFarmer:
             controls.press(self.keys["jump"], delay=0.45)
             controls.release("down")
         else:  # mostly sideways (or below and off to the side: walk off the edge)
+            # Walking into a ledge or a gap between platforms makes no
+            # progress; then jump while walking to get over it.
+            blocked = self._last_x is not None and abs(pos[0] - self._last_x) < 0.005
+            self._last_x = pos[0]
             controls.hold(toward)
-            time.sleep(0.3)
+            if blocked:
+                controls.press(self.keys["jump"], delay=0.4)
+            else:
+                time.sleep(0.3)
             controls.release(toward)
         self._facing = toward
 
@@ -212,7 +220,13 @@ class AreaFarmer:
             self._target_rounds = 0
         self._target = (dx, dy)
         if self._target_rounds >= self.cfg.get("give_up_rounds", 5):
-            print("[area] ตีเป้าเดิมนานแล้วไม่ตาย - ข้ามเป้านี้ (อาจเป็นของตก/ฉากหลัง)")
+            print("[area] ตีเป้าเดิมนานแล้วไม่ตาย - น่าจะเป็นของดรอป: เดินไปเก็บแล้วข้ามไป")
+            # Most often it is a drop that looks like a small monster: walk
+            # onto it and pick it up, then stop treating that spot as a target.
+            direction = "right" if dx > 0 else "left"
+            self.cmd.walk(direction, min(0.8, abs(dx) * 4 + 0.1))
+            self.cmd.loot(times=3)
+            self._facing = direction
             self._ignored.append((dx, dy, time.time()))
             self._ignored_at = self._ignored_pos
             self._target, self._target_rounds = None, 0

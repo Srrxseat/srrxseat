@@ -93,3 +93,4 @@ class PatrolFarmer(AreaFarmer):
         self._point_since = time.time()
         self._stuck = 0
         self._last_y = None
+        self._last_x = None

@@ -79,7 +79,21 @@ class Templates:
             ]
         return self._scaled[scale]
 
-    def find(self, frame, threshold, max_width=960, max_color_diff=45):
+    @staticmethod
+    def _body_mask(img, hue):
+        """Pixels in the monster's own colour (e.g. a slime's bright green)."""
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        dh = np.abs(hsv[:, :, 0].astype(int) - hue)
+        dh = np.minimum(dh, 180 - dh)
+        return (dh <= 12) & (hsv[:, :, 1] > 90) & (hsv[:, :, 2] > 90)
+
+    @staticmethod
+    def _main_hue(img):
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        vivid = hsv[(hsv[:, :, 1] > 90) & (hsv[:, :, 2] > 90)]
+        return int(np.median(vivid[:, 0])) if len(vivid) else None
+
+    def find(self, frame, threshold, max_width=960, max_color_diff=45, min_body=0.6):
         scale = min(1.0, max_width / frame.shape[1])
         small = cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA) \
             if scale < 1 else frame
@@ -90,14 +104,22 @@ class Templates:
                 continue
             result = cv2.matchTemplate(small, t, cv2.TM_CCOEFF_NORMED)
             t_color = t.reshape(-1, 3).mean(axis=0)
+            hue = self._main_hue(t) if min_body else None
+            t_body = self._body_mask(t, hue).sum() if hue is not None else 0
             while True:
                 _, score, _, (x, y) = cv2.minMaxLoc(result)
                 if score < threshold:
                     break
                 # Shape matching ignores overall colour, so e.g. the white glove
                 # cursor can match a green slime; reject clearly different colours.
-                patch_color = small[y:y + th, x:x + tw].reshape(-1, 3).mean(axis=0)
-                if np.linalg.norm(patch_color - t_color) <= max_color_diff:
+                patch = small[y:y + th, x:x + tw]
+                patch_color = patch.reshape(-1, 3).mean(axis=0)
+                # Drops (e.g. small green blobs a slime leaves behind) match
+                # the shape loosely but are much smaller: require roughly as
+                # much monster-coloured body as the template has.
+                big_enough = not t_body or \
+                    self._body_mask(patch, hue).sum() >= min_body * t_body
+                if np.linalg.norm(patch_color - t_color) <= max_color_diff and big_enough:
                     hits.append(((x + tw / 2) / scale, (y + th / 2) / scale, float(score)))
                 # Blank out this match so the next loop finds a different one.
                 cv2.rectangle(result, (x - tw // 2, y - th // 2), (x + tw // 2, y + th // 2), -1, -1)
