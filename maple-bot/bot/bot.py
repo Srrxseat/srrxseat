@@ -115,7 +115,15 @@ class Bot:
         if len(steps) < 2:
             print("[bot] ต้องมีอย่างน้อย 2 จุด - เดินไปรอบแมพแล้วกด F8 ทีละจุด (แนะนำ 6-10 จุด)")
             return None
-        farmer = PatrolFarmer(self, [s["point"] for s in steps])
+        points = [s["point"] for s in steps]
+        ys = [p[1] for p in points]
+        if len(points) > 20:
+            print(f"[bot] คำเตือน: มี {len(points)} จุด เยอะผิดปกติ (อาจมีจุดเก่าค้าง) - "
+                  "แนะนำกด F7 ลบแล้วบันทึกใหม่ 6-10 จุด")
+        if len(points) >= 4 and max(ys) - min(ys) < 0.02:
+            print("[bot] คำเตือน: ทุกจุดอยู่ความสูงเดียวกัน บอทจะไม่ขึ้น/ลงชั้น - "
+                  "ถ้าตั้งใจให้เดินหลายชั้น กด F7 แล้วบันทึกใหม่ (เวอร์ชันนี้วัดความสูงบนมินิแมพที่เลื่อนได้แล้ว)")
+        farmer = PatrolFarmer(self, points)
         print(f"[patrol] {farmer.describe()}")
         return farmer.tick
 
