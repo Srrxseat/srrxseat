@@ -40,7 +40,15 @@ def main():
     print(f"✓ จับภาพได้ ขนาด {frame.shape[1]}x{frame.shape[0]} (บันทึกไว้ที่ {out})")
 
     regions = config["regions"]
-    pos = vision.player_position(Capture.crop(frame, regions["minimap"]), config["player_dot_hsv"])
+    mm = Capture.crop(frame, regions["minimap"])
+    mm_out = ROOT / "check_minimap.png"
+    cv2.imwrite(str(mm_out), cv2.resize(mm, None, fx=3, fy=3, interpolation=cv2.INTER_NEAREST))
+    print(f"- กรอบมินิแมพ {regions['minimap']} (กว้าง x สูง = {mm.shape[1]}x{mm.shape[0]} px) "
+          f"ดูภาพที่ {mm_out}")
+    if mm.shape[0] < 40:
+        print("✗ กรอบมินิแมพเตี้ยเกินไป - ค่า y จะไม่เปลี่ยนตามชั้น: "
+              "รัน bash run.sh tools/calibrate.py แล้วลากให้คลุมแผนที่ทั้งแท่ง (บนสุดถึงล่างสุด)")
+    pos = vision.player_position(mm, config["player_dot_hsv"])
     if pos is None:
         print("✗ หาจุดตัวละครบนมินิแมพไม่เจอ - รัน bash run.sh tools/calibrate.py ก่อน")
     else:

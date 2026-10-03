@@ -5,6 +5,7 @@ macOS:   allow your terminal app in System Settings > Privacy & Security under
          Accessibility, Input Monitoring and Screen Recording.
 """
 import threading
+import time
 
 from pynput import keyboard
 
@@ -28,6 +29,10 @@ def main():
         if pos is None:
             print("[record] หาตัวละครบนมินิแมพไม่เจอ - ลองรัน tools/calibrate.py")
             return
+        mm = config["regions"]["minimap"]
+        if mm[3] < 40:
+            print(f"[record] คำเตือน: กรอบมินิแมพเตี้ยมาก (สูง {mm[3]} px) - ค่า y จะไม่เปลี่ยนตามชั้น "
+                  f"ให้รัน bash run.sh tools/calibrate.py แล้วลากกรอบให้คลุมแผนที่ทั้งแท่ง")
         if bot.area_mode():
             save_area_center(pos)
             print(f"[record] ตั้งศูนย์กลางพื้นที่ฟาร์มที่ [{pos[0]:.3f}, {pos[1]:.3f}] "
@@ -44,11 +49,17 @@ def main():
         print(f"[clear] ลบจุดทั้งหมดใน {config['routine']} แล้ว - เริ่มบันทึกใหม่ด้วย F8")
 
     actions = {"toggle": bot.toggle, "record": record, "clear": clear}
+    last_press = {}
 
     def on_press(key):
         action = hotkeys.get(key)
         if action == "quit":
             return False  # stops the listener
+        # Holding a key repeats it; one press should do one thing.
+        now = time.time()
+        if action and now - last_press.get(action, 0) < 0.6:
+            return
+        last_press[action] = now
         if action:
             # Don't block the listener thread (stopping the bot can take a moment).
             threading.Thread(target=actions[action]).start()
