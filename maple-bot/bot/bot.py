@@ -4,7 +4,7 @@ import time
 
 from . import controls, vision
 from .capture import Capture
-from .config import load_routine
+from .config import RoutineError, load_routine
 from .thief import Thief
 
 
@@ -63,7 +63,11 @@ class Bot:
         if self.running:
             return
         # Reload every start so points just recorded with F8 are picked up.
-        self.routine = load_routine(self.config["routine"])
+        try:
+            self.routine = load_routine(self.config["routine"])
+        except RoutineError as e:
+            print(f"[bot] {e} - กด F7 เพื่อล้างไฟล์ แล้วบันทึกจุดใหม่ด้วย F8")
+            return
         if not self.routine.get("steps"):
             print("[bot] ยังไม่มีจุดใน routine - ไปยืนตรงจุดที่จะฟาร์มแล้วกด F8 ก่อน")
             return

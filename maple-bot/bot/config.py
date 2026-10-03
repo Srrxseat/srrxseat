@@ -34,12 +34,26 @@ def routine_path(path):
     return path if path.is_absolute() else ROOT / path
 
 
+class RoutineError(Exception):
+    pass
+
+
 def load_routine(path):
     path = routine_path(path)
     if not path.exists():
         return {"loop": True, "steps": []}
-    with open(path, encoding="utf-8") as f:
-        return yaml.safe_load(f) or {"loop": True, "steps": []}
+    try:
+        with open(path, encoding="utf-8") as f:
+            routine = yaml.safe_load(f) or {"loop": True, "steps": []}
+    except yaml.YAMLError as e:
+        mark = getattr(e, "problem_mark", None)
+        where = f" แถวบรรทัด {mark.line + 1}" if mark else ""
+        raise RoutineError(f"ไฟล์ {path.name} รูปแบบผิด{where}") from e
+    if not isinstance(routine, dict) or not isinstance(routine.get("steps") or [], list):
+        raise RoutineError(f"ไฟล์ {path.name} รูปแบบผิด (ต้องมี steps: เป็นรายการจุด)")
+    routine.setdefault("steps", [])
+    routine["steps"] = routine["steps"] or []
+    return routine
 
 
 ROUTINE_HEADER = """# บันทึกอัตโนมัติด้วย F8 - แก้ได้ (times = จำนวนครั้งที่ตี/เก็บของ)
@@ -52,6 +66,14 @@ steps:
 def append_routine_step(path, point, attack_times=8, loot_times=3):
     """Add a step at `point` to the routine file, creating it if needed."""
     path = routine_path(path)
+    try:
+        load_routine(path)
+        broken = False
+    except RoutineError:
+        broken = True
+    if broken:
+        # Keep the broken file for reference and start a fresh one.
+        path.replace(path.with_suffix(".broken.yaml"))
     if not path.exists() or "steps:" not in path.read_text(encoding="utf-8"):
         path.write_text(ROUTINE_HEADER, encoding="utf-8")
     with open(path, "a", encoding="utf-8") as f:
