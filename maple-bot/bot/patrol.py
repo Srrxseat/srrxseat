@@ -213,6 +213,7 @@ class PatrolFarmer(AreaFarmer):
         self._path_tries = 0
         self._align_taps = 0
         self._rope_tries = 0
+        self._on_rope = False
         self._stuck = 0
         self._last_y = None
         self._last_x = None

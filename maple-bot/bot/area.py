@@ -71,6 +71,7 @@ class AreaFarmer:
         self._climb_dir = "right"
         self.hop_on_level = False
         self._rope_tries = 0  # rope grabs in a row that gained no height
+        self._on_rope = False
         self._last_player = None
         self._target = None          # last attacked (dx, dy)
         self._target_rounds = 0      # ticks spent on it without it moving/dying
@@ -212,26 +213,39 @@ class AreaFarmer:
             if self._stuck >= 2:
                 self._climb_dir = "left" if self._climb_dir == "right" else "right"
                 self._stuck = 0
-            if abs(dx) <= 0.03 and self.mv.get("use_ropes", True) and self._rope_tries < 2:
-                self._rope_tries += 1
-                # Straight above: most likely a rope/ladder. Press up only
-                # while in the air (standing on a portal + up = warp away),
-                # and keep holding it only if we are really climbing.
-                controls.press(self.keys["jump"], delay=0.12)
-                controls.hold("up")
-                time.sleep(0.15)
-                y1 = self.bot.position()
-                time.sleep(0.15)
-                y2 = self.bot.position()
-                if y1 and y2 and y2[1] < y1[1] - 0.003:
-                    time.sleep(1.5)  # on the rope: climb
-                controls.release("up")
+            ropes = abs(dx) <= 0.03 and self.mv.get("use_ropes", True)
+            if ropes and (self._on_rope or self._rope_tries < 2):
+                # Straight above: most likely a rope/ladder.
+                if self._on_rope:
+                    climbed = self._climb("up", pos)
+                else:
+                    self._rope_tries += 1
+                    # Press up only while in the air (standing on a portal +
+                    # up = warp away), and keep holding it only if we are
+                    # really climbing.
+                    controls.press(self.keys["jump"], delay=0.12)
+                    controls.hold("up")
+                    time.sleep(0.15)
+                    p1 = self.bot.position()
+                    time.sleep(0.15)
+                    p2 = self.bot.position()
+                    controls.release("up")
+                    climbed = bool(p1 and p2 and p2[1] < p1[1] - 0.002)
+                    if climbed:
+                        self._climb("up", p2)
+                if climbed:
+                    self._stuck = 0
+                    self._rope_tries = 0
                 return
             direction = toward if abs(dx) > 0.1 else self._climb_dir
             controls.hold(direction)
             controls.press(self.keys["jump"], delay=0.55)
             controls.release(direction)
         elif dy > self.level_tol and abs(dx) <= 0.1:  # centre is below us
+            if abs(dx) <= 0.03 and self.mv.get("use_ropes", True):
+                # On a rope, or standing on top of one: climb down it.
+                if self._climb("down", pos):
+                    return
             controls.hold("down")
             controls.press(self.keys["jump"], delay=0.45)
             controls.release("down")
@@ -249,6 +263,37 @@ class AreaFarmer:
                 time.sleep(0.3)
             controls.release(toward)
         self._facing = toward
+
+    def _climb(self, direction, start):
+        """Hold up/down while it keeps moving us that way on the minimap (a
+        rope or ladder); stop at the goal's level, at the rope's end, or
+        after 6 s. Returns True if we moved at all. Sets self._on_rope when
+        we stopped still hanging on it (goal not reached yet)."""
+        sign = -1 if direction == "up" else 1
+        last = start
+        moved = False
+        step = 0.0
+        controls.hold(direction)
+        try:
+            for _ in range(15):
+                time.sleep(0.4)
+                p = self.bot.position()
+                if p is None:
+                    break
+                step = (p[1] - last[1]) * sign
+                if step < 0.002:
+                    break  # end of the rope (or not on one)
+                moved = True
+                last = p
+                if (self.center[1] - p[1]) * sign <= self.level_tol:
+                    break  # at the goal's height
+        finally:
+            controls.release(direction)
+        remaining = (self.center[1] - last[1]) * sign
+        self._on_rope = moved and remaining > self.level_tol and step >= 0.002
+        if moved:
+            self._last_y = last[1]
+        return moved
 
     def _well_inside(self):
         d = self._distance_from_center()
