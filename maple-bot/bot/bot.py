@@ -12,7 +12,7 @@ class Bot:
     def __init__(self, config):
         self.config = config
         self.capture = Capture(config["window_title"])
-        self.routine = load_routine(config["routine"])
+        self.routine = None
         self.cmd = Thief(self)
         self.running = False
         self._thread = None
@@ -62,6 +62,12 @@ class Bot:
     def start(self):
         if self.running:
             return
+        # Reload every start so points just recorded with F8 are picked up.
+        self.routine = load_routine(self.config["routine"])
+        if not self.routine.get("steps"):
+            print("[bot] ยังไม่มีจุดใน routine - ไปยืนตรงจุดที่จะฟาร์มแล้วกด F8 ก่อน")
+            return
+        self._step = 0
         self.capture.refresh_window()
         self.running = True
         self._thread = threading.Thread(target=self._loop, daemon=True)

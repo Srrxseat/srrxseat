@@ -9,7 +9,8 @@ window_title: "MapleStory Worlds"
 hotkeys:
   toggle: f9      # เริ่ม/หยุดบอท
   quit: f10       # ปิดโปรแกรม
-  record: f8      # พิมพ์ตำแหน่งตัวละครปัจจุบันบนมินิแมพ (ไว้เขียน routine)
+  record: f8      # บันทึกตำแหน่งตัวละครตอนนี้เป็นจุดใหม่ใน routine
+  clear: f7       # ลบจุดทั้งหมดใน routine (เริ่มบันทึกใหม่)
 
 # ปุ่มในเกม (ตั้งให้ตรงกับ key config ในเกม)
 # ชื่อพิเศษ: alt (= Option บน Mac), ctrl, shift, delete, end, home, page_up, space ...
@@ -66,4 +67,5 @@ movement:
   timeout: 8.0          # วินาที ถ้าเดินไม่ถึงให้ข้ามจุดนี้
   flash_jump: false     # true เมื่อได้ Flash Jump แล้ว (Assassin/Hermit/Night Lord)
 
-routine: routines/example.yaml
+# ไฟล์เส้นทางฟาร์ม - กด F8 ในเกมเพื่อเพิ่มจุด (ไฟล์จะถูกสร้างให้เอง)
+routine: routines/my_route.yaml

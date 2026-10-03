@@ -29,9 +29,40 @@ def save_block(name, values, path=CONFIG_PATH):
     Path(path).write_text("\n".join(out) + "\n", encoding="utf-8")
 
 
-def load_routine(path):
+def routine_path(path):
     path = Path(path)
-    if not path.is_absolute():
-        path = ROOT / path
+    return path if path.is_absolute() else ROOT / path
+
+
+def load_routine(path):
+    path = routine_path(path)
+    if not path.exists():
+        return {"loop": True, "steps": []}
     with open(path, encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        return yaml.safe_load(f) or {"loop": True, "steps": []}
+
+
+ROUTINE_HEADER = """# บันทึกอัตโนมัติด้วย F8 - แก้ได้ (times = จำนวนครั้งที่ตี/เก็บของ)
+# direction: left หรือ right = หันไปทางนั้นก่อนตี (ลบออกได้ถ้าไม่ต้องการ)
+loop: true
+steps:
+"""
+
+
+def append_routine_step(path, point, attack_times=8, loot_times=3):
+    """Add a step at `point` to the routine file, creating it if needed."""
+    path = routine_path(path)
+    if not path.exists() or "steps:" not in path.read_text(encoding="utf-8"):
+        path.write_text(ROUTINE_HEADER, encoding="utf-8")
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(
+            f"  - point: [{point[0]:.3f}, {point[1]:.3f}]\n"
+            f"    actions:\n"
+            f"      - attack: {{times: {attack_times}}}\n"
+            f"      - loot: {{times: {loot_times}}}\n"
+        )
+    return len(load_routine(path)["steps"])
+
+
+def clear_routine(path):
+    routine_path(path).write_text(ROUTINE_HEADER, encoding="utf-8")
