@@ -41,8 +41,9 @@ def hsv_range_from_click(img, title):
     patch = img[max(y - 1, 0):y + 2, max(x - 1, 0):x + 2]
     h, s, v = np.median(cv2.cvtColor(patch, cv2.COLOR_BGR2HSV).reshape(-1, 3), axis=0)
     return {
-        "lower": [max(h - 8, 0), max(s - 70, 40), max(v - 70, 40)],
-        "upper": [min(h + 8, 179), 255, 255],
+        # Hue is circular (0-179); a lower hue above the upper one means "wraps".
+        "lower": [(h - 8) % 180, max(s - 70, 40), max(v - 70, 40)],
+        "upper": [(h + 8) % 180, 255, 255],
     }
 
 

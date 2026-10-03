@@ -36,6 +36,10 @@ class Bot:
             if not region or region[2] == 0:
                 continue
             ratio = vision.bar_ratio(Capture.crop(frame, region), self.config[f"{bar}_bar_hsv"])
+            if bar == "hp" and ratio is not None and ratio < 0.02:
+                print("[bot] HP หมด (ตาย?) - หยุดบอท")
+                self.running = False
+                return
             if ratio is not None and ratio < threshold:
                 controls.press(self.config["keys"][key])
 

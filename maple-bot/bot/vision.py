@@ -5,7 +5,12 @@ import numpy as np
 
 def _mask(img, hsv_range):
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    return cv2.inRange(hsv, np.array(hsv_range["lower"]), np.array(hsv_range["upper"]))
+    lower, upper = np.array(hsv_range["lower"]), np.array(hsv_range["upper"])
+    if lower[0] <= upper[0]:
+        return cv2.inRange(hsv, lower, upper)
+    # Hue wraps around (red sits at both 0 and 179): match lower..179 and 0..upper.
+    return cv2.inRange(hsv, lower, np.array([179, *upper[1:]])) | \
+        cv2.inRange(hsv, np.array([0, *lower[1:]]), upper)
 
 
 def player_position(minimap, dot_hsv):

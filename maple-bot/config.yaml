@@ -14,18 +14,21 @@ hotkeys:
 # ปุ่มในเกม (ตั้งให้ตรงกับ key config ในเกม)
 # ชื่อพิเศษ: alt (= Option บน Mac), ctrl, shift, delete, end, home, page_up, space ...
 # ตัวอักษร/ตัวเลขใส่ตรงๆ เช่น z, "0"
+# Old School Maple: Ctrl = ATTACK (ตีธรรมดา) ตาม quickslot มุมขวาล่าง
+# ถ้าได้ Lucky Seven แล้ว ลากสกิลไปใส่ quickslot แล้วเปลี่ยน attack เป็นปุ่มนั้น
+# ยา: ลากยาแดง/ฟ้าไปใส่ช่อง Del / End ใน quickslot
 keys:
   jump: alt
-  attack: ctrl        # สกิลโจมตีหลัก เช่น Lucky Seven / Savage Blow
+  attack: ctrl
   loot: z
   hp_potion: delete
   mp_potion: end
 
 # บัฟที่กดซ้ำตามเวลา (วินาที)
 buffs:
-  - name: haste
+  - name: haste       # ได้ตอน 2nd job (Assassin/Bandit) - ใส่ interval: 190 เมื่อได้แล้ว
     key: shift
-    interval: 190
+    interval: 0
   - name: dark_sight
     key: "0"
     interval: 0       # 0 = ไม่ใช้
@@ -45,8 +48,8 @@ player_dot_hsv:
   upper: [35, 255, 255]
 
 # สีหลอด HP/MP (HSV) ใช้คำนวณ % ที่เหลือ
-hp_bar_hsv:
-  lower: [0, 120, 120]
+hp_bar_hsv:              # สีแดงอยู่ทั้ง H≈0 และ H≈179 จึงใช้ช่วงวนรอบ (lower > upper)
+  lower: [170, 120, 120]
   upper: [10, 255, 255]
 mp_bar_hsv:
   lower: [100, 120, 120]
