@@ -15,6 +15,7 @@ from bot.area import save_area_center
 from bot.bot import Bot
 from bot.config import (append_routine_step, clear_routine, load_config, load_routine,
                         set_closing_path)
+from bot.zones import load_zones, save_zones
 from bot.macro import MacroRecorder, key_name, split_events, waypoints_from_samples
 
 
@@ -75,6 +76,14 @@ def main():
         if pos is None:
             print("[record] หาตัวละครบนมินิแมพไม่เจอ - ลองรัน tools/calibrate.py")
             return
+        if bot.zones_mode():
+            zones = load_zones()
+            r = config.get("zones", {}).get("radius", 0.08)
+            zones.append({"center": list(pos), "radius": r})
+            save_zones(zones)
+            print(f"[record] เพิ่มวงที่ {len(zones)} ที่ [{pos[0]:.3f}, {pos[1]:.3f}] รัศมี {r} "
+                  "(ปรับขนาดวงได้ด้วย tools/zones.py) - กด F9 เพื่อเริ่ม")
+            return
         if bot.area_mode():
             save_area_center(pos)
             print(f"[record] ตั้งศูนย์กลางพื้นที่ฟาร์มที่ [{pos[0]:.3f}, {pos[1]:.3f}] "
@@ -112,6 +121,10 @@ def main():
     def clear():
         if bot.running:
             print("[clear] กด F9 หยุดบอทก่อน")
+            return
+        if bot.zones_mode():
+            save_zones([])
+            print("[clear] ลบวงกลมทั้งหมดแล้ว - วาดใหม่ด้วย tools/zones.py หรือยืนแล้วกด F8")
             return
         clear_routine(config["routine"])
         bot.atlas.reset()  # new map / new start: rebuild the minimap picture
@@ -157,6 +170,9 @@ def main():
     if bot.area_mode():
         print(f"โหมดพื้นที่ (area): {hk['record'].upper()}=ตั้งศูนย์กลางพื้นที่ตรงที่ยืน  "
               f"{hk['toggle'].upper()}=เริ่ม/หยุด  {hk['quit'].upper()}=ออก")
+    elif bot.zones_mode():
+        print(f"โหมดวงกลม (zones): วาดวงด้วย bash run.sh tools/zones.py หรือ {hk['record'].upper()}=เพิ่มวงตรงที่ยืน  "
+              f"{hk['clear'].upper()}=ลบวงทั้งหมด  {hk['toggle'].upper()}=เริ่ม/หยุด  {hk['quit'].upper()}=ออก")
     elif bot.replay_mode():
         print(f"โหมดเล่นซ้ำ (replay): {hk.get('macro', 'f6').upper()}=เริ่ม/หยุดอัดปุ่ม  "
               f"{hk['toggle'].upper()}=เริ่ม/หยุดเล่นซ้ำ  {hk['quit'].upper()}=ออก")

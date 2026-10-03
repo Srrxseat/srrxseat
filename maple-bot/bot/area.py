@@ -89,7 +89,7 @@ class AreaFarmer:
         self._snap_n = 0
 
     # ---- debug snapshots ----------------------------------------------------------
-    def _snapshot(self, frame, player, mobs, chosen, text, points=(), target=None):
+    def _snapshot(self, frame, player, mobs, chosen, text, points=(), target=None, radii=None):
         """Every second save what the bot saw and decided to debug/NNN.jpg
         (last 300 kept, numbered in order): purple = character, red = monster, green = monster on
         our platform, yellow = the one acted on; points drawn on the minimap."""
@@ -117,12 +117,15 @@ class AreaFarmer:
         top = self.bot.atlas.last_top / mh if mh else 0
         for i, (ax, ay) in enumerate(points):
             vx, vy = int(mx + ax * mw), int(my + (ay - top) * mh)
+            big = target is not None and (ax, ay) == tuple(target)
             if my <= vy <= my + mh:
-                big = target is not None and (ax, ay) == tuple(target)
                 cv2.circle(img, (vx, vy), (6 if big else 3) * th,
                            (0, 255, 255) if big else (255, 255, 0), -1 if big else 1)
                 cv2.putText(img, str(i + 1), (vx + 4 * th, vy), cv2.FONT_HERSHEY_SIMPLEX,
                             0.35 * th, (255, 255, 255), 1)
+            if radii:  # zone circles
+                cv2.ellipse(img, (vx, vy), (max(1, int(radii[i] * mw)),) * 2, 0, 0, 360,
+                            (0, 255, 255) if big else (255, 255, 0), th)
         cv2.rectangle(img, (0, h - 34 * th), (w, h), (0, 0, 0), -1)
         cv2.putText(img, text, (8, h - 10 * th), cv2.FONT_HERSHEY_SIMPLEX, 0.6 * th,
                     (255, 255, 255), th)

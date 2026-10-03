@@ -5,6 +5,7 @@ import time
 from . import controls, vision
 from .area import AreaFarmer
 from .patrol import PatrolFarmer
+from .zones import ZoneFarmer, load_zones
 from .macro import MacroPlayer, load_macro
 from .capture import Capture
 from .config import RoutineError, load_routine
@@ -86,6 +87,9 @@ class Bot:
     def patrol_mode(self):
         return self.config.get("mode", "route") == "patrol"
 
+    def zones_mode(self):
+        return self.config.get("mode", "route") == "zones"
+
     def replay_mode(self):
         return self.config.get("mode", "route") == "replay"
 
@@ -96,6 +100,8 @@ class Bot:
             target = self._prepare_area()
         elif self.patrol_mode():
             target = self._prepare_patrol()
+        elif self.zones_mode():
+            target = self._prepare_zones()
         elif self.replay_mode():
             target = self._prepare_replay()
         else:
@@ -169,6 +175,16 @@ class Bot:
         farmer = PatrolFarmer(self, points, [s.get("path") for s in steps],
                               routine.get("closing_path"))
         print(f"[patrol] {farmer.describe()}")
+        return farmer.tick
+
+    def _prepare_zones(self):
+        zones = load_zones()
+        if not zones:
+            print("[bot] ยังไม่มีวงกลม - รัน bash run.sh tools/zones.py เพื่อวาดวงบนมินิแมพ "
+                  "หรือยืนกลางพื้นที่แล้วกด F8")
+            return None
+        farmer = ZoneFarmer(self, zones)
+        print(f"[zones] {farmer.describe()}")
         return farmer.tick
 
     def _prepare_replay(self):
