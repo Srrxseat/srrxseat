@@ -55,6 +55,18 @@ class MacroRecorder:
             self._down.discard(name)
         self.events.append([round(time.time() - self._t0, 3), kind, name])
 
+    def cut(self):
+        """Return the keys recorded since the last cut (times from 0) and keep
+        recording. Keys still held are released at the end of this piece and
+        pressed again at the start of the next one."""
+        now = time.time()
+        end = round(now - self._t0, 3)
+        held = sorted(self._down)
+        events = self.events + [[end, "up", name] for name in held]
+        self.events = [[0.0, "down", name] for name in held]
+        self._t0 = now
+        return events
+
     def stop(self):
         self.recording = False
         end = round(time.time() - self._t0, 3)
@@ -115,30 +127,36 @@ class MacroPlayer(AreaFarmer):
         return False
 
     def _play_once(self):
-        t0 = time.time()
-        last_check = t0
-        try:
-            for t, kind, name in self.macro["events"]:
-                while True:
-                    if not self.bot.running:
-                        return
-                    if not self.bot.capture.is_foreground():
-                        # Paused (another window in front): hold the timeline.
-                        controls.release_all()
-                        pause = time.time()
-                        while self.bot.running and not self.bot.capture.is_foreground():
-                            time.sleep(0.3)
-                        t0 += time.time() - pause
-                    wait = t0 + t - time.time()
-                    if wait <= 0:
-                        break
-                    time.sleep(min(wait, 0.2))
-                if kind == "down":
-                    controls.hold(name)
-                else:
-                    controls.release(name)
-                if time.time() - last_check > 1.5:
-                    self.bot.check_health()  # potions keep working mid-loop
-                    last_check = time.time()
-        finally:
-            controls.release_all()
+        play_events(self.bot, self.macro["events"])
+
+
+def play_events(bot, events):
+    """Press/release keys with the recorded timing. Pauses while the game is
+    not in front and keeps drinking potions on long recordings."""
+    t0 = time.time()
+    last_check = t0
+    try:
+        for t, kind, name in events:
+            while True:
+                if not bot.running:
+                    return
+                if not bot.capture.is_foreground():
+                    # Paused (another window in front): hold the timeline.
+                    controls.release_all()
+                    pause = time.time()
+                    while bot.running and not bot.capture.is_foreground():
+                        time.sleep(0.3)
+                    t0 += time.time() - pause
+                wait = t0 + t - time.time()
+                if wait <= 0:
+                    break
+                time.sleep(min(wait, 0.2))
+            if kind == "down":
+                controls.hold(name)
+            else:
+                controls.release(name)
+            if time.time() - last_check > 1.5:
+                bot.check_health()  # potions keep working mid-recording
+                last_check = time.time()
+    finally:
+        controls.release_all()

@@ -4,31 +4,46 @@ fight every monster met on the way (melee: walk up to it, face it, hit it).
 Each tick:
   1. A monster on the character's platform within `chase_range`: walk up to
      it and attack (left or right, whichever side it is on).
-  2. Otherwise take one short step towards the current point. A point counts
-     as reached anywhere within `reach`; there, swing left and right once and
+  2. Otherwise travel to the current point. If the keys you pressed walking
+     there while recording (F8) are known and we stand at the previous point,
+     replay them: on staggered platforms that is far more reliable than
+     guessing jumps. Otherwise take one short step towards it. A point counts
+     as reached within `arrive_reach`; there, swing left and right once and
      move on to the next point.
   3. Knocked off a platform, or a point is out of reach: after
-     `point_timeout` seconds switch to the point nearest to where we are.
+     `point_timeout` seconds go to the point nearest to where we are and
+     continue from there.
 """
 import math
 import time
 
 from .area import AreaFarmer
+from .macro import play_events
 
 
 class PatrolFarmer(AreaFarmer):
-    def __init__(self, bot, points):
+    def __init__(self, bot, points, paths=None, closing_path=None):
         super().__init__(bot)
         self.pcfg = bot.config["patrol"]
         self.points = [tuple(p) for p in points]
+        # paths[i] = keys recorded walking from point i-1 to point i;
+        # closing_path = from the last point back to the first.
+        self.paths = list(paths or [None] * len(self.points))
+        self.paths[0] = closing_path
+        self.reach = self.pcfg.get("arrive_reach", 0.035)
+        # Platforms on tall maps are ~0.04 apart: "same level" must be tighter.
+        self.level_tol = self.pcfg.get("level_tolerance", 0.015)
         self.idx = 0
         self._point_since = time.time()
+        self._path_tried = False
 
     def describe(self):
         mobs = len(self.monster_tpl.images) // 2
         how = f"หามอนจากภาพ {mobs} ภาพ" if mobs else "ไม่มีภาพมอน - ตีสลับซ้าย/ขวาที่แต่ละจุด"
         tag = "เจอภาพป้ายชื่อ" if self.player_tpl else "ไม่มีภาพป้ายชื่อ"
-        return f"เดินวน {len(self.points)} จุด | {how} | {tag}"
+        known = sum(1 for p in self.paths if p)
+        return (f"เดินวน {len(self.points)} จุด (จำเส้นทางได้ {known}/{len(self.points)} ช่วง) "
+                f"| {how} | {tag}")
 
     def tick(self):
         # One screenshot per tick so position and monsters describe the same moment.
@@ -76,30 +91,47 @@ class PatrolFarmer(AreaFarmer):
         if pos is None:
             self._attack_blind()
             return
+        n = len(self.points)
         target = self.points[self.idx]
-        if math.dist(pos, target) <= self.pcfg["reach"]:
+        if math.dist(pos, target) <= self.reach:
             # Arrived: clear both sides, then head for the next point.
             for side in ("left", "right"):
                 self.cmd.face(side)  # always press: jumps may have turned us around
                 self._facing = side
                 self.cmd.attack(times=2)
-            self._next_point((self.idx + 1) % len(self.points))
+            self._next_point((self.idx + 1) % n)
             return
         if time.time() - self._point_since > self.pcfg["point_timeout"]:
-            nearest = min(range(len(self.points)), key=lambda i: math.dist(pos, self.points[i]))
-            if nearest == self.idx:
-                nearest = (self.idx + 1) % len(self.points)
-            print(f"[patrol] ไปจุดที่ {self.idx + 1} ไม่ถึง - เปลี่ยนไปจุดที่ {nearest + 1}")
-            self._next_point(nearest)
+            # Lost (knocked down, fell): continue from the nearest point, i.e.
+            # aim for the point after it so its recorded path can be used.
+            nearest = min(range(n), key=lambda i: math.dist(pos, self.points[i]))
+            print(f"[patrol] ไปจุดที่ {self.idx + 1} ไม่ถึง - กลับไปจุดที่ใกล้สุด ({nearest + 1}) แล้วไปต่อ")
+            self._next_point((nearest + 1) % n)
             return
-        # One short step towards it (jump up / drop down / walk), shared with
-        # area mode's "walk back into the circle".
-        self.center = target
+
+        prev = self.points[(self.idx - 1) % n]
+        path = self.paths[self.idx]
+        if path and not self._path_tried:
+            d_prev = math.dist(pos, prev)
+            if d_prev <= self.reach:
+                self._path_tried = True  # one replay per leg; then fall back to stepping
+                play_events(self.bot, path)
+                return
+            if d_prev < math.dist(pos, target):
+                # Closer to where the recorded path starts: go there first.
+                self._step_towards(pos, prev)
+                return
+        self._step_towards(pos, target)
+
+    def _step_towards(self, pos, goal):
+        # One short step (jump up / drop down / walk), shared with area mode.
+        self.center = goal
         self._step_back(pos)
 
     def _next_point(self, idx):
         self.idx = idx
         self._point_since = time.time()
+        self._path_tried = False
         self._stuck = 0
         self._last_y = None
         self._last_x = None

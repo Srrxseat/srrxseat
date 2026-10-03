@@ -63,27 +63,40 @@ steps:
 """
 
 
-def append_routine_step(path, point, attack_times=8, loot_times=3):
-    """Add a step at `point` to the routine file, creating it if needed."""
+def _save_routine(path, routine):
+    text = yaml.safe_dump(routine, allow_unicode=True, sort_keys=False, default_flow_style=None)
+    path.write_text(ROUTINE_HEADER.split("loop:")[0] + text, encoding="utf-8")
+
+
+def append_routine_step(path, point, attack_times=8, loot_times=3, keys=None):
+    """Add a step at `point` to the routine file, creating it if needed.
+
+    `keys` are the key presses recorded while walking here from the previous
+    point; patrol mode replays them to get between points reliably."""
     path = routine_path(path)
     try:
-        load_routine(path)
-        broken = False
+        routine = load_routine(path)
     except RoutineError:
-        broken = True
-    if broken:
         # Keep the broken file for reference and start a fresh one.
         path.replace(path.with_suffix(".broken.yaml"))
-    if not path.exists() or "steps:" not in path.read_text(encoding="utf-8"):
-        path.write_text(ROUTINE_HEADER, encoding="utf-8")
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(
-            f"  - point: [{point[0]:.3f}, {point[1]:.3f}]\n"
-            f"    actions:\n"
-            f"      - attack: {{times: {attack_times}}}\n"
-            f"      - loot: {{times: {loot_times}}}\n"
-        )
-    return len(load_routine(path)["steps"])
+        routine = {"loop": True, "steps": []}
+    step = {
+        "point": [round(point[0], 3), round(point[1], 3)],
+        "actions": [{"attack": {"times": attack_times}}, {"loot": {"times": loot_times}}],
+    }
+    if keys:
+        step["path"] = keys
+    routine["steps"].append(step)
+    _save_routine(path, routine)
+    return len(routine["steps"])
+
+
+def set_closing_path(path, keys):
+    """Keys recorded walking from the last point back to the first one."""
+    path = routine_path(path)
+    routine = load_routine(path)
+    routine["closing_path"] = keys
+    _save_routine(path, routine)
 
 
 def clear_routine(path):

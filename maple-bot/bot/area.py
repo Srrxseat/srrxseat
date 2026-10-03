@@ -55,6 +55,7 @@ class AreaFarmer:
         self._last_loot = 0.0
         self._last_log = 0.0
         self.mv = bot.config["movement"]
+        self.level_tol = self.mv["tolerance_y"]
         self._last_y = None
         self._last_x = None
         self._stuck = 0
@@ -176,7 +177,7 @@ class AreaFarmer:
         other side."""
         dx, dy = self.center[0] - pos[0], self.center[1] - pos[1]
         toward = "right" if dx > 0 else "left"
-        if dy < -self.mv["tolerance_y"]:  # centre is above
+        if dy < -self.level_tol:  # centre is above
             if self._last_y is not None and pos[1] >= self._last_y - 0.005:
                 self._stuck += 1
             else:
@@ -189,7 +190,7 @@ class AreaFarmer:
             controls.hold(direction)
             controls.press(self.keys["jump"], delay=0.55)
             controls.release(direction)
-        elif dy > self.mv["tolerance_y"] and abs(dx) <= 0.1:  # centre is below us
+        elif dy > self.level_tol and abs(dx) <= 0.1:  # centre is below us
             controls.hold("down")
             controls.press(self.keys["jump"], delay=0.45)
             controls.release("down")

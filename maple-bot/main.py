@@ -11,7 +11,10 @@ from pynput import keyboard
 
 from bot.area import save_area_center
 from bot.bot import Bot
-from bot.config import append_routine_step, clear_routine, load_config
+import math
+
+from bot.config import (append_routine_step, clear_routine, load_config, load_routine,
+                        set_closing_path)
 from bot.macro import MacroRecorder, key_name
 
 
@@ -44,6 +47,10 @@ def main():
     hotkeys = {getattr(keyboard.Key, hk[name]): name
                for name in ("toggle", "record", "clear", "quit", "macro") if name in hk}
     recorder = MacroRecorder()
+    # Patrol: remember the keys pressed between F8 presses so the bot can walk
+    # each leg the way you did.
+    path_rec = MacroRecorder()
+    path_rec.start(None)
 
     def record():
         if bot.running:
@@ -58,8 +65,20 @@ def main():
             print(f"[record] ตั้งศูนย์กลางพื้นที่ฟาร์มที่ [{pos[0]:.3f}, {pos[1]:.3f}] "
                   f"รัศมี {config['area']['radius']} - กด F9 เพื่อเริ่ม")
             return
-        n = append_routine_step(config["routine"], pos)
-        print(f"[record] บันทึกจุดที่ {n}: [{pos[0]:.3f}, {pos[1]:.3f}] ลง {config['routine']}")
+        keys = path_rec.cut()
+        if bot.patrol_mode():
+            steps = load_routine(config["routine"])["steps"]
+            reach = config["patrol"].get("arrive_reach", 0.035)
+            if len(steps) >= 3 and math.dist(pos, steps[0]["point"]) <= reach * 1.5:
+                set_closing_path(config["routine"], keys)
+                print(f"[record] กลับมาถึงจุดที่ 1 แล้ว - จำเส้นทางกลับไว้ ปิดวงครบ {len(steps)} จุด "
+                      f"กด {hk['toggle'].upper()} เพื่อเริ่ม")
+                return
+            if not steps:
+                keys = None  # first point: nothing walked yet
+        n = append_routine_step(config["routine"], pos, keys=keys)
+        walked = f" (จำเส้นทางมา {len(keys)} การกดปุ่ม)" if keys else ""
+        print(f"[record] บันทึกจุดที่ {n}: [{pos[0]:.3f}, {pos[1]:.3f}]{walked}")
 
     def clear():
         if bot.running:
@@ -67,6 +86,7 @@ def main():
             return
         clear_routine(config["routine"])
         bot.atlas.reset()  # new map / new start: rebuild the minimap picture
+        path_rec.start(None)
         print(f"[clear] ลบจุดทั้งหมดใน {config['routine']} แล้ว - เริ่มบันทึกใหม่ด้วย F8")
 
     def macro():
@@ -82,13 +102,18 @@ def main():
             print(f"[macro] บันทึกแล้ว {n} การกดปุ่ม ยาว {secs:.0f} วินาที "
                   f"- ตั้ง mode: replay ใน config.yaml แล้วกด {hk['toggle'].upper()} เพื่อเล่นซ้ำ")
 
-    actions = {"toggle": bot.toggle, "record": record, "clear": clear, "macro": macro}
+    def toggle():
+        bot.toggle()
+        path_rec.start(None)  # don't count the bot's own run as a walked path
+
+    actions = {"toggle": toggle, "record": record, "clear": clear, "macro": macro}
     last_press = {}
 
     def on_press(key):
         action = hotkeys.get(key)
-        if action is None:
+        if action is None and not bot.running:
             recorder.add("down", key_name(key))
+            path_rec.add("down", key_name(key))
         if action == "quit":
             return False  # stops the listener
         # Holding a key repeats it; one press should do one thing.
@@ -107,6 +132,8 @@ def main():
         print(f"โหมดเล่นซ้ำ (replay): {hk.get('macro', 'f6').upper()}=เริ่ม/หยุดอัดปุ่ม  "
               f"{hk['toggle'].upper()}=เริ่ม/หยุดเล่นซ้ำ  {hk['quit'].upper()}=ออก")
     elif bot.patrol_mode():
+        print("  วิธีตั้ง: F7 ลบของเก่า -> เดินไปจุดแรก F8 -> เดินไปจุดถัดไป F8 ... -> เดินกลับจุดแรก F8 (ปิดวง)")
+        print("  บอทจะจำทางที่คุณเดินระหว่างจุด แล้วเดินตามแบบเดียวกัน")
         print(f"โหมดเดินวนจุด (patrol): {hk['record'].upper()}=เพิ่มจุดตรงที่ยืน (6-10 จุดทั่วแมพ)  "
               f"{hk['clear'].upper()}=ลบจุดทั้งหมด  {hk['toggle'].upper()}=เริ่ม/หยุด  "
               f"{hk['quit'].upper()}=ออก")
@@ -114,9 +141,11 @@ def main():
         print(f"โหมดเดินตามจุด (route): {hk['record'].upper()}=บันทึกจุด  "
               f"{hk['clear'].upper()}=ลบจุดทั้งหมด  {hk['toggle'].upper()}=เริ่ม/หยุด  "
               f"{hk['quit'].upper()}=ออก")
+
     def on_release(key):
-        if hotkeys.get(key) is None:
+        if hotkeys.get(key) is None and not bot.running:
             recorder.add("up", key_name(key))
+            path_rec.add("up", key_name(key))
 
     if "macro" in hk:
         print(f"{hk['macro'].upper()} = อัดปุ่มที่คุณเล่น (โหมด replay จะเล่นซ้ำ)")

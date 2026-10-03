@@ -116,7 +116,8 @@ class Bot:
 
     def _prepare_patrol(self):
         try:
-            steps = load_routine(self.config["routine"])["steps"]
+            routine = load_routine(self.config["routine"])
+            steps = routine["steps"]
         except RoutineError as e:
             print(f"[bot] {e} - กด F7 เพื่อล้างไฟล์ แล้วบันทึกจุดใหม่ด้วย F8")
             return None
@@ -131,7 +132,8 @@ class Bot:
         if len(points) >= 4 and max(ys) - min(ys) < 0.02:
             print("[bot] คำเตือน: ทุกจุดอยู่ความสูงเดียวกัน บอทจะไม่ขึ้น/ลงชั้น - "
                   "ถ้าตั้งใจให้เดินหลายชั้น กด F7 แล้วบันทึกใหม่ (เวอร์ชันนี้วัดความสูงบนมินิแมพที่เลื่อนได้แล้ว)")
-        farmer = PatrolFarmer(self, points)
+        farmer = PatrolFarmer(self, points, [s.get("path") for s in steps],
+                              routine.get("closing_path"))
         print(f"[patrol] {farmer.describe()}")
         return farmer.tick
 
