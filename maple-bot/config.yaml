@@ -17,14 +17,14 @@ hotkeys:
 # ชื่อพิเศษ: alt (= Option บน Mac), ctrl, shift, delete, end, home, page_up, space ...
 # ตัวอักษร/ตัวเลขใส่ตรงๆ เช่น z, "0"
 # ถ้าได้ Lucky Seven แล้ว ลากสกิลไปใส่ quickslot แล้วเปลี่ยน attack เป็นปุ่มนั้น
-# ยา: ลากยาแดง/ฟ้าไปใส่ช่อง Del / End ใน quickslot
+# ยา: ลากยาแดง/ฟ้าไปใส่ช่อง F1 / F2 (หรือช่องอื่น แล้วแก้ชื่อปุ่มตรงนี้)
 keys:
   jump: space         # Space bar
   attack: z
   loot: x
-  skill: ""           # สกิลโจมตี เช่น Double Stab: ลากสกิลไปใส่ quickslot แล้วใส่ปุ่มนั้น เช่น a, "1", ctrl ("" = ไม่ใช้)
-  hp_potion: delete
-  mp_potion: end
+  skill: v            # สกิลโจมตี (Double Stab) - "" = ไม่ใช้
+  hp_potion: f1
+  mp_potion: f2
 
 # สกิลโจมตี (keys.skill) - ใช้เฉพาะตอนมอนอยู่ชิดตัว (ระยะ attack_range) เพื่อประหยัด MP
 skill:
@@ -63,7 +63,7 @@ mp_bar_hsv:
   upper: [125, 255, 255]
 
 # ใช้ยาเมื่อเหลือต่ำกว่า (0.0 - 1.0)
-hp_threshold: 0.5
+hp_threshold: 0.6
 mp_threshold: 0.3
 
 # การเคลื่อนที่ (หน่วยเป็นสัดส่วนของมินิแมพ 0.0 - 1.0)

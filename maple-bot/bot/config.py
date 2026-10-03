@@ -8,7 +8,17 @@ CONFIG_PATH = ROOT / "config.yaml"
 
 def load_config(path=CONFIG_PATH):
     with open(path, encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        try:
+            return yaml.safe_load(f)
+        except yaml.YAMLError as e:
+            mark = getattr(e, "problem_mark", None)
+            where = f" บรรทัดที่ {mark.line + 1}" if mark else ""
+            raise SystemExit(
+                f"\nไฟล์ config.yaml พิมพ์ผิดรูปแบบ{where} (มักเกิดจากเว้นวรรคหน้าบรรทัดไม่ตรง "
+                "หรือมีตัวอักษรเกินมา)\n"
+                "วิธีแก้ที่ง่ายที่สุด: คัดลอก config.yaml จาก ZIP ใหม่มาทับ "
+                "แล้วรัน bash run.sh tools/calibrate.py เพื่อตั้งมินิแมพ/หลอด HP MP ใหม่\n"
+                "หรือเปิด nano config.yaml ไปดูบรรทัดนั้น") from None
 
 
 def save_block(name, values, path=CONFIG_PATH):
