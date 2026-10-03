@@ -19,6 +19,7 @@ class Bot:
         self._thread = None
         self._last_buff = {}
         self._step = 0
+        self._hp_zero = 0
 
     # ---- state -------------------------------------------------------------
     def position(self):
@@ -38,9 +39,16 @@ class Bot:
                 continue
             ratio = vision.bar_ratio(Capture.crop(frame, region), self.config[f"{bar}_bar_hsv"])
             if bar == "hp" and ratio is not None and ratio < 0.02:
-                print("[bot] HP หมด (ตาย?) - หยุดบอท")
-                self.running = False
-                return
+                # A single bad frame (window switching, a flash) can read as 0;
+                # only stop when it stays empty.
+                self._hp_zero += 1
+                if self._hp_zero >= 3:
+                    print("[bot] HP หมด (ตาย?) - หยุดบอท")
+                    self.running = False
+                    return
+                continue
+            if bar == "hp":
+                self._hp_zero = 0
             if ratio is not None and ratio < threshold:
                 controls.press(self.config["keys"][key])
 

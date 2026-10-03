@@ -57,6 +57,11 @@ class AreaFarmer:
         self._stuck = 0
         self._climb_dir = "right"
         self._last_player = None
+        self._target = None          # last attacked (dx, dy)
+        self._target_rounds = 0      # ticks spent on it without it moving/dying
+        self._ignored = []           # (dx, dy, since) spots that never die
+        self._ignored_at = None      # minimap position when they were ignored
+        self._ignored_pos = None
 
     def describe(self):
         mobs = len(self.monster_tpl.images) // 2
@@ -74,6 +79,7 @@ class AreaFarmer:
         # Without knowing where the character is on screen we can't tell which
         # monsters are on its platform, so just swing both ways.
         mobs = self._monsters(frame, *player) if self.monster_tpl and player else []
+        mobs = self._drop_ignored(mobs, pos)
         same_level = [m for m in mobs if abs(m[1]) <= self.cfg["vertical_range"]]
         self._log(len(mobs), len(same_level), tag_found, outside)
 
@@ -183,7 +189,39 @@ class AreaFarmer:
         where = " | ออกนอกพื้นที่ - กำลังกลับ" if outside else ""
         print(f"[area] เห็นมอน {n_mobs} ตัว (ระดับเดียวกัน {n_same}) | ป้ายชื่อตัวละคร: {tag}{where}")
 
-    def _engage(self, dx, _dy):
+    def _drop_ignored(self, mobs, pos):
+        """Forget ignored spots once the character has moved or after a while,
+        then filter out monsters sitting on an ignored spot."""
+        now = time.time()
+        if self._ignored and pos is not None and self._ignored_at is not None and \
+                math.hypot(pos[0] - self._ignored_at[0], pos[1] - self._ignored_at[1]) > 0.02:
+            self._ignored = []
+        self._ignored = [(x, y, t) for x, y, t in self._ignored if now - t < 30]
+        self._ignored_pos = pos
+        return [m for m in mobs
+                if all(abs(m[0] - x) > 0.03 or abs(m[1] - y) > 0.03 for x, y, _ in self._ignored)]
+
+    def _check_stuck_target(self, dx, dy):
+        """A real monster dies or moves while being hit. Something that stays
+        put for several rounds of attacks (a dropped item, a background detail
+        that looks like a monster) gets ignored so the bot moves on."""
+        last = self._target
+        if last and abs(dx - last[0]) < 0.02 and abs(dy - last[1]) < 0.02:
+            self._target_rounds += 1
+        else:
+            self._target_rounds = 0
+        self._target = (dx, dy)
+        if self._target_rounds >= self.cfg.get("give_up_rounds", 5):
+            print("[area] ตีเป้าเดิมนานแล้วไม่ตาย - ข้ามเป้านี้ (อาจเป็นของตก/ฉากหลัง)")
+            self._ignored.append((dx, dy, time.time()))
+            self._ignored_at = self._ignored_pos
+            self._target, self._target_rounds = None, 0
+            return True
+        return False
+
+    def _engage(self, dx, dy):
+        if self._check_stuck_target(dx, dy):
+            return
         direction = "right" if dx > 0 else "left"
         if abs(dx) > self.cfg["attack_range"]:
             # Too far: step towards it, but only while comfortably inside the area.
