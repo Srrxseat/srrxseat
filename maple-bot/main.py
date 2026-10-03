@@ -29,10 +29,6 @@ def main():
         if pos is None:
             print("[record] หาตัวละครบนมินิแมพไม่เจอ - ลองรัน tools/calibrate.py")
             return
-        mm = config["regions"]["minimap"]
-        if mm[3] < 40:
-            print(f"[record] คำเตือน: กรอบมินิแมพเตี้ยมาก (สูง {mm[3]} px) - ค่า y จะไม่เปลี่ยนตามชั้น "
-                  f"ให้รัน bash run.sh tools/calibrate.py แล้วลากกรอบให้คลุมแผนที่ทั้งแท่ง")
         if bot.area_mode():
             save_area_center(pos)
             print(f"[record] ตั้งศูนย์กลางพื้นที่ฟาร์มที่ [{pos[0]:.3f}, {pos[1]:.3f}] "
@@ -46,6 +42,7 @@ def main():
             print("[clear] กด F9 หยุดบอทก่อน")
             return
         clear_routine(config["routine"])
+        bot.atlas.reset()  # new map / new start: rebuild the minimap picture
         print(f"[clear] ลบจุดทั้งหมดใน {config['routine']} แล้ว - เริ่มบันทึกใหม่ด้วย F8")
 
     actions = {"toggle": bot.toggle, "record": record, "clear": clear}

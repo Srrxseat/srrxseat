@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 from bot import vision  # noqa: E402
 from bot.area import load_area_center, load_templates  # noqa: E402
 from bot.capture import Capture  # noqa: E402
+from bot.minimap import MinimapAtlas, locate_player  # noqa: E402
 from bot.config import RoutineError, load_config, load_routine  # noqa: E402
 
 
@@ -45,10 +46,7 @@ def main():
     cv2.imwrite(str(mm_out), cv2.resize(mm, None, fx=3, fy=3, interpolation=cv2.INTER_NEAREST))
     print(f"- กรอบมินิแมพ {regions['minimap']} (กว้าง x สูง = {mm.shape[1]}x{mm.shape[0]} px) "
           f"ดูภาพที่ {mm_out}")
-    if mm.shape[0] < 40:
-        print("✗ กรอบมินิแมพเตี้ยเกินไป - ค่า y จะไม่เปลี่ยนตามชั้น: "
-              "รัน bash run.sh tools/calibrate.py แล้วลากให้คลุมแผนที่ทั้งแท่ง (บนสุดถึงล่างสุด)")
-    pos = vision.player_position(mm, config["player_dot_hsv"])
+    pos = locate_player(frame, config, MinimapAtlas())
     if pos is None:
         print("✗ หาจุดตัวละครบนมินิแมพไม่เจอ - รัน bash run.sh tools/calibrate.py ก่อน")
     else:

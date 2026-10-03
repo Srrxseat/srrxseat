@@ -7,6 +7,7 @@ from .area import AreaFarmer
 from .patrol import PatrolFarmer
 from .capture import Capture
 from .config import RoutineError, load_routine
+from .minimap import MinimapAtlas, locate_player
 from .thief import Thief
 
 
@@ -21,12 +22,11 @@ class Bot:
         self._last_buff = {}
         self._step = 0
         self._hp_zero = 0
+        self.atlas = MinimapAtlas()
 
     # ---- state -------------------------------------------------------------
     def position(self):
-        frame = self.capture.frame()
-        minimap = Capture.crop(frame, self.config["regions"]["minimap"])
-        return vision.player_position(minimap, self.config["player_dot_hsv"])
+        return locate_player(self.capture.frame(), self.config, self.atlas)
 
     def check_health(self):
         regions = self.config["regions"]
