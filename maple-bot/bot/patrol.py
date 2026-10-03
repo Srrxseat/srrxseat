@@ -72,10 +72,20 @@ class PatrolFarmer(AreaFarmer):
         if near:
             # Finish the monster in front of us before turning to one behind:
             # switching every tick (both sides in range) killed neither.
+            # Keep chasing the monster we already went for: switching between
+            # far ones on both sides walked us back and forth (and off edges).
+            last = self._target if pos is not None else None
+
             def cost(m):
                 side = "right" if m[0] > 0 else "left"
                 in_reach = abs(m[0]) <= self.cfg["attack_range"]
-                return abs(m[0]) - (0.1 if side == self._facing and in_reach else 0)
+                c = abs(m[0]) - (0.1 if side == self._facing and in_reach else 0)
+                if last and abs(pos[0] + m[0] / self._scale - last[0]) < 0.04 \
+                        and abs(m[1] - last[2]) < 0.04:
+                    c -= 0.15
+                elif side == self._facing:
+                    c -= 0.03
+                return c
             chosen = min(near, key=cost)
             text = f"{where} FIGHT dx={chosen[0]:+.3f} | point {self.idx + 1}/{len(self.points)}"
             self._snapshot(frame, player, mobs, chosen, text, self.points, target)
