@@ -14,9 +14,31 @@ from bot.bot import Bot
 from bot.config import append_routine_step, clear_routine, load_config
 
 
+def wait_for_game(config):
+    """Create the bot once the game window can be found, explaining what to
+    check instead of crashing while it is closed, minimised or full screen."""
+    warned = False
+    while True:
+        try:
+            return Bot(config)
+        except RuntimeError:
+            if not warned:
+                print(f"ยังหาหน้าต่างเกม '{config['window_title']}' ไม่เจอ - รอจนกว่าจะเจอ (Ctrl+C = ออก)")
+                print("  - เปิดเกมไว้หรือยัง?")
+                print("  - หน้าต่างเกมถูกย่อลง Dock อยู่ไหม? (คลิกที่ Dock เพื่อเปิดกลับมา)")
+                print("  - เกมเป็น fullscreen แยกหน้าจอไหม? กดปุ่มเขียวมุมซ้ายบนของเกมให้ออกจาก fullscreen")
+                print("    (ใช้แบบหน้าต่างขยายเต็มจอได้: กด Option ค้างแล้วคลิกปุ่มเขียว)")
+                warned = True
+            time.sleep(2)
+
+
 def main():
     config = load_config()
-    bot = Bot(config)
+    try:
+        bot = wait_for_game(config)
+    except KeyboardInterrupt:
+        return
+    print("เจอหน้าต่างเกมแล้ว")
     hk = config["hotkeys"]
     hotkeys = {getattr(keyboard.Key, hk[name]): name
                for name in ("toggle", "record", "clear", "quit")}
