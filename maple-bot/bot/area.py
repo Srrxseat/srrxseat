@@ -63,9 +63,16 @@ class AreaFarmer:
         self._last_player = None
         self._target = None          # last attacked (dx, dy)
         self._target_rounds = 0      # ticks spent on it without it moving/dying
-        self._ignored = []           # (dx, dy, since) spots that never die
-        self._ignored_at = None      # minimap position when they were ignored
+        # Spots that never die (a background detail or drop that looks like a
+        # monster), kept as map positions so they stay ignored after we move:
+        # (map_x, map_y_of_player, dy, since)
+        self._ignored = []
         self._ignored_pos = None
+        # Screen width fraction per minimap unit, learnt from how monsters
+        # shift on screen while we walk (default measured on Ellinia trees).
+        self._scale = self.cfg.get("screen_per_minimap", 0.9)
+        self._scale_samples = []
+        self._prev_seen = None       # (pos, mobs) of the previous tick
         self._last_snap = 0.0
         self._snap_n = 0
 
@@ -251,16 +258,43 @@ class AreaFarmer:
         print(f"[area] เห็นมอน {n_mobs} ตัว (ระดับเดียวกัน {n_same}) | ป้ายชื่อตัวละคร: {tag}{where}")
 
     def _drop_ignored(self, mobs, pos):
-        """Forget ignored spots once the character has moved or after a while,
-        then filter out monsters sitting on an ignored spot."""
+        """Filter out monsters standing on a spot ignored earlier (see
+        _check_stuck_target). Spots are remembered by map position, so the
+        same fake monster is not attacked again every time we pass by."""
         now = time.time()
-        if self._ignored and pos is not None and self._ignored_at is not None and \
-                math.hypot(pos[0] - self._ignored_at[0], pos[1] - self._ignored_at[1]) > 0.02:
-            self._ignored = []
-        self._ignored = [(x, y, t) for x, y, t in self._ignored if now - t < 30]
+        self._learn_scale(mobs, pos)
+        self._ignored = [e for e in self._ignored if now - e[3] < 180]
         self._ignored_pos = pos
-        return [m for m in mobs
-                if all(abs(m[0] - x) > 0.03 or abs(m[1] - y) > 0.03 for x, y, _ in self._ignored)]
+        if pos is None or not self._ignored:
+            return mobs
+        return [m for m in mobs if not self._is_ignored(m, pos)]
+
+    def _is_ignored(self, m, pos):
+        x = pos[0] + m[0] / self._scale
+        return any(abs(pos[1] - py) <= 0.03 and abs(x - wx) <= 0.025 and abs(m[1] - dy) <= 0.04
+                   for wx, py, dy, _ in self._ignored)
+
+    def _learn_scale(self, mobs, pos):
+        """Monsters barely move between two ticks, so when we walk sideways by
+        d on the minimap they shift by about -d * scale on screen."""
+        prev, self._prev_seen = self._prev_seen, (pos, mobs)
+        if not prev or pos is None or prev[0] is None:
+            return
+        (px, py), pmobs = prev
+        d = pos[0] - px
+        if not (0.004 <= abs(d) <= 0.1) or abs(pos[1] - py) > 0.004:
+            return
+        for m in mobs:
+            same = [p for p in pmobs if abs(p[1] - m[1]) < 0.02]
+            if not same:
+                continue
+            p = min(same, key=lambda p: abs(m[0] - p[0] + d * self._scale))
+            r = (p[0] - m[0]) / d
+            if 0.3 <= r <= 3:
+                self._scale_samples.append(r)
+        del self._scale_samples[:-60]
+        if len(self._scale_samples) >= 15:
+            self._scale = float(sorted(self._scale_samples)[len(self._scale_samples) // 2])
 
     def _check_stuck_target(self, dx, dy):
         """A real monster dies or moves while being hit. Something that stays
@@ -280,8 +314,9 @@ class AreaFarmer:
             self.cmd.walk(direction, min(0.8, abs(dx) * 4 + 0.1))
             self.cmd.loot(times=3)
             self._facing = direction
-            self._ignored.append((dx, dy, time.time()))
-            self._ignored_at = self._ignored_pos
+            pos = self._ignored_pos
+            if pos is not None:
+                self._ignored.append((pos[0] + dx / self._scale, pos[1], dy, time.time()))
             self._target, self._target_rounds = None, 0
             return True
         return False

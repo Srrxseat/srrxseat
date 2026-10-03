@@ -130,7 +130,7 @@ class Bot:
             return None
         points = [s["point"] for s in steps]
         ys = [p[1] for p in points]
-        if len(points) > 20:
+        if len(points) > 40:
             print(f"[bot] คำเตือน: มี {len(points)} จุด เยอะผิดปกติ (อาจมีจุดเก่าค้าง) - "
                   "แนะนำกด F7 ลบแล้วบันทึกใหม่ 6-10 จุด")
         if len(points) >= 4 and max(ys) - min(ys) < 0.02:

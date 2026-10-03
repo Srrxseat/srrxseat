@@ -36,6 +36,7 @@ class PatrolFarmer(AreaFarmer):
         self.idx = 0
         self._point_since = time.time()
         self._path_tries = 0
+        self._fails = {}  # point index -> times it timed out in a row
 
     def describe(self):
         mobs = len(self.monster_tpl.images) // 2
@@ -68,7 +69,10 @@ class PatrolFarmer(AreaFarmer):
             chosen = min(near, key=cost)
             text = f"{where} FIGHT dx={chosen[0]:+.3f} | point {self.idx + 1}/{len(self.points)}"
             self._snapshot(frame, player, mobs, chosen, text, self.points, target)
+            started = time.time()
             self._melee(*chosen)
+            # Time spent fighting doesn't count against reaching the point.
+            self._point_since += time.time() - started
         else:
             text = (f"{where} -> point {self.idx + 1}/{len(self.points)} "
                     f"({target[0]:.3f},{target[1]:.3f}) mobs={len(mobs)}")
@@ -105,19 +109,34 @@ class PatrolFarmer(AreaFarmer):
                 self.cmd.face(side)  # always press: jumps may have turned us around
                 self._facing = side
                 self.cmd.attack(times=2)
+            self._fails.pop(self.idx, None)
+            if self.idx == 0:
+                self._fails.clear()  # new lap: give skipped points another chance
             self._next_point((self.idx + 1) % n)
             return
         if time.time() - self._point_since > self.pcfg["point_timeout"]:
             # Lost (knocked down, fell): continue from the nearest point, i.e.
             # aim for the point after it so its recorded path can be used.
+            fails = self._fails[self.idx] = self._fails.get(self.idx, 0) + 1
             nearest = min(range(n), key=lambda i: math.dist(pos, self.points[i]))
-            print(f"[patrol] ไปจุดที่ {self.idx + 1} ไม่ถึง - กลับไปจุดที่ใกล้สุด ({nearest + 1}) แล้วไปต่อ")
-            self._next_point((nearest + 1) % n)
+            nxt = (nearest + 1) % n
+            if self._fails.get(nxt, 0) >= 2:
+                # Failed that point twice already: skip it (until the next
+                # lap) instead of trying forever.
+                while self._fails.get(nxt, 0) >= 2 and nxt != nearest:
+                    nxt = (nxt + 1) % n
+                print(f"[patrol] ไปจุดที่ {self.idx + 1} ไม่ถึง - ข้ามจุดที่ไปไม่ถึงบ่อย ไปจุดที่ {nxt + 1}")
+            else:
+                print(f"[patrol] ไปจุดที่ {self.idx + 1} ไม่ถึง - กลับไปจุดที่ใกล้สุด ({nearest + 1}) แล้วไปต่อ")
+            self._next_point(nxt)
             return
 
         prev = self.points[(self.idx - 1) % n]
         path = self.paths[self.idx]
-        if path and self._path_tries < 2:
+        # Same platform: just walk. Recorded keys are only worth replaying for
+        # jumps/drops between platforms.
+        changes_level = abs(target[1] - prev[1]) > self.level_tol
+        if path and changes_level and self._path_tries < 2:
             d_prev = math.dist(pos, prev)
             if d_prev <= self.reach:
                 # Replay the leg; if it didn't get there, come back and try once more.
