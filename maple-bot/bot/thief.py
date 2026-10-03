@@ -32,9 +32,12 @@ class Thief:
 
                 if not close_x:
                     self._walk("right" if dx > 0 else "left")
-                    # Jump while walking to get over small gaps/slopes faster.
+                    # Jump while walking to cover long distances faster;
+                    # a second press in mid-air triggers Flash Jump.
                     if abs(dx) > 0.15:
-                        controls.press(self.keys["jump"], delay=0.05)
+                        controls.press(self.keys["jump"], delay=0.12)
+                        if self.mv.get("flash_jump"):
+                            controls.press(self.keys["jump"], delay=0.3)
                 else:
                     controls.release("left")
                     controls.release("right")

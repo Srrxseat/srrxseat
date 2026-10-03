@@ -1,5 +1,4 @@
 """Grab frames of the game window."""
-import ctypes
 import sys
 
 import mss

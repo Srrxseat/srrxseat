@@ -1,6 +1,7 @@
-# maple-bot — บอท MapleStory Worlds: Classic World (Thief)
+# maple-bot — บอท MapleStory Worlds: Old School Maple (Thief)
 
-รองรับ **macOS** และ Windows (Python 3.10+)
+รองรับ **macOS** (แอป MapleStory Worlds ตัว native) และ Windows (Python 3.10+)
+ตั้งค่าไว้สำหรับ world **Old School Maple** (pre-Big Bang, มี 4th job)
 
 โครงบอทเริ่มต้นที่ได้แนวคิดจาก [auto-maple](https://github.com/tanjeffreyz/auto-maple):
 อ่านหน้าจอเพื่อหาตำแหน่งตัวละครบนมินิแมพ แล้วเดินตาม routine + กดสกิล/เก็บของ/กินยา/บัฟ
@@ -42,11 +43,14 @@ tools/calibrate.py   ลากเลือกพื้นที่มินิ�
 4. **ระวัง Ctrl+ลูกศร**: macOS ใช้สลับ Desktop (Mission Control)
    ถ้าตั้งโจมตีเป็น ctrl ให้ปิด shortcut นี้ใน Keyboard → Keyboard Shortcuts → Mission Control
    หรือเปลี่ยนปุ่มโจมตีในเกมเป็นปุ่มอื่น
-5. เปิดเกมแบบ **windowed** แก้ `window_title` ใน `config.yaml` ให้ตรงกับชื่อหน้าต่างหรือชื่อแอป
-   (ถ้าเล่นผ่าน Parallels/CrossOver ใส่ชื่อแอปนั้น) แล้วแก้ `keys` / `buffs` ให้ตรงกับในเกม
-6. `python tools/calibrate.py` → ลากกรอบมินิแมพ → Enter, หลอด HP → Enter, หลอด MP → Enter
-   (กด `c` เพื่อข้าม) แล้วดูพรีวิวว่าวงแดงตรงจุดเหลืองของตัวละคร
-   ถ้าจับไม่ได้ให้ปรับ `player_dot_hsv` ใน config
+5. เปิดแอป MapleStory Worlds แล้วเข้า Old School Maple (เปิดแบบหน้าต่างหรือขยายเต็มก็ได้ แต่อย่าใช้ fullscreen แบบแยก Space)
+   `window_title: "MapleStory Worlds"` ตรงกับชื่อแอปอยู่แล้ว ไม่ต้องแก้
+   แก้ `keys` / `buffs` ให้ตรงกับ key config ในเกม ถ้าได้ Flash Jump แล้วตั้ง `movement.flash_jump: true`
+6. เข้าแมพที่จะฟาร์มแล้วรัน `python tools/calibrate.py`
+   - ลากกรอบมินิแมพ → Enter, หลอด HP → Enter, หลอด MP → Enter (กด `c` เพื่อข้าม)
+   - จะมีภาพขยายขึ้นมา **คลิกที่จุดตัวละครบนมินิแมพ** แล้วคลิกที่ส่วนที่มีสีของหลอด HP / MP
+     โปรแกรมจะบันทึกสีลง `config.yaml` ให้เอง (UI ของ Old School Maple ไม่ใช่ของเกมจริง จึงต้องเลือกสีเอง)
+   - ดูพรีวิวว่าวงแดงตามจุดตัวละครตอนเดินไหม กด `q` เพื่อปิด
 7. `python main.py` → ยืนตามจุดที่จะตีมอนแล้วกด **F8** เอาพิกัดไปใส่ `routines/example.yaml`
 8. คลิกหน้าต่างเกมให้ active แล้วกด **F9** เริ่ม/หยุด, **F10** ออก
 

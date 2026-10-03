@@ -11,8 +11,9 @@ def load_config(path=CONFIG_PATH):
         return yaml.safe_load(f)
 
 
-def save_regions(regions, path=CONFIG_PATH):
-    """Update only the `regions` block so comments elsewhere stay intact."""
+def save_block(name, values, path=CONFIG_PATH):
+    """Rewrite one top-level block of list values (e.g. `regions` or
+    `player_dot_hsv`) in place so comments elsewhere stay intact."""
     lines = Path(path).read_text(encoding="utf-8").splitlines()
     out = []
     skipping = False
@@ -21,10 +22,10 @@ def save_regions(regions, path=CONFIG_PATH):
             continue
         skipping = False
         out.append(line)
-        if line.startswith("regions:"):
+        if line.startswith(f"{name}:"):
             skipping = True
-            for name, (x, y, w, h) in regions.items():
-                out.append(f"  {name}: [{x}, {y}, {w}, {h}]")
+            for key, items in values.items():
+                out.append(f"  {key}: [{', '.join(str(int(v)) for v in items)}]")
     Path(path).write_text("\n".join(out) + "\n", encoding="utf-8")
 
 

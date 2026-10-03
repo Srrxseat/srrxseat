@@ -1,4 +1,4 @@
-# ตั้งค่าบอท MapleStory Worlds - Classic World (Thief)
+# ตั้งค่าบอท MapleStory Worlds - Old School Maple (Thief)
 
 # ชื่อหน้าต่างเกม หรือชื่อแอป (ใช้หาตำแหน่งหน้าต่าง) - เช็คชื่อจริงจาก title bar
 # macOS: ถ้าเล่นผ่าน Parallels/CrossOver ให้ใส่ชื่อแอปนั้นแทน เช่น "Parallels Desktop"
@@ -39,6 +39,7 @@ regions:
   mp_bar: [0, 0, 0, 0]
 
 # สีจุดตัวละครบนมินิแมพ (HSV, OpenCV: H 0-179) - ค่าเริ่มต้นคือสีเหลือง
+# calibrate.py จะให้คลิกที่จุดตัวละคร/หลอด แล้วตั้งค่าสีให้อัตโนมัติ
 player_dot_hsv:
   lower: [20, 120, 180]
   upper: [35, 255, 255]
@@ -60,5 +61,6 @@ movement:
   tolerance_x: 0.02     # ใกล้เป้าหมายแค่ไหนถือว่าถึง
   tolerance_y: 0.04
   timeout: 8.0          # วินาที ถ้าเดินไม่ถึงให้ข้ามจุดนี้
+  flash_jump: false     # true เมื่อได้ Flash Jump แล้ว (Assassin/Hermit/Night Lord)
 
 routine: routines/example.yaml
